@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.1.0",
+        "version": "0.3.5",
     },
     "hotkey": {
         "trigger": "ctrl+space",

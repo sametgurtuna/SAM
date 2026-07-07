@@ -38,7 +38,7 @@ class Recorder(QObject):
         self._sample_rate: int = config.get("audio", "sample_rate", default=16000)
         self._channels: int = config.get("audio", "channels", default=1)
         self._silence_threshold: int = config.get("audio", "silence_threshold", default=500)
-        self._silence_duration_ms: int = config.get("audio", "silence_duration_ms", default=1500)
+        self._silence_duration_ms: int = config.get("audio", "silence_duration_ms", default=800)
         self._max_record_seconds: int = config.get("audio", "max_record_seconds", default=30)
 
         # Chunk size — 100ms of audio per read
@@ -52,14 +52,14 @@ class Recorder(QObject):
         self._recording: bool = False
         self._thread: threading.Thread | None = None
 
-    def start(self) -> None:
+    def start(self, pre_audio: np.ndarray | None = None) -> None:
         """Start recording in a background thread."""
         if self._recording:
             logger.warning("Recorder already active")
             return
 
         self._recording = True
-        self._thread = threading.Thread(target=self._record_loop, daemon=True, name="RecorderThread")
+        self._thread = threading.Thread(target=self._record_loop, args=(pre_audio,), daemon=True, name="RecorderThread")
         self._thread.start()
         logger.info("Recording started (silence threshold=%d, silence duration=%dms)",
                      self._silence_threshold, self._silence_duration_ms)
@@ -72,12 +72,16 @@ class Recorder(QObject):
         self._thread = None
         logger.debug("Recorder force-stopped")
 
-    def _record_loop(self) -> None:
+    def _record_loop(self, pre_audio: np.ndarray | None = None) -> None:
         """Main recording loop — runs in background thread."""
         audio_chunks: list[np.ndarray] = []
+        
+        if pre_audio is not None:
+            audio_chunks.append(pre_audio)
+            
         silent_chunks: int = 0
         total_chunks: int = 0
-        has_speech: bool = False
+        has_speech: bool = pre_audio is not None
 
         try:
             with sd.InputStream(

@@ -7,7 +7,6 @@ import threading
 import time
 
 import numpy as np
-import noisereduce as nr
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -38,7 +37,7 @@ class STTEngine(QObject):
 
         self._model_size: str = config.get("stt", "model", default="base")
         self._language: str | None = config.get("stt", "language", default="en")
-        self._beam_size: int = config.get("stt", "beam_size", default=5)
+        self._beam_size: int = config.get("stt", "beam_size", default=2)
         self._device: str = config.get("stt", "device", default="cpu")
         self._compute_type: str = config.get("stt", "compute_type", default="int8")
 
@@ -105,17 +104,6 @@ class STTEngine(QObject):
         try:
             # faster-whisper expects float32 normalized to [-1.0, 1.0]
             audio_float = audio_data.astype(np.float32).flatten() / 32768.0
-
-            logger.debug("Applying noise reduction...")
-            start_nr = time.time()
-            # Reduce background noise (e.g. wind, laptop fan)
-            audio_float = nr.reduce_noise(
-                y=audio_float,
-                sr=16000,
-                stationary=True,
-                prop_decrease=0.8
-            )
-            logger.debug("Noise reduction finished in %.2fs", time.time() - start_nr)
 
             logger.debug("Transcribing %.1fs of audio...", len(audio_float) / 16000)
             start = time.time()

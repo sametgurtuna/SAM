@@ -46,34 +46,74 @@ class CommandRouter:
     def try_handle(self, transcript: str) -> CommandResult:
         """
         Transcript'i analiz et. Komutsa calistir, degilse handled=False don.
-        
-        Args:
-            transcript: Whisper'dan gelen metin (kucuk harfe cevrilir)
-        
-        Returns:
-            CommandResult(handled=True/False, response="...")
+        Zincirleme komutlari (and/ve) destekler.
         """
         text = transcript.lower().strip()
-
-        # Temizlik — gereksiz kelimeleri kaldir
         text = self._clean_text(text)
 
         logger.debug("Command router input: '%s'", text)
 
-        # Her deseni dene
-        for pattern, handler in self._patterns:
-            match = pattern.search(text)
-            if match:
-                try:
-                    response = handler(match)
-                    logger.info("Command matched: %s → %s", pattern.pattern, response)
-                    return CommandResult(handled=True, response=response)
-                except Exception as e:
-                    logger.error("Command execution failed: %s", e)
-                    return CommandResult(handled=True, response="Sorry, that command failed.")
+        # " and ", " ve ", " then " ile ayir
+        split_pattern = re.compile(r'\s+\band\b\s+|\s+\bve\b\s+|\s+\bthen\b\s+')
+        parts = split_pattern.split(text)
+
+        if len(parts) > 1:
+            # Eger birden fazla parca varsa ve HEPSI komutsa zincirleme calistir.
+            matches = []
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                match_info = self._get_match(part)
+                if not match_info:
+                    matches = None
+                    break
+                matches.append(match_info)
+            
+            if matches:
+                import time
+                # Hepsi komutmus! Sirayla calistir.
+                responses = []
+                for i, (handler, match) in enumerate(matches):
+                    try:
+                        resp = handler(match)
+                        if resp:
+                            responses.append(resp)
+                            
+                        # Zincirdeki komutlar arasinda bekle
+                        if i < len(matches) - 1:
+                            # Eger bir uygulama aciyorsak, yuklenmesi icin ekstra sure tani
+                            if resp and ("Opening" in resp or "Trying to open" in resp):
+                                time.sleep(3.0)
+                            else:
+                                time.sleep(0.5)
+                    except Exception as e:
+                        logger.error("Command in chain failed: %s", e)
+                
+                return CommandResult(handled=True, response=" and ".join(responses))
+
+        # Zincir degilse veya parcalardan biri komut degilse, tek parca olarak dene
+        match_info = self._get_match(text)
+        if match_info:
+            handler, match = match_info
+            try:
+                response = handler(match)
+                logger.info("Command matched: %s → %s", text, response)
+                return CommandResult(handled=True, response=response)
+            except Exception as e:
+                logger.error("Command execution failed: %s", e)
+                return CommandResult(handled=True, response="Sorry, that command failed.")
 
         logger.debug("No command match — forwarding to LLM")
         return CommandResult(handled=False)
+
+    def _get_match(self, text: str):
+        """Metin icin uygun komut desenini bulur."""
+        for pattern, handler in self._patterns:
+            match = pattern.search(text)
+            if match:
+                return (handler, match)
+        return None
 
     def _clean_text(self, text: str) -> str:
         """Gereksiz bosluk ve noktalama temizle."""
