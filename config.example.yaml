@@ -1,0 +1,94 @@
+app:
+  name: SAM
+  version: 0.3.0
+hotkey:
+  trigger: ctrl+space
+ui:
+  bar:
+    width: 800
+    height: 80
+    border_radius: 16
+    margin_bottom: 40
+    opacity: 0.68
+  animation:
+    slide_duration_ms: 350
+    fade_duration_ms: 250
+    text_stream_interval_ms: 45
+  auto_hide:
+    delay_seconds: 4
+  colors:
+    background: rgba(10, 10, 15, 0.92)
+    accent: '#00D4AA'
+    accent_thinking: '#FFB84D'
+    accent_speaking: '#00D4AA'
+    accent_listening: '#00BFFF'
+    text_primary: '#E8E8E8'
+    text_secondary: '#888888'
+    border: rgba(0, 212, 170, 0.15)
+  fonts:
+    primary: Segoe UI
+    monospace: Cascadia Code
+    fallback: Consolas
+    size_transcript: 15
+    size_status: 11
+waveform:
+  bar_count: 35
+  fps: 30
+  min_height: 3
+  max_height: 32
+  bar_width: 3
+  bar_gap: 2
+  color: '#00D4AA'
+mock:
+  listening_duration_ms: 2500
+  thinking_duration_ms: 1200
+  user_transcript: What's the weather like today?
+  assistant_response: It's 24°C and sunny in Istanbul right now. Perfect day to go outside.
+logging:
+  level: DEBUG
+  file: logs/sam.log
+audio:
+  sample_rate: 16000
+  channels: 1
+  dtype: int16
+  silence_threshold: 300
+  silence_duration_ms: 1800
+  max_record_seconds: 30
+wake_word:
+  engine: openwakeword
+  model: hey_jarvis
+  threshold: 0.5
+  chunk_size: 1280
+stt:
+  engine: faster-whisper
+  model: small
+  language: en
+  beam_size: 5
+  device: cpu
+  compute_type: int8
+tts:
+  engine: edge-tts
+  voice: en-US-GuyNeural
+  rate: +0%
+  volume: +0%
+llm:
+  context_window: 5
+  system_prompt: 'You are SAM, a fast and helpful desktop voice assistant. Rules: Give short, direct answers (1-3 sentences)
+    unless asked to elaborate. Be conversational but efficient. No filler, no fluff. Respond naturally as if speaking — your
+    response will be read aloud. If asked to write code, ALWAYS put the code inside markdown code blocks (```language ...
+    ```) and do not explain the code line by line. For everything else, don''t use markdown, bullet points, or formatting
+    — plain spoken text only. If you don''t know something, say so briefly.
+
+    '
+  ollama:
+    base_url: http://localhost:11434
+    model: qwen2.5:3b
+    temperature: 0.7
+    max_tokens: 256
+  claude:
+    model: claude-sonnet-4-20250514
+    max_tokens: 256
+spotify:
+  client_id: ""
+  client_secret: ""
+  redirect_uri: "http://127.0.0.1:8080"

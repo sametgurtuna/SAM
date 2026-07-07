@@ -1,0 +1,17 @@
+# SAM — AI Desktop Assistant
+# Phase 2 Dependencies
+
+PyQt6>=6.6.0
+PyYAML>=6.0
+keyboard>=0.13.5
+openwakeword>=0.6.0
+faster-whisper>=1.0.0
+edge-tts>=6.1.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+pygame>=2.5.0
+noisereduce==3.0.3
+spotipy>=2.23.0
+pycaw>=20230407
+comtypes>=1.2.0
+pyttsx3>=2.90

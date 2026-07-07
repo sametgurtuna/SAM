@@ -1,0 +1,77 @@
+# ═══════════════════════════════════════════════════════════════
+# SAM — .gitignore
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ─── Virtual Environments ────────────────────────────────────
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ─── IDE / Editor ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ─── OS Generated ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ─── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── SAM — Secrets & User Config ─────────────────────────────
+# config.yaml kullaniciya ozel ayarlar ve API anahtarlari icerir
+# Sadece config.example.yaml paylasilir
+config.yaml
+
+# ─── SAM — Cache & Temp ──────────────────────────────────────
+.cache/
+.cache
+.spotipyoauthcache
+.spotipy*
+*.tmp
+*.temp
+sam_tts_*/
+
+# ─── SAM — Model Files (buyuk, indirilen) ────────────────────
+*.tflite
+*.bin
+*.onnx
+*.pt
+*.pth
+
+# ─── Testing ─────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# ─── Distribution & Packaging ────────────────────────────────
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
