@@ -43,7 +43,7 @@ class AppController(QObject):
     """
 
     # Signal emitted from hotkey thread → main Qt thread
-    trigger_signal = pyqtSignal()
+    trigger_signal = pyqtSignal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -141,11 +141,11 @@ class AppController(QObject):
     def _on_hotkey_pressed(self) -> None:
         """Called from hotkey thread — emits signal to Qt main thread."""
         logger.debug("Hotkey pressed")
-        self.trigger_signal.emit()
+        self.trigger_signal.emit(None)
 
     # ─── Activation ───────────────────────────────────────────────
 
-    def _on_trigger(self) -> None:
+    def _on_trigger(self, pre_audio: object = None) -> None:
         """Handle activation trigger (from wake word or hotkey)."""
 
         # Cooldown (SPEAKING) sirasinda yeni komut gelirse:
@@ -156,7 +156,7 @@ class AppController(QObject):
             self._tts.stop()
             self._wake_word.pause()
             play_activation_sound()
-            self._start_listening()
+            self._start_listening(pre_audio)
             return
 
         if self._state != AppState.IDLE:
@@ -174,7 +174,7 @@ class AppController(QObject):
         play_activation_sound()
 
         # Start listening
-        self._start_listening()
+        self._start_listening(pre_audio)
 
     # ─── State Machine ────────────────────────────────────────────
 
@@ -185,14 +185,14 @@ class AppController(QObject):
         self._bar.set_state(new_state)
         logger.debug("State: %s -> %s", old_state, new_state)
 
-    def _start_listening(self) -> None:
+    def _start_listening(self, pre_audio: object = None) -> None:
         """LISTENING — activate bar and start recording from microphone."""
         self._set_state(AppState.LISTENING)
         self._bar.clear_transcript()
         self._bar.activate()
 
         # Start real microphone recording
-        self._recorder.start()
+        self._recorder.start(pre_audio)
 
     def _on_audio_level(self, level: float) -> None:
         """Receive live audio level from recorder for waveform visualization."""

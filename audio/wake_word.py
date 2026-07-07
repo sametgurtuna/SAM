@@ -11,6 +11,7 @@ import numpy as np
 import sounddevice as sd
 
 from PyQt6.QtCore import QObject, pyqtSignal
+import collections
 
 from core.config import config
 
@@ -32,8 +33,8 @@ class WakeWordEngine(QObject):
         engine.stop()
     """
 
-    # Signal emitted when wake word is detected (thread-safe → Qt main thread)
-    detected = pyqtSignal()
+    # Signal emitted when wake word is detected, carries the pre-audio buffer
+    detected = pyqtSignal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -50,6 +51,10 @@ class WakeWordEngine(QObject):
         # Cooldown — prevent rapid re-triggers
         self._last_detection_time: float = 0.0
         self._cooldown_seconds: float = 3.0
+
+        # Ring buffer for pre-audio (approx 1.2 seconds)
+        self._buffer_maxlen = max(10, int((self._sample_rate * 1.2) / self._chunk_size))
+        self._audio_buffer = collections.deque(maxlen=self._buffer_maxlen)
 
     def start(self) -> None:
         """Start the wake word listener in a background thread."""
@@ -81,6 +86,7 @@ class WakeWordEngine(QObject):
     def _listen_loop(self) -> None:
         """Main listening loop — runs in background thread."""
         self._paused = False
+        self._audio_buffer.clear()
 
         # Load model
         try:
@@ -121,6 +127,8 @@ class WakeWordEngine(QObject):
                     if overflowed:
                         logger.debug("Audio buffer overflow in wake word stream")
 
+                    self._audio_buffer.append(audio_data.copy())
+
                     # Feed to model — expects int16 numpy array
                     audio_flat = audio_data.flatten()
                     self._model.predict(audio_flat)
@@ -140,7 +148,9 @@ class WakeWordEngine(QObject):
                                 )
                                 # Reset model to avoid re-triggers
                                 self._model.reset()
-                                self.detected.emit()
+                                
+                                pre_audio = np.concatenate(list(self._audio_buffer), axis=0) if self._audio_buffer else None
+                                self.detected.emit(pre_audio)
 
         except sd.PortAudioError as e:
             logger.error("Microphone error: %s", e)

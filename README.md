@@ -43,6 +43,16 @@
 
 ---
 
+## 🎉 What's New in v0.3.5 (Performance & Fluidity Update)
+
+- **Fluid STT (Continuous Listening):** No need to pause after "Hey Jarvis". Speak naturally and seamlessly; the new ring-buffer architecture captures your entire sentence instantly.
+- **Lightning Fast Transcription:** Removed legacy noise-reduction bottlenecks and optimized silence detection (from 1.5s to 0.8s) for near-instant command recognition.
+- **Command Chaining (`and` / `ve`):** You can now chain multiple system commands together! Example: *"open spotify and play"* or *"volume up and play"*.
+- **Smart Execution Delay:** When chaining commands, SAM intelligently waits for launched applications (like Spotify) to fully open before sending subsequent keypresses.
+- **Audio Control Fix:** Resolved a critical bug with the `pycaw` audio endpoint interface for absolute volume control.
+
+---
+
 ## 🌟 Philosophy & Vision
 
 In an era where voice assistants listen constantly to harvest data, sell advertisements, and train proprietary cloud models, **SAM was built with a radical premise: What if your AI lived entirely on your hardware?**

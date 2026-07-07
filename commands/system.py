@@ -211,14 +211,10 @@ def set_volume_absolute(percentage: int) -> str:
         pass
 
     try:
-        from ctypes import cast, POINTER
-        from comtypes import CLSCTX_ALL
-        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        from pycaw.pycaw import AudioUtilities
 
         devices = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(
-            IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        volume = devices.EndpointVolume
         
         # SetMasterVolumeLevelScalar takes a float between 0.0 and 1.0
         volume.SetMasterVolumeLevelScalar(percentage / 100.0, None)
