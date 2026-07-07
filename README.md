@@ -150,8 +150,8 @@ SAM is designed for power users who demand an autonomous desktop assistant that 
 | OS | Status | Notes |
 |:---|:---|:---|
 | **Windows 10/11** | ✅ Primary | Native virtual keycodes, taskkill commands, process handlers |
-| **Linux** | ✅ Supported | Requires `portaudio19-dev`; X11 or Wayland-Xwayland compositor |
-| **macOS** | ✅ Supported | Requires system accessibility permissions for keyboard shortcuts |
+| **Linux** |  🔜 Coming Soon  | Requires `portaudio19-dev`; X11 or Wayland-Xwayland compositor |
+| **macOS** |  ❓ Unclear  | Requires system accessibility permissions for keyboard shortcuts |
 
 ### Python Environment
 
