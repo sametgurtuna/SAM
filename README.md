@@ -165,7 +165,7 @@ SAM is designed for power users who demand an autonomous desktop assistant that 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/SAM.git
+git clone https://github.com/sametgurtuna/SAM.git
 cd SAM
 ```
 
