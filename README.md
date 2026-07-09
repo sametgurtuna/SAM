@@ -2,7 +2,7 @@
 
 <img src="assets/sam-logo.png" alt="SAM Logo" width="120" />
 
-# SAM — Smart Assistant Module
+# SAM Smart Assistant Module
 
 ### The Local, Privacy-First, Zero-Latency Desktop Voice Companion
 
@@ -12,7 +12,7 @@
 [![UI: PyQt6](https://img.shields.io/badge/UI-PyQt6-41cd52.svg?style=for-the-badge&logo=qt)](https://www.riverbankcomputing.com/software/pyqt/)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6.svg?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
 
-> Your data is yours alone. SAM brings the power of modern Large Language Models and Voice Recognition directly to your desktop — with **zero cloud dependencies**, **zero telemetry**, and **zero latency constraints**. Fully offline, highly performant, and deeply integrated into your operating system.
+> Your data is yours alone. SAM brings the power of modern Large Language Models and Voice Recognition directly to your desktopwith **zero cloud dependencies**, **zero telemetry**, and **zero latency constraints**. Fully offline, highly performant, and deeply integrated into your operating system.
 
 ---
 
@@ -83,7 +83,7 @@ SAM is designed for power users who demand an autonomous desktop assistant that 
 |:---|:---|
 | Zero Cloud Leakage | No telemetry, no usage analytics, no remote data transfers |
 | Offline TTS / STT | Audio processing, wake-word validation, noise removal, and transcription happen entirely on local CPU/GPU buffers |
-| Local Context Database | Conversational memories are kept in volatile local RAM deques — no persistent cloud tracking |
+| Local Context Database | Conversational memories are kept in volatile local RAM dequesno persistent cloud tracking |
 
 ### 🎙️ Advanced Audio DSP Pipeline
 
@@ -95,26 +95,26 @@ SAM is designed for power users who demand an autonomous desktop assistant that 
 
 ### ⚡ High-Performance Whisper Engine (STT)
 
-- **CTranslate2 Optimization** — Uses `faster-whisper` with `int8` quantization, reducing model sizes by **4×** and increasing transcription speeds up to **400%** compared to standard PyTorch wrappers.
-- **Accent & Dialect Biasing** — Custom `initial_prompt` seeding inside the decoding loop biases the transformer toward command vocabularies, eliminating phonetic errors from non-native accents.
+- **CTranslate2 Optimization** Uses `faster-whisper` with `int8` quantization, reducing model sizes by **4×** and increasing transcription speeds up to **400%** compared to standard PyTorch wrappers.
+- **Accent & Dialect Biasing** Custom `initial_prompt` seeding inside the decoding loop biases the transformer toward command vocabularies, eliminating phonetic errors from non-native accents.
 
 ### 💻 Instant OS Command Routing
 
-- **Direct Subprocess / API Hooks** — For core intents (launching software, volume control, media playback, system lock), the Command Router triggers Windows API Virtual Key Codes, `ctypes`, or system process managers within **3–10 ms**.
-- **Zero LLM Token Costs** — Bypassing the local LLM for simple actions saves battery, CPU cycles, and VRAM.
+- **Direct Subprocess / API Hooks** For core intents (launching software, volume control, media playback, system lock), the Command Router triggers Windows API Virtual Key Codes, `ctypes`, or system process managers within **3–10 ms**.
+- **Zero LLM Token Costs** Bypassing the local LLM for simple actions saves battery, CPU cycles, and VRAM.
 
 ### 🧠 Dynamic Conversational LLM Engine
 
-- **Ollama Integration** — Natively interfaces with Ollama's local HTTP endpoints, supporting models such as `qwen2.5:3b`, `llama3.2:3b`, `gemma2:2b`, and larger parameter networks.
-- **Conversational Memory** — A rolling conversational history preserves context for multi-turn dialogues.
-- **API Fallbacks** — Optionally configures fallback modules to connect to Claude (Anthropic) or GPT (OpenAI) for external reasoning.
+- **Ollama Integration** Natively interfaces with Ollama's local HTTP endpoints, supporting models such as `qwen2.5:3b`, `llama3.2:3b`, `gemma2:2b`, and larger parameter networks.
+- **Conversational Memory** A rolling conversational history preserves context for multi-turn dialogues.
+- **API Fallbacks** Optionally configures fallback modules to connect to Claude (Anthropic) or GPT (OpenAI) for external reasoning.
 
 ### 🎨 Modern, Fluid Overlay & Settings UI
 
-- **PyQt6 Overlay** — Frameless, click-through-capable floating window anchored to the lower desktop margin.
-- **Dynamic Waveform Visualizer** — High-framerate sinusoidal and block audio waves mapping microphone amplitude to visual states.
-- **System Tray** — Right-click for quick toggles (Mute, Clear Context); double-click to open the Settings Dashboard.
-- **Settings Interface** — Sleek, dark-themed sidebar UI to configure hotkeys, LLM parameters, Spotify API keys, and UI aesthetics — no `.yaml` editing required.
+- **PyQt6 Overlay**Frameless, click-through-capable floating window anchored to the lower desktop margin.
+- **Dynamic Waveform Visualizer**High-framerate sinusoidal and block audio waves mapping microphone amplitude to visual states.
+- **System Tray**Right-click for quick toggles (Mute, Clear Context); double-click to open the Settings Dashboard.
+- **Settings Interface**Sleek, dark-themed sidebar UI to configure hotkeys, LLM parameters, Spotify API keys, and UI aestheticsno `.yaml` editing required.
 
 ---
 
@@ -122,12 +122,12 @@ SAM is designed for power users who demand an autonomous desktop assistant that 
 
 | Metric | SAM (100% Local) | Commercial Assistants | Cloud LLM APIs |
 |:---|:---|:---|:---|
-| **Privacy** | Absolute — zero external data transfer | Poor — continuous voice harvesting | Moderate — subject to API data policies |
-| **System Integration** | Deep — controls registry, tasks, & local APIs | None — limited to smart-home ecosystems | None — restricted to sandbox environments |
+| **Privacy** | Absolutezero external data transfer | Poorcontinuous voice harvesting | Moderatesubject to API data policies |
+| **System Integration** | Deepcontrols registry, tasks, & local APIs | Nonelimited to smart-home ecosystems | Nonerestricted to sandbox environments |
 | **Command Latency** | **3–10 ms** (instant local routing) | 1500–3000 ms (cloud roundtrip) | 1000–2000 ms (API request overhead) |
-| **Cost** | Free forever — zero token fees | Indirect — proprietary hardware lock-in | Pay-per-token — accumulates fast |
+| **Cost** | Free foreverzero token fees | Indirectproprietary hardware lock-in | Pay-per-tokenaccumulates fast |
 | **Offline Support** | ✅ Fully operational without internet | ❌ Fails without network | ❌ Fails without network |
-| **Customizability** | Total — open-source modular Python | Locked — no backend access | Limited — restricted to model prompts |
+| **Customizability** | Totalopen-source modular Python | Lockedno backend access | Limitedrestricted to model prompts |
 
 ---
 
@@ -158,8 +158,8 @@ SAM is designed for power users who demand an autonomous desktop assistant that 
 | OS | Status | Notes |
 |:---|:---|:---|
 | **Windows 10/11** | ✅ Primary | Native virtual keycodes, taskkill commands, process handlers |
-| **Linux** | ✅ Supported | Requires `portaudio19-dev`; X11 or Wayland-Xwayland compositor |
-| **macOS** | ✅ Supported | Requires system accessibility permissions for keyboard shortcuts |
+| **Linux** |🔜 Coming Soon| Requires `portaudio19-dev`; X11 or Wayland-Xwayland compositor |
+| **macOS** |❓ Unclear| Requires system accessibility permissions for keyboard shortcuts |
 
 ### Python Environment
 
@@ -257,7 +257,7 @@ Startup → Load config.yaml → Discover Audio Devices → Lazy-load Models →
 
 ## ⌨️ Comprehensive Command Reference
 
-If SAM's transcription matches any of the patterns below, it intercepts the instruction and executes it locally — bypassing the LLM entirely.
+If SAM's transcription matches any of the patterns below, it intercepts the instruction and executes it locallybypassing the LLM entirely.
 
 ### 🖥️ App Control
 
@@ -305,64 +305,64 @@ All settings are exposed through `config.yaml` in the project root. Below is a f
 
 ```yaml
 # ═══════════════════════════════════════════════════════════════════
-# SAM — Core Configuration
+# SAMCore Configuration
 # ═══════════════════════════════════════════════════════════════════
 
 app:
-  name: "SAM"
-  version: "0.3.6"
-  debug: false                    # Enable raw audio energy and model logs to stdout
+name: "SAM"
+version: "0.3.6"
+debug: false# Enable raw audio energy and model logs to stdout
 
 hotkey:
-  trigger: "ctrl+space"           # Global shortcut to activate listening
+trigger: "ctrl+space" # Global shortcut to activate listening
 
 # ── Audio Pipeline ───────────────────────────────────────────────
 audio:
-  sample_rate: 16000              # Required by Whisper / openwakeword (16 kHz)
-  channels: 1                     # Mono — mandatory for DSP models
-  chunk_size: 1024                # Buffer block size (lower = less latency, more CPU)
-  silence_threshold: 350          # RMS threshold — below this is considered silence
-  silence_duration_ms: 1800       # ms of silence before auto-transcription triggers
-  max_record_seconds: 30          # Hard cutoff to prevent memory bloat
-  noise_reduction:
-    enabled: true                 # Spectral noise subtraction via noisereduce
-    prop_decrease: 0.8            # Noise reduction ratio (0.0–1.0)
-    n_fft: 512                    # FFT block size for noise profiling
+sample_rate: 16000# Required by Whisper / openwakeword (16 kHz)
+channels: 1 # Monomandatory for DSP models
+chunk_size: 1024# Buffer block size (lower = less latency, more CPU)
+silence_threshold: 350# RMS thresholdbelow this is considered silence
+silence_duration_ms: 1800 # ms of silence before auto-transcription triggers
+max_record_seconds: 30# Hard cutoff to prevent memory bloat
+noise_reduction:
+enabled: true # Spectral noise subtraction via noisereduce
+prop_decrease: 0.8# Noise reduction ratio (0.0–1.0)
+n_fft: 512# FFT block size for noise profiling
 
 # ── Wake Word ────────────────────────────────────────────────────
 wake_word:
-  model: "assets/models/hey_sam.onnx" # Wake-word model (.onnx / .tflite, cached locally)
-  threshold: 0.5                  # Confidence limit (lower for easier activation)
-  check_interval_ms: 100          # Inference interval (smaller = faster, more CPU)
+model: "assets/models/hey_sam.onnx"# Wake-word model (.onnx / .tflite, cached locally)
+threshold: 0.5# Confidence limit (lower for easier activation)
+check_interval_ms: 100# Inference interval (smaller = faster, more CPU)
 
 # ── Speech-to-Text ───────────────────────────────────────────────
 stt:
-  model: "small"                  # Options: tiny, base, small, medium, large-v3
-  device: "cpu"                   # Compute device: cpu, cuda, or auto
-  compute_type: "int8"            # Quantization: int8 (CPU), float16 (CUDA)
-  language: "en"                  # ISO 639-1 code — prevents hallucinations
-  beam_size: 5                    # Beam search width (higher = better quality, slower)
-  initial_prompt: >-              # Decoder bias toward OS commands
-    open spotify, close, volume up, volume down,
-    mute, lock screen, shutdown, search for
+model: "small"# Options: tiny, base, small, medium, large-v3
+device: "cpu" # Compute device: cpu, cuda, or auto
+compute_type: "int8"# Quantization: int8 (CPU), float16 (CUDA)
+language: "en"# ISO 639-1 codeprevents hallucinations
+beam_size: 5# Beam search width (higher = better quality, slower)
+initial_prompt: >-# Decoder bias toward OS commands
+open spotify, close, volume up, volume down,
+mute, lock screen, shutdown, search for
 
 # ── LLM Engine ───────────────────────────────────────────────────
 llm:
-  engine: "ollama"                # Primary: ollama | anthropic | openai
-  context_window: 5               # Rolling memory — previous message cycles
-  system_prompt: >-
-    You are SAM, a fast, concise, and helpful desktop voice assistant.
-    The user is speaking to you. Respond directly in a conversational,
-    friendly manner. Keep your answers short, clear, and action-oriented.
-    Do not write markdown formatting in your response.
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "qwen2.5:3b"           # Model pulled via `ollama pull`
-    temperature: 0.7              # 0.0 (factual) → 1.0 (creative)
-    max_tokens: 200               # Token cap for concise replies
-  fallback:
-    anthropic_key: ""             # Optional cloud fallback
-    openai_key: ""                # Optional cloud fallback
+engine: "ollama"# Primary: ollama | anthropic | openai
+context_window: 5 # Rolling memoryprevious message cycles
+system_prompt: >-
+You are SAM, a fast, concise, and helpful desktop voice assistant.
+The user is speaking to you. Respond directly in a conversational,
+friendly manner. Keep your answers short, clear, and action-oriented.
+Do not write markdown formatting in your response.
+ollama:
+base_url: "http://localhost:11434"
+model: "qwen2.5:3b" # Model pulled via `ollama pull`
+temperature: 0.7# 0.0 (factual) → 1.0 (creative)
+max_tokens: 200 # Token cap for concise replies
+fallback:
+anthropic_key: "" # Optional cloud fallback
+openai_key: ""# Optional cloud fallback
 ```
 
 ---
@@ -371,19 +371,19 @@ llm:
 
 SAM's modular architecture makes it straightforward to add new OS capabilities or custom macro routines.
 
-### Step 1 — Define Intent Patterns
+### Step 1Define Intent Patterns
 
 Add regex patterns in the Command Router module:
 
 ```python
 # Türkçe / İngilizce VS Code açma intent'i
 VSCODE_PATTERNS = [
-    r"\bopen (vscode|vs code|code)\b",
-    r"\b(vscode|kod) aç\b"
+r"\bopen (vscode|vs code|code)\b",
+r"\b(vscode|kod) aç\b"
 ]
 ```
 
-### Step 2 — Implement the Handler
+### Step 2Implement the Handler
 
 Create a function in the `commands/` directory (e.g., `commands/vscode_control.py`):
 
@@ -392,32 +392,32 @@ import subprocess
 import os
 
 def launch_vscode_at_project(project_path=None):
-    """
-    VS Code'u başlatır. Opsiyonel olarak bir proje dizini açar.
-    """
-    # Proje dizinini doğrula ve VS Code'u başlat
-    try:
-        command = ["code"]
-        if project_path and os.path.exists(project_path):
-            command.append(project_path)
+"""
+VS Code'u başlatır. Opsiyonel olarak bir proje dizini açar.
+"""
+# Proje dizinini doğrula ve VS Code'u başlat
+try:
+command = ["code"]
+if project_path and os.path.exists(project_path):
+command.append(project_path)
 
-        # UI kilitlenmesini önlemek için subprocess.Popen kullanıyoruz
-        subprocess.Popen(command, shell=True)
-        return "Visual Studio Code başarıyla başlatıldı."
-    except Exception as e:
-        return f"VS Code başlatılırken hata oluştu: {str(e)}"
+# UI kilitlenmesini önlemek için subprocess.Popen kullanıyoruz
+subprocess.Popen(command, shell=True)
+return "Visual Studio Code başarıyla başlatıldı."
+except Exception as e:
+return f"VS Code başlatılırken hata oluştu: {str(e)}"
 ```
 
-### Step 3 — Register in the Router
+### Step 3Register in the Router
 
 Inside the main command router execution loop:
 
 ```python
 for pattern in VSCODE_PATTERNS:
-    if re.search(pattern, transcript_lowercase):
-        # Varsayılan çalışma dizinini aç veya sadece VS Code başlat
-        response = launch_vscode_at_project("C:\\Users\\samet\\Desktop\\SAM")
-        return True, response
+if re.search(pattern, transcript_lowercase):
+# Varsayılan çalışma dizinini aç veya sadece VS Code başlat
+response = launch_vscode_at_project("C:\\Users\\samet\\Desktop\\SAM")
+return True, response
 ```
 
 ---
@@ -439,32 +439,32 @@ for pattern in VSCODE_PATTERNS:
 
 ```
 SAM/
-├── assets/                       # Icons, sound chimes, static visual elements
-├── audio/                        # Audio pipeline core
-│   ├── wake_word.py              #   openwakeword detection thread (TFLite)
-│   └── recorder.py               #   Voice Activity Detector (VAD) & recording
-├── commands/                     # Direct OS command triggers
-│   ├── system.py                 #   Windows user32, shell keycodes, power mgmt
-│   └── router.py                 #   Regex-based intent routing
-├── core/                         # Core application logic
-│   ├── app.py                    #   AppController — central state machine
-│   ├── stt.py                    #   Speech-to-Text engine
-│   └── code_parser.py            #   LLM code block extractor
-├── docs/                         # Developer documentation
-│   └── ARCHITECTURE.md           #   Threading, design patterns, class reference
-├── llm/                          # Generative LLM interfaces
-│   ├── ollama_client.py          #   Local Ollama stream handler
-│   └── cloud_fallbacks.py        #   Anthropic / OpenAI backup
-├── logs/                         # Local diagnostic logs
-├── ui/                           # Graphical interface
-│   ├── floating_bar.py           #   PyQt6 frameless overlay bar
-│   └── waveform.py               #   Audio level visualizer widget
-├── config.yaml                   # Master configuration
-├── main.py                       # Application entry point
-├── requirements.txt              # Python dependencies
-├── setup.md                      # Detailed setup guide
-├── ROADMAP.md                    # Development roadmap
-└── README.md                     # ← You are here
+├── assets/ # Icons, sound chimes, static visual elements
+├── audio/# Audio pipeline core
+│ ├── wake_word.py# openwakeword detection thread (TFLite)
+│ └── recorder.py # Voice Activity Detector (VAD) & recording
+├── commands/ # Direct OS command triggers
+│ ├── system.py # Windows user32, shell keycodes, power mgmt
+│ └── router.py # Regex-based intent routing
+├── core/ # Core application logic
+│ ├── app.py# AppControllercentral state machine
+│ ├── stt.py# Speech-to-Text engine
+│ └── code_parser.py# LLM code block extractor
+├── docs/ # Developer documentation
+│ └── ARCHITECTURE.md # Threading, design patterns, class reference
+├── llm/# Generative LLM interfaces
+│ ├── ollama_client.py# Local Ollama stream handler
+│ └── cloud_fallbacks.py# Anthropic / OpenAI backup
+├── logs/ # Local diagnostic logs
+├── ui/ # Graphical interface
+│ ├── floating_bar.py # PyQt6 frameless overlay bar
+│ └── waveform.py # Audio level visualizer widget
+├── config.yaml # Master configuration
+├── main.py # Application entry point
+├── requirements.txt# Python dependencies
+├── setup.md# Detailed setup guide
+├── ROADMAP.md# Development roadmap
+└── README.md # ← You are here
 ```
 
 ---
@@ -477,11 +477,11 @@ SAM is under active development. See the full [Roadmap](ROADMAP.md) for detailed
 
 | Milestone | Focus |
 |:---|:---|
-| **v0.4.0** | Visual & Workspace Intelligence — screen awareness, clipboard integration |
-| **v0.5.0** | Desktop Productivity Suite — scheduling, calendar, meeting summarizer |
-| **v0.6.0** | Local Knowledge Base & RAG — vector DB, document indexing |
-| **v0.7.0** | Customization & Ecosystem — dynamic plugins, custom wake words, multi-platform |
-| **v1.0.0** | Production Release — native installers, offline TTS, auto-updater |
+| **v0.4.0** | Visual & Workspace Intelligencescreen awareness, clipboard integration |
+| **v0.5.0** | Desktop Productivity Suitescheduling, calendar, meeting summarizer |
+| **v0.6.0** | Local Knowledge Base & RAGvector DB, document indexing |
+| **v0.7.0** | Customization & Ecosystemdynamic plugins, custom wake words, multi-platform |
+| **v1.0.0** | Production Releasenative installers, offline TTS, auto-updater |
 
 ---
 
@@ -489,9 +489,9 @@ SAM is under active development. See the full [Roadmap](ROADMAP.md) for detailed
 
 SAM is built for users who prioritize privacy. The codebase maintains the following standards:
 
-1. **No External Networking** — SAM does not connect to the internet unless configured for third-party fallback APIs (OpenAI, Anthropic). With local models, your network interface can be disabled and SAM remains fully operational.
-2. **Local Audio Buffering** — Voice recordings are processed in-memory as NumPy arrays. They are cleared immediately after transcription and **never saved to disk**.
-3. **Open-Source Auditing** — All subprocess calls, shell executions, and API requests are written in clear Python code. We encourage independent security audits.
+1. **No External Networking**SAM does not connect to the internet unless configured for third-party fallback APIs (OpenAI, Anthropic). With local models, your network interface can be disabled and SAM remains fully operational.
+2. **Local Audio Buffering**Voice recordings are processed in-memory as NumPy arrays. They are cleared immediately after transcription and **never saved to disk**.
+3. **Open-Source Auditing**All subprocess calls, shell executions, and API requests are written in clear Python code. We encourage independent security audits.
 
 ---
 
