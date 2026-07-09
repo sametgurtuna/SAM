@@ -129,9 +129,9 @@ Konsolda aşağıdaki çıktıyı göreceksiniz:
 
 ```
   ╔════════════════════════════════════════════╗
-  ║   SAM — AI Desktop Assistant  v0.3.0      ║
+  ║   SAM — AI Desktop Assistant  v0.3.6      ║
   ║                                            ║
-  ║   Say 'Hey Jarvis'   to activate (voice)   ║
+  ║   Say 'Hey Sam'      to activate (voice)   ║
   ║   Press CTRL+SPACE   to activate (key)     ║
   ║   Press ESC           to dismiss            ║
   ║   Press CTRL+C        to quit               ║
@@ -220,7 +220,7 @@ llm:
     max_tokens: 256                 # Maksimum yanıt uzunluğu
 
 wake_word:
-  model: "hey_jarvis"               # Wake word modeli
+  model: "assets/models/hey_sam.onnx" # Wake word modeli
   threshold: 0.5                    # Algılama hassasiyeti
 
 stt:

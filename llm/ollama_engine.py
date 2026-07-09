@@ -114,8 +114,14 @@ class OllamaEngine(LLMEngine):
         full_response = ""
 
         try:
+            has_images = any("images" in m for m in messages)
+            target_model = config.get("llm", "ollama", "vision_model", default="llava") if has_images else self._model
+
+            if has_images:
+                logger.info("Vision request detected, switching to vision model: %s", target_model)
+
             payload = {
-                "model": self._model,
+                "model": target_model,
                 "messages": messages,
                 "stream": True,
                 "options": {

@@ -39,7 +39,7 @@ class WakeWordEngine(QObject):
     def __init__(self) -> None:
         super().__init__()
 
-        self._model_name: str = config.get("wake_word", "model", default="hey_jarvis")
+        self._model_name: str = config.get("wake_word", "model", default="assets/models/hey_sam.onnx")
         self._threshold: float = config.get("wake_word", "threshold", default=0.5)
         self._chunk_size: int = config.get("wake_word", "chunk_size", default=1280)
         self._sample_rate: int = config.get("audio", "sample_rate", default=16000)

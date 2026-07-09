@@ -242,16 +242,16 @@ class AppController(QObject):
             return
 
         # 2. Sistem komutu degilse, LLM'e yonlendir
-        # Brief pause to show the transcript before generating response
-        QTimer.singleShot(400, self._generate_response)
+        # Pass image_b64 if available
+        QTimer.singleShot(400, lambda: self._generate_response(cmd_result.image_b64))
 
-    def _generate_response(self) -> None:
+    def _generate_response(self, image_b64: str | None = None) -> None:
         """Send transcript to LLM and stream the response."""
         self._bar.set_transcript("Thinking...")
         self._llm_response_text = ""
 
         # Send to LLM router (auto-detects Ollama or Claude)
-        self._llm.generate(self._last_transcript)
+        self._llm.generate(self._last_transcript, image_b64=image_b64)
 
     # ─── LLM Streaming ────────────────────────────────────────────
 

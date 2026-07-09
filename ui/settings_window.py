@@ -6,7 +6,7 @@ import logging
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QListWidget, QStackedWidget,
     QLabel, QLineEdit, QComboBox, QSlider, QSpinBox, QPushButton,
-    QGroupBox, QDoubleSpinBox, QMessageBox, QWidget
+    QGroupBox, QDoubleSpinBox, QMessageBox, QWidget, QFileDialog
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -243,13 +243,22 @@ class SettingsWindow(QDialog):
         form.addRow("Hotkey:", self._hotkey_input)
 
         self._wake_model_combo = QComboBox()
-        wake_models = ["hey_jarvis", "alexa", "hey_mycroft", "ok_google"]
+        wake_models = ["assets/models/hey_sam.onnx", "hey_jarvis", "alexa", "hey_mycroft", "ok_google"]
+        current_wake = config.get("wake_word", "model", default="assets/models/hey_sam.onnx")
+        if current_wake not in wake_models:
+            wake_models.append(current_wake)
         self._wake_model_combo.addItems(wake_models)
-        current_wake = config.get("wake_word", "model", default="hey_jarvis")
         idx = self._wake_model_combo.findText(current_wake)
         if idx >= 0:
             self._wake_model_combo.setCurrentIndex(idx)
-        form.addRow("Wake Word:", self._wake_model_combo)
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(self._browse_custom_wake_model)
+        
+        wake_layout = QHBoxLayout()
+        wake_layout.addWidget(self._wake_model_combo, 1)
+        wake_layout.addWidget(browse_btn)
+        form.addRow("Wake Word:", wake_layout)
 
         self._wake_threshold = QDoubleSpinBox()
         self._wake_threshold.setRange(0.1, 1.0)
@@ -475,7 +484,7 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(tab)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        version = config.get("app", "version", default="0.3.0")
+        version = config.get("app", "version", default="0.3.6")
 
         about_text = QLabel(
             f"<div style='text-align:center; padding: 20px;'>"
@@ -549,4 +558,32 @@ class SettingsWindow(QDialog):
 
         except Exception as e:
             logger.error("Failed to save settings: %s", e)
-            QMessageBox.critical(self, "Error", f"Error saving settings:\\n{e}")
+            QMessageBox.critical(self, "Error", f"Error saving settings:\n{e}")
+
+    def _browse_custom_wake_model(self):
+        """Browse for custom openwakeword model file."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Custom Wake Word Model",
+            "",
+            "Wake Word Models (*.onnx *.tflite);;All Files (*)"
+        )
+        if file_path:
+            import os
+            try:
+                # Get path relative to the application workspace if possible
+                rel_path = os.path.relpath(file_path, os.getcwd())
+                if not rel_path.startswith(".."):
+                    file_path = rel_path
+            except ValueError:
+                pass
+            
+            # Normalize path separators for cross-platform stability
+            file_path = file_path.replace("\\", "/")
+            
+            # Add file path to combo box if not present, and select it
+            idx = self._wake_model_combo.findText(file_path)
+            if idx < 0:
+                self._wake_model_combo.addItem(file_path)
+                idx = self._wake_model_combo.count() - 1
+            self._wake_model_combo.setCurrentIndex(idx)

@@ -72,12 +72,16 @@ def main() -> None:
 
     hotkey = config.get("hotkey", "trigger", default="ctrl+space")
     wake_word = config.get("wake_word", "model", default="hey_jarvis")
+    # Format wake word name for display
+    wake_display = os.path.basename(wake_word).replace(".onnx", "").replace(".tflite", "").replace("_", " ").title()
+    wake_msg = f"Say '{wake_display}' to activate (voice)"
+
     llm_engine = controller._llm.active_engine_name
     logger.info("SAM is ready. LLM: %s", llm_engine)
     print(f"\n  +--------------------------------------------+")
     print(f"  |   SAM - AI Desktop Assistant  v0.3.0       |")
     print(f"  |                                            |")
-    print(f"  |   Say 'Hey Jarvis'   to activate (voice)   |")
+    print(f"  |   {wake_msg:<40s} |")
     print(f"  |   Press {hotkey.upper():<12s} to activate (key)     |")
     print(f"  |   Press ESC           to dismiss            |")
     print(f"  |   Press CTRL+C        to quit               |")

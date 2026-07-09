@@ -43,6 +43,14 @@
 
 ---
 
+## 🎉 What's New in v0.3.6 (Custom Wake Word & Brand Update)
+
+- **Official Wake Word Model Change:** SAM now uses its own custom wake-word model (**"Hey Sam"**) out of the box! We transitioned from the default "Hey Jarvis" model to a custom-trained `hey_sam.onnx` model, located under `assets/models/hey_sam.onnx`.
+- **Custom Wake Word File Browser:** Added a **"Browse..."** button next to the Wake Word selection in the Settings Window. You can now select any custom-trained openWakeWord `.onnx` or `.tflite` model directly from the UI.
+- **Dynamic Terminal Displays:** Terminal activation instructions and GUI version logs now automatically format the wake word name and version number dynamically based on your config.
+
+---
+
 ## 🎉 What's New in v0.3.5 (Performance & Fluidity Update)
 
 - **Fluid STT (Continuous Listening):** No need to pause after "Hey Jarvis". Speak naturally and seamlessly; the new ring-buffer architecture captures your entire sentence instantly.
@@ -232,7 +240,7 @@ Startup → Load config.yaml → Discover Audio Devices → Lazy-load Models →
 
 | Method | How |
 |:---|:---|
-| 🎤 **Voice** | Say **"Hey Jarvis"** clearly. The wake word thread registers the phonetic pattern and activates the system. |
+| 🎤 **Voice** | Say **"Hey Sam"** (or your custom wake word) clearly. The wake word thread registers the phonetic pattern and activates the system. |
 | ⌨️ **Keyboard** | Press **`Ctrl + Space`** globally (from any window) to bypass wake-word detection and open the mic buffer immediately. |
 
 ### UI States
@@ -302,7 +310,7 @@ All settings are exposed through `config.yaml` in the project root. Below is a f
 
 app:
   name: "SAM"
-  version: "0.3.5"
+  version: "0.3.6"
   debug: false                    # Enable raw audio energy and model logs to stdout
 
 hotkey:
@@ -323,7 +331,7 @@ audio:
 
 # ── Wake Word ────────────────────────────────────────────────────
 wake_word:
-  model: "hey_jarvis"             # Wake-word model (.tflite, cached locally)
+  model: "assets/models/hey_sam.onnx" # Wake-word model (.onnx / .tflite, cached locally)
   threshold: 0.5                  # Confidence limit (lower for easier activation)
   check_interval_ms: 100          # Inference interval (smaller = faster, more CPU)
 

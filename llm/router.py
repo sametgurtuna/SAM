@@ -98,7 +98,7 @@ class LLMRouter(QObject):
         logger.info("LLM engine active: %s", engine.engine_name)
         self.engine_status.emit(engine.engine_name)
 
-    def generate(self, user_message: str) -> None:
+    def generate(self, user_message: str, image_b64: str | None = None) -> None:
         """
         Generate a response to the user's message.
         
@@ -107,6 +107,7 @@ class LLMRouter(QObject):
         
         Args:
             user_message: The user's transcribed speech.
+            image_b64: Optional base64 encoded image for vision requests.
         """
         # If no engine, try re-detecting (maybe Ollama was started)
         if self._active_engine is None or not self._active_engine.is_available():
@@ -118,12 +119,19 @@ class LLMRouter(QObject):
             self.generation_error.emit(error)
             return
 
-        # Add user message to history
+        # Add user message to history (without the image to save RAM)
         self._history.append({"role": "user", "content": user_message})
 
         # Build full message list
         messages = [{"role": "system", "content": self._system_prompt}]
-        messages.extend(list(self._history))
+        
+        # Deep copy the history to avoid modifying the deque items
+        for h in self._history:
+            messages.append(dict(h))
+
+        # Attach image to the latest message if provided
+        if image_b64:
+            messages[-1]["images"] = [image_b64]
 
         logger.debug("Generating response via %s (context: %d messages)",
                       self._active_engine.engine_name, len(self._history))

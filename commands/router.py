@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 class CommandResult:
     """Komut calistirma sonucu."""
 
-    def __init__(self, handled: bool, response: str = "") -> None:
+    def __init__(self, handled: bool, response: str = "", image_b64: str | None = None) -> None:
         self.handled = handled   # True = komut bulundu ve calistirildi
         self.response = response # Kullaniciya gosterilecek mesaj
+        self.image_b64 = image_b64 # Vision LLM icin ekran goruntusu
 
 
 class CommandRouter:
@@ -42,6 +43,7 @@ class CommandRouter:
         # Komut desenleri — (regex_pattern, handler_function)
         # Sirasi onemli: ilk eslesen kazanir
         self._patterns: List[Tuple[re.Pattern, Callable[[re.Match], str]]] = self._build_patterns()
+        self._vision_patterns: List[re.Pattern] = self._build_vision_patterns()
 
     def try_handle(self, transcript: str) -> CommandResult:
         """
@@ -52,6 +54,15 @@ class CommandRouter:
         text = self._clean_text(text)
 
         logger.debug("Command router input: '%s'", text)
+
+        # Vision pattern kontrolu - eger eslesirse ekrani yakala ve LLM'e gonder
+        for v_pat in self._vision_patterns:
+            if v_pat.search(text):
+                from commands.vision import capture_screen_base64
+                logger.info("Vision intent matched: %s", text)
+                b64 = capture_screen_base64()
+                # Handled=False cunku LLM hala metni islemeli, ancak resim eklendi
+                return CommandResult(handled=False, image_b64=b64)
 
         # " and ", " ve ", " then " ile ayir
         split_pattern = re.compile(r'\s+\band\b\s+|\s+\bve\b\s+|\s+\bthen\b\s+')
@@ -260,3 +271,12 @@ class CommandRouter:
         ))
 
         return patterns
+
+    def _build_vision_patterns(self) -> List[re.Pattern]:
+        """Ekran analizi niyetlerini tespit etmek icin desenler."""
+        return [
+            re.compile(r'\b(?:analyze|look at|read|describe)\s+(?:my\s+)?(?:screen|desktop|display)\b', re.IGNORECASE),
+            re.compile(r'\bwhat(?:\'s| is)\s+on\s+my\s+screen\b', re.IGNORECASE),
+            re.compile(r'\bekran(?:imi|i)?\s+(?:analiz|incele|oku)\b', re.IGNORECASE),
+            re.compile(r'\bekran(?:im)?da\s+ne\s+var\b', re.IGNORECASE),
+        ]

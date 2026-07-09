@@ -4,7 +4,7 @@
 
 **Development roadmap for SAM (Smart Assistant Module)**
 
-[![Current Version](https://img.shields.io/badge/Current-v0.3.0-22c55e?style=flat-square)](#v030--local-llm-integration--desktop-automation-current-release)
+[![Current Version](https://img.shields.io/badge/Current-v0.3.6-22c55e?style=flat-square)](#v036--custom-wake-word--brand-update-current-release)
 [![Next Target](https://img.shields.io/badge/Next-v0.4.0-3b82f6?style=flat-square)](#v040--visual--workspace-intelligence-target-q3-2026)
 
 </div>
@@ -26,8 +26,8 @@ SAM is designed around three core pillars:
 ## Milestone Overview
 
 ```
-v0.1.0 ──→ v0.2.0 ──→ v0.3.0 (current) ──→ v0.4.0 ──→ v0.5.0 ──→ v0.6.0 ──→ v0.7.0 ──→ v1.0.0
- Core       Audio       LLM + UI              Vision     Productivity  RAG        Ecosystem   Production
+v0.1.0 ──→ v0.2.0 ──→ v0.3.0 ──→ v0.3.6 (current) ──→ v0.4.0 ──→ v0.5.0 ──→ v0.6.0 ──→ v0.7.0 ──→ v1.0.0
+ Core       Audio       LLM + UI    Wake Word Upgrade   Vision     Productivity  RAG        Ecosystem   Production
 ```
 
 | Version | Status | Focus Area | Core Technologies |
@@ -35,6 +35,7 @@ v0.1.0 ──→ v0.2.0 ──→ v0.3.0 (current) ──→ v0.4.0 ──→ v0
 | **v0.1.0** | ✅ Completed | Pipeline Architecture & GUI | PyQt6, keyboard hooks, mock engines |
 | **v0.2.0** | ✅ Completed | Local Audio Processing | openwakeword, faster-whisper, edge-tts |
 | **v0.3.0** | ✅ Completed | LLM Integration & System Tray | Ollama client, ctypes system commands, QSystemTrayIcon |
+| **v0.3.6** | ✅ Completed | Custom Wake Word & Brand Update | `hey_sam` ONNX integration, Settings File Dialog, Dynamic CLI |
 | **v0.4.0** | 📅 Planned | Visual & Workspace Intelligence | Local vision LLM, clipboard parsing, smart parser |
 | **v0.5.0** | 📅 Planned | Desktop Productivity Suite | Local scheduler, calendar hooks, summarizers |
 | **v0.6.0** | 📅 Planned | Local Knowledge Base & RAG | ChromaDB, local embeddings, PDF/markdown indexer |
@@ -68,7 +69,18 @@ v0.1.0 ──→ v0.2.0 ──→ v0.3.0 (current) ──→ v0.4.0 ──→ v0
 
 ---
 
-### v0.3.0 — Local LLM Integration & Desktop Automation *(Current Release)*
+### v0.3.6 — Custom Wake Word & Brand Update *(Current Release)*
+
+> Rebranded default wake word to "Hey Sam" using a custom-trained model and upgraded Settings UI.
+
+- [x] **"Hey Sam" Wake Word Model** — Replaced default "Hey Jarvis" with custom-trained `hey_sam.onnx` under `assets/models/`
+- [x] **Custom Wake Word File Dialog** — Interactive "Browse..." button added in Settings Window to load any openWakeWord `.onnx` or `.tflite` model
+- [x] **Dynamic CLI Instructions** — Terminal instructions dynamically formatting the wake word name and version
+- [x] **Default Code Cleanup** — Version defaults moved from `0.3.5` to `0.3.6` across the codebase
+
+---
+
+### v0.3.0 — Local LLM Integration & Desktop Automation *(Previous Release)*
 
 > Enabled generative capabilities, native system automation, and user-friendly system tray.
 
@@ -159,7 +171,7 @@ v0.1.0 ──→ v0.2.0 ──→ v0.3.0 (current) ──→ v0.4.0 ──→ v0
 - [ ] `/plugins` directory scanning at startup — no core file editing required
 
 **Custom Wake Word Training**
-- [ ] Templates and scripts for training custom `openwakeword` models (*"Hey SAM"*, *"Computer"*) using personal recordings
+- [x] Templates and scripts for training custom `openwakeword` models (*"Hey SAM"*, *"Computer"*) using personal recordings
 
 **Multi-Platform Support**
 - [ ] Port `commands/system.py` to Linux (DBus / systemd / amixer) and macOS (AppleScript / PyObjC)
