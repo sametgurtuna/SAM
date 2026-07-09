@@ -525,6 +525,4 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 **Keep your data local. Keep your control native.**
 
-*Built with passion. 🖤*
-
 </div>
