@@ -1,41 +1,39 @@
 # SAM — LLM Router
-# Auto-detects the best available LLM engine and manages conversation context.
-# Priority: Ollama (local, free) → Claude (cloud, paid) → None (error)
+# Intent-based engine selection, dynamic prompt construction, and RAG integration.
+# Pipeline: classify intent → select mode → retrieve knowledge → build prompt → route to engine
 
 import logging
+import os
 import threading
 from collections import deque
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from core.config import config
+from core import paths
 from llm.base import LLMEngine
 from llm.ollama_engine import OllamaEngine
 from llm.claude_engine import ClaudeEngine
+from llm.intent import Intent, IntentClassifier
+from llm.prompt_builder import PromptBuilder
+from llm.memory import create_memory_store
 
 logger = logging.getLogger(__name__)
-
-# SAM's system prompt — short, direct, no-fluff assistant personality
-SYSTEM_PROMPT = """You are SAM, a fast and helpful desktop voice assistant. Rules:
-- Give short, direct answers (1-3 sentences) unless asked to elaborate
-- Be conversational but efficient — no filler, no fluff
-- If asked to do something on the computer, confirm what you'll do
-- You can understand commands like opening apps, controlling volume, etc.
-- Respond naturally as if speaking — your response will be read aloud via TTS
-- Don't use markdown, bullet points, or formatting — plain spoken text only
-- If you don't know something, say so briefly"""
 
 
 class LLMRouter(QObject):
     """
     Routes LLM requests to the best available engine.
-    
-    Manages:
-        - Engine auto-detection (Ollama → Claude → None)
-        - Rolling conversation context (last N exchanges)
-        - System prompt injection
-        - Signal forwarding from active engine
-    
+
+    Yeni mimari:
+        1. IntentClassifier → NORMAL / FENERBAHCE / COMPLEX
+        2. PromptBuilder    → persona + rules + mode + RAG bilgisi
+        3. Engine selection  → Ollama (lokal) veya Claude (cloud)
+
+    NORMAL / FENERBAHCE → Ollama (lokal, hizli)
+    COMPLEX             → Claude (cloud, akilli)
+    Fallback            → Mevcut olan motor
+
     Signals:
         token_received(str): Forwarded from active engine.
         generation_complete(str): Forwarded from active engine.
@@ -48,80 +46,99 @@ class LLMRouter(QObject):
     generation_error = pyqtSignal(str)
     engine_status = pyqtSignal(str)
 
-    # Internal: worker thread -> Qt main thread. Payload is an LLMEngine or None.
-    _engine_detected = pyqtSignal(object)
+    # Internal: worker thread -> Qt main thread
+    _engines_probed = pyqtSignal(bool, bool)  # (ollama_available, claude_available)
 
     def __init__(self) -> None:
         super().__init__()
 
-        self._max_context: int = config.get("llm", "context_window", default=5)
-        self._system_prompt: str = config.get("llm", "system_prompt", default=SYSTEM_PROMPT)
+        self._max_context: int = config.get("llm", "context_window", default=8)
 
-        # Conversation history — rolling deque of (role, content) pairs
+        # ── Yeni alt sistemler ────────────────────────────────────
+        self._classifier = IntentClassifier()
+        self._prompt_builder = PromptBuilder()
+        self._memory = create_memory_store()
+
+        # RAG — lazy init, sadece FENERBAHCE sorgusunda yuklenir
+        self._rag = None
+        self._rag_enabled: bool = config.get("llm", "rag", "enabled", default=True)
+
+        # ── Conversation history ──────────────────────────────────
         self._history: deque[dict[str, str]] = deque(maxlen=self._max_context * 2)
 
-        # Available engines (tried in order)
-        self._engines: list[LLMEngine] = [
-            OllamaEngine(),
-            ClaudeEngine(),
-        ]
+        # ── Dual engine setup ─────────────────────────────────────
+        # Her iki motor da olusturulur, availability bagimsiz izlenir.
+        self._ollama = OllamaEngine()
+        self._claude = ClaudeEngine()
+        self._ollama_available: bool = False
+        self._claude_available: bool = False
+
+        # Sinyal yonetimi icin aktif motor izleme
         self._active_engine: LLMEngine | None = None
+
         self._detecting: bool = False
         self._retry_pending: bool = False
-        # Baglanti hatasi sonrasi tek sessiz tekrar icin saklanan istek
         self._pending_request: tuple[str, str | None] | None = None
 
-        self._engine_detected.connect(self._on_engine_detected)
+        # Bu turn icin secilen intent (dispatch'te kullanilir)
+        self._current_intent: Intent = Intent.NORMAL
 
-        # Motor tespiti her engine icin 2 sn timeout'lu bir HTTP istegi yapiyor.
-        # Bunu __init__ icinde senkron calistirmak, Ollama kapaliyken acilisi
-        # 2 sn blokluyordu. Event loop baslar baslamaz arka planda yap.
-        QTimer.singleShot(0, self.refresh_engine)
+        self._engines_probed.connect(self._on_engines_probed)
 
-    # ─── Engine detection (never blocks the Qt thread) ────────────
+        # Event loop baslar baslamaz arka planda motor tespiti yap
+        QTimer.singleShot(0, self.refresh_engines)
 
-    def refresh_engine(self) -> None:
-        """Probe engines on a worker thread and adopt the first available one."""
+    # ─── Engine detection ─────────────────────────────────────────
+
+    def refresh_engines(self) -> None:
+        """Probe both engines on a worker thread."""
         if self._detecting:
             return
         self._detecting = True
 
         def _probe():
-            found: LLMEngine | None = None
-            for engine in self._engines:
-                try:
-                    if engine.is_available():
-                        found = engine
-                        break
-                except Exception as e:
-                    logger.debug("Engine %s probe failed: %s", engine.engine_name, e)
-            self._engine_detected.emit(found)
+            ollama_ok = False
+            claude_ok = False
+            try:
+                ollama_ok = self._ollama.is_available()
+            except Exception as e:
+                logger.debug("Ollama probe failed: %s", e)
+            try:
+                claude_ok = self._claude.is_available()
+            except Exception as e:
+                logger.debug("Claude probe failed: %s", e)
+            self._engines_probed.emit(ollama_ok, claude_ok)
 
         threading.Thread(target=_probe, daemon=True, name="LLMDetect").start()
 
-    def _on_engine_detected(self, engine: object) -> None:
-        """Runs on the Qt main thread — safe to touch signals/state."""
-        self._detecting = False
+    # Geriye uyumluluk — OllamaService refresh_engine() cagiriyordu
+    def refresh_engine(self) -> None:
+        self.refresh_engines()
 
-        if engine is None:
-            if self._active_engine is not None:
-                logger.warning("Active LLM engine went away")
-            else:
-                logger.warning(
-                    "No LLM engine available. Install Ollama or set ANTHROPIC_API_KEY."
-                )
-            self._active_engine = None
+    def _on_engines_probed(self, ollama_ok: bool, claude_ok: bool) -> None:
+        """Qt main thread'de calisir — sinyal/state dokunmak guvenli."""
+        self._detecting = False
+        self._ollama_available = ollama_ok
+        self._claude_available = claude_ok
+
+        # Durum raporu
+        available = []
+        if ollama_ok:
+            available.append(self._ollama.engine_name)
+        if claude_ok:
+            available.append(self._claude.engine_name)
+
+        if available:
+            logger.info("LLM engines available: %s", ", ".join(available))
+            self.engine_status.emit(available[0])  # Birincil motoru raporla
+        else:
+            logger.warning("No LLM engine available. Install Ollama or set ANTHROPIC_API_KEY.")
             self.engine_status.emit("No LLM available")
-            # Bu tespit bekleyen bir istek icin yapildiysa, istegi asili
-            # birakma — kullaniciya hata don.
             if self._retry_pending or self._pending_request is not None:
                 self._emit_no_engine_error()
             return
 
-        if engine is not self._active_engine:
-            self._set_active_engine(engine)  # type: ignore[arg-type]
-
-        # Motor tespiti bekleyen bir istek yuzunden tetiklendiyse sessizce tekrar dene.
+        # Bekleyen istek varsa tekrar dene
         if self._retry_pending:
             self._retry_pending = False
             if self._pending_request is not None:
@@ -130,9 +147,34 @@ class LLMRouter(QObject):
                 logger.info("Retrying request after engine redetection")
                 self._dispatch(message, image_b64, record_history=False)
 
-    def _set_active_engine(self, engine: LLMEngine) -> None:
-        """Set the active engine and connect its signals."""
-        # Disconnect previous engine signals if any
+    def _select_engine(self, intent: Intent) -> LLMEngine | None:
+        """
+        Intent'e gore motor sec.
+
+        Ollama her zaman birincil motor. Claude SADECE kullanici API key
+        girmisse ve intent COMPLEX ise kullanilir — otomatik fallback yok.
+        Kullanici acikca bir cloud LLM yapilandirmadikca her sey lokal kalir.
+        """
+        if intent == Intent.COMPLEX and self._claude_available:
+            return self._claude
+
+        if self._ollama_available:
+            return self._ollama
+
+        # Son care: Ollama da yoksa ve Claude varsa en azindan cevap ver
+        # (kullanici API key girmis ama Ollama kapali — nadir durum)
+        if self._claude_available:
+            logger.info("Ollama unavailable — using Claude (API key configured)")
+            return self._claude
+
+        return None
+
+    def _connect_engine(self, engine: LLMEngine) -> None:
+        """Aktif motoru degistir ve sinyalleri bagla."""
+        if self._active_engine is engine:
+            return
+
+        # Onceki motorun sinyallerini kopar
         if self._active_engine is not None:
             try:
                 self._active_engine.token_received.disconnect(self.token_received)
@@ -143,40 +185,47 @@ class LLMRouter(QObject):
 
         self._active_engine = engine
 
-        # Connect new engine signals
+        # Yeni motorun sinyallerini bagla
         engine.token_received.connect(self.token_received)
         engine.generation_complete.connect(self._on_generation_complete)
         engine.generation_error.connect(self._on_generation_error)
 
-        logger.info("LLM engine active: %s", engine.engine_name)
-        self.engine_status.emit(engine.engine_name)
+    # ─── Generation ───────────────────────────────────────────────
 
     def generate(self, user_message: str, image_b64: str | None = None) -> None:
         """
         Generate a response to the user's message.
 
-        Adds the message to conversation history, builds the full message list
-        (system + history), and sends to the active engine.
-
-        Args:
-            user_message: The user's transcribed speech.
-            image_b64: Optional base64 encoded image for vision requests.
+        Pipeline:
+          1. Intent'i siniflandir (NORMAL / FENERBAHCE / COMPLEX)
+          2. Modu ayarla
+          3. Motoru sec
+          4. Dispatch
         """
-        # Sicak yolda ASLA is_available() cagirmiyoruz — o 2 sn timeout'lu bir
-        # HTTP istegi ve Qt ana thread'ini blokluyordu. Elimizdeki motoru
-        # kullan; yoksa/bozuksa yeniden tespit asenkron olarak tetiklenir.
-        if self._active_engine is None:
+        # 1. Intent siniflandirmasi
+        result = self._classifier.classify(user_message)
+        self._current_intent = result.intent
+        logger.info("Intent: %s (confidence: %.2f)", result.intent.value, result.confidence)
+
+        # 2. Motor sec
+        engine = self._select_engine(result.intent)
+
+        if engine is None:
+            # Hicbir motor yok — bekleyen istek olarak sakla ve yeniden tespit et
             self._pending_request = (user_message, image_b64)
             self._retry_pending = True
-            self.refresh_engine()
-
+            self.refresh_engines()
             if not self._detecting:
-                # refresh_engine hicbir sey baslatmadiysa (imkansiza yakin) hata ver.
                 self._emit_no_engine_error()
             else:
                 logger.info("No active LLM engine — detecting, request queued")
             return
 
+        # 3. Motoru bagla
+        self._connect_engine(engine)
+        logger.info("Routing to %s", engine.engine_name)
+
+        # 4. Dispatch
         self._dispatch(user_message, image_b64)
 
     def _dispatch(self, user_message: str, image_b64: str | None,
@@ -186,26 +235,87 @@ class LLMRouter(QObject):
             self._emit_no_engine_error()
             return
 
-        # Add user message to history (without the image to save RAM)
+        # History'ye ekle (image haric — RAM tasarrufu)
         if record_history:
             self._history.append({"role": "user", "content": user_message})
 
-        # Build full message list
-        messages = [{"role": "system", "content": self._system_prompt}]
+        # ── RAG retrieval (sadece FENERBAHCE intent'inde) ─────────
+        knowledge = None
+        if self._current_intent == Intent.FENERBAHCE and self._rag_enabled:
+            knowledge = self._get_rag_knowledge(user_message)
 
-        # Deep copy the history to avoid modifying the deque items
+        # ── Hafiza ozeti ──────────────────────────────────────────
+        memory = self._memory.get_context_summary()
+
+        # ── Mod belirleme ─────────────────────────────────────────
+        mode = None
+        if self._current_intent == Intent.FENERBAHCE:
+            mode = "FENERBAHCE"
+
+        # ── System prompt olustur ─────────────────────────────────
+        system_prompt = self._prompt_builder.build(
+            mode=mode,
+            knowledge=knowledge,
+            memory=memory,
+        )
+
+        # ── Mesaj listesi ─────────────────────────────────────────
+        messages = [{"role": "system", "content": system_prompt}]
+
         for h in self._history:
             messages.append(dict(h))
 
-        # Attach image to the latest message if provided
+        # Vision icin image ekle
         if image_b64:
             messages[-1]["images"] = [image_b64]
 
-        logger.debug("Generating response via %s (context: %d messages)",
-                      self._active_engine.engine_name, len(self._history))
+        logger.debug("Generating response via %s (context: %d messages, mode: %s)",
+                      self._active_engine.engine_name, len(self._history),
+                      mode or "NORMAL")
 
-        # Send to engine
         self._active_engine.generate(messages)
+
+    def _get_rag_knowledge(self, query: str) -> str | None:
+        """RAG'den bilgi al. Lazy init — ilk cagride model yukler."""
+        if self._rag is None:
+            try:
+                from llm.rag import RAGEngine
+
+                # NOT: config.get() sadece anahtar HIC YOKSA default'a duser.
+                # config.yaml'da bos string ('') olarak tanimliysa onu aynen
+                # dondurur — bu yuzden "or" ile bos degerleri de eliyoruz.
+                knowledge_path = config.get(
+                    "llm", "rag", "knowledge_path", default=""
+                ) or os.path.join(paths.resource_root(), "knowledge")
+                embedding_model = config.get(
+                    "llm", "rag", "embedding_model",
+                    default="all-MiniLM-L6-v2",
+                ) or "all-MiniLM-L6-v2"
+                top_k = config.get("llm", "rag", "top_k", default=3) or 3
+                chunk_size = config.get("llm", "rag", "chunk_size", default=800) or 800
+                chunk_overlap = config.get("llm", "rag", "chunk_overlap", default=80) or 80
+
+                self._rag = RAGEngine(
+                    knowledge_path=knowledge_path,
+                    embedding_model=embedding_model,
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
+                    top_k=top_k,
+                )
+                logger.info(
+                    "RAG engine created (path=%s, chunk_size=%d) — lazy init on first query",
+                    knowledge_path, chunk_size,
+                )
+            except ImportError as e:
+                logger.warning(
+                    "RAG dependencies not installed (sentence-transformers, chromadb): %s", e
+                )
+                self._rag_enabled = False
+                return None
+
+        return self._rag.retrieve(query)
+
+    # ─── Error handling ───────────────────────────────────────────
 
     def _emit_no_engine_error(self) -> None:
         model = config.get("llm", "ollama", "model", default="qwen2.5:3b")
@@ -234,11 +344,11 @@ class LLMRouter(QObject):
                 None,
             )
             if last_user is not None:
-                logger.warning("LLM connection lost — redetecting engine and retrying once")
+                logger.warning("LLM connection lost — redetecting engines and retrying once")
                 self._pending_request = (last_user, None)
                 self._retry_pending = True
                 self._active_engine = None
-                self.refresh_engine()
+                self.refresh_engines()
                 return
 
         self._pending_request = None
@@ -255,6 +365,8 @@ class LLMRouter(QObject):
             logger.debug("Context updated: %d messages in history", len(self._history))
 
         self.generation_complete.emit(response)
+
+    # ─── Public API ───────────────────────────────────────────────
 
     def stop(self) -> None:
         """Stop any ongoing generation."""

@@ -43,8 +43,16 @@ end.
 
 **Pipeline:** wake word / hotkey → `Recorder` (VAD-based mic capture) → `STTEngine`
 (faster-whisper) → `CommandRouter` (regex intent match) → if unmatched, `LLMRouter`
-(Ollama or Claude, streaming) → `TTSEngine` (edge-tts or pyttsx3) → auto-hide timer →
-back to idle.
+(intent classify → mode select → RAG retrieve → engine route → streaming) →
+`TTSEngine` (edge-tts or pyttsx3) → auto-hide timer → back to idle.
+
+**LLM Router pipeline:** `IntentClassifier` (keyword/regex, no LLM call) classifies
+each message as NORMAL / FENERBAHCE / COMPLEX. NORMAL and FENERBAHCE go to Ollama
+(local); COMPLEX goes to Claude (cloud). `PromptBuilder` assembles the system prompt
+per-turn: persona + behavior rules + mode instructions + RAG knowledge. For FENERBAHCE
+intent, `RAGEngine` retrieves relevant chunks from `knowledge/` markdown files via
+sentence-transformers embeddings + ChromaDB (lazy-loaded on first FB query). See
+`llm/intent.py`, `llm/prompt_builder.py`, `llm/modes.py`, `llm/rag.py`.
 
 **Streaming TTS:** the LLM response is spoken *while it is still generating*.
 `AppController._flush_streaming_tts()` watches the accumulating token buffer and hands
@@ -79,11 +87,15 @@ always go back through a signal.
   Spotify via `spotipy`), `vision.py` (screen capture → base64 for vision LLM calls).
   Add new voice commands here: a regex pattern in `router.py` + a handler function in
   `system.py` (or a new module) that returns the spoken confirmation string.
-- `llm/` — `base.py` (abstract `LLMEngine`: `is_available()`, `generate()`, `stop()`,
-  streams via signals), `ollama_engine.py`, `claude_engine.py`, `router.py`
-  (`LLMRouter` — auto-detects Ollama first then Claude, holds the rolling conversation
-  `deque`, injects the system prompt). Add a new provider by subclassing `LLMEngine`
-  and registering it in `LLMRouter._engines`.
+- `llm/` — `base.py` (abstract `LLMEngine`), `ollama_engine.py`, `claude_engine.py`,
+  `router.py` (`LLMRouter` — intent-based dual-engine routing, rolling conversation
+  `deque`), `intent.py` (keyword/regex intent classifier: NORMAL/FENERBAHCE/COMPLEX),
+  `prompt_builder.py` (per-turn system prompt assembly: persona + rules + mode + RAG),
+  `modes.py` (dynamic conversation modes, e.g. FENERBAHCE fan mode),
+  `rag.py` (sentence-transformers + ChromaDB semantic retrieval, lazy-loaded),
+  `memory.py` (long-term user memory interface, currently NullMemory stub).
+- `knowledge/` — markdown knowledge base files for RAG retrieval. Currently:
+  `football/fenerbahce/` with history, legends, trophies, stadium, rivals, modern era.
 - `ui/` — `floating_bar.py` (frameless always-on-top overlay), `waveform.py`
   (mic-level visualizer), `tray.py` (system tray icon/menu), `settings_window.py`
   (GUI editor for `config.yaml`), `styles.py`.

@@ -107,6 +107,9 @@ class AppController(QObject):
 
         # TTS → completion
         self._tts.playback_finished.connect(self._on_tts_finished)
+        # TTS her cumle parcasini calmaya basladiginda caption'i o noktaya
+        # kaydir — "text follow" ozelligi (bkz. _on_tts_chunk_started).
+        self._tts.playback_started.connect(self._on_tts_chunk_started)
 
         # ─── Auto-hide timer ─────────────────────────────────────
         self._auto_hide_delay: int = config.get(
@@ -124,6 +127,11 @@ class AppController(QObject):
         # Yanitta kod blogu (```) gorulunce akisli seslendirme durur;
         # kod TTS'e gitmemeli, tamamlaninca dosyaya kaydedilir.
         self._tts_stream_ok: bool = True
+        # Her speak_chunk() cagrisiyla birebir sirali (FIFO) — _llm_response_text
+        # icindeki (start, end) karakter araligi. TTS o parcayi calmaya
+        # basladiginda (playback_started) sirdaki araligi cikarip caption'a
+        # "buraya kaydir" komutunu veriyoruz — bkz. _on_tts_chunk_started.
+        self._tts_chunk_ranges: list[tuple[int, int]] = []
 
         # ─── Last transcript (for context) ────────────────────────
         self._last_transcript: str = ""
@@ -360,6 +368,7 @@ class AppController(QObject):
         self._llm_response_text = ""
         self._tts_spoken_text = ""
         self._tts_stream_ok = True
+        self._tts_chunk_ranges = []
         # Yeni bir yanit basliyor — onceki konusmayi ve kuyrugu temizle
         self._tts.stop()
 
@@ -413,8 +422,20 @@ class AppController(QObject):
         if len(chunk.strip()) < self._MIN_TTS_CHUNK:
             return
 
+        start = len(self._tts_spoken_text)
         self._tts_spoken_text += chunk
+        self._tts_chunk_ranges.append((start, len(self._tts_spoken_text)))
         self._tts.speak_chunk(chunk.strip())
+
+    def _on_tts_chunk_started(self) -> None:
+        """
+        TTS bir sonraki parcayi calmaya basladi — hangi metin araligina
+        karsilik geldigini kuyruktan cikar ve caption'a bildir (text follow).
+        """
+        if not self._tts_chunk_ranges:
+            return
+        start, end = self._tts_chunk_ranges.pop(0)
+        self._bar.follow_to(start, end)
 
     def _on_llm_complete(self, full_response: str) -> None:
         """LLM generation complete — speak the response aloud."""
@@ -442,6 +463,11 @@ class AppController(QObject):
         if already and spoken_response.startswith(already):
             remainder = spoken_response[len(already):].strip()
             if remainder:
+                # Offset'ler sadece kod cikarilmadiysa (spoken == full) gecerli —
+                # cikarildiysa metin kisaldigi icin caption'daki gercek pozisyonla
+                # uyusmaz, o durumda takip araligi eklemiyoruz (metin zaten tam gorunur).
+                if spoken_response == full_response:
+                    self._tts_chunk_ranges.append((len(already), len(full_response)))
                 self._tts.speak_chunk(remainder)
             self._tts.end_stream()
         elif already:
@@ -451,6 +477,8 @@ class AppController(QObject):
             self._tts.end_stream()
         else:
             # Hic akisli parca gonderilmemis — klasik tek seferlik okuma
+            if spoken_response == full_response:
+                self._tts_chunk_ranges.append((0, len(full_response)))
             self._tts.speak(spoken_response)
 
     def _on_llm_error(self, error: str) -> None:
@@ -500,6 +528,7 @@ class AppController(QObject):
         self._recorder.stop()
         self._llm.stop()
         self._tts.stop()
+        self._tts_chunk_ranges = []
         self._reset_to_idle()
 
     def _reset_to_idle(self) -> None:

@@ -23,5 +23,10 @@ requests>=2.31.0
 # ImportError as "Claude unavailable", so SAM runs local-only without it.
 #   pip install anthropic
 #
+# ─── RAG (Fenerbahce knowledge base) ─────────────────────────────
+# Lazy-loaded: only downloaded/imported when a Fenerbahce query triggers RAG.
+# SAM runs perfectly fine without these — RAG is silently disabled.
+#   pip install sentence-transformers chromadb
+#
 # ─── Build only ──────────────────────────────────────────────────
 #   pip install pyinstaller

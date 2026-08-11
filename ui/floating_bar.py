@@ -317,6 +317,10 @@ class FloatingBar(QWidget):
         """Clear the transcript text."""
         self._transcript_label.setText("")
 
+    def follow_to(self, start: int, end: int) -> None:
+        """Legacy bar has no scrollable caption — text-follow is a no-op here."""
+        pass
+
     # ─── Keyboard Handling ────────────────────────────────────────
 
     def keyPressEvent(self, event) -> None:

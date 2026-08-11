@@ -1,27 +1,37 @@
 # SAM — Caption Window
 # The transcript / streaming LLM response that appears beneath the orb.
 #
-# Always click-through: it is pure output, never an input target.
 # Its top edge is fixed and it grows downward, so streaming tokens never make
-# the text jitter around a vertical centre.
+# the text jitter around a vertical centre. Long replies no longer get their
+# head silently cut off — the text scrolls (mouse wheel or scrollbar), and
+# auto-follows the newest tokens while streaming and the current TTS chunk
+# while speaking, unless the user has manually scrolled away to read back.
 
 import logging
 
 from PyQt6.QtCore import QPropertyAnimation, QTimer, Qt
-from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsOpacityEffect, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtGui import (
+    QBrush, QColor, QFontMetrics, QPainter, QPainterPath, QPen,
+    QTextCharFormat, QTextCursor,
+)
+from PyQt6.QtWidgets import (
+    QGraphicsOpacityEffect, QTextEdit, QVBoxLayout, QWidget,
+)
 
 from core.config import config
-from ui import styles, win32
+from ui import styles
 
 logger = logging.getLogger(__name__)
 
 _PADDING_H = 18
 _PADDING_V = 12
+# Kullanici asagi kaydirmadan ne kadar uzaktaysa "hala en altta" sayilir —
+# scrollbar'in tam pikselinde durmasini beklemek fazla hassas olurdu.
+_BOTTOM_SLOP_PX = 4
 
 
 class CaptionWindow(QWidget):
-    """Frameless, click-through text panel positioned under the orb."""
+    """Frameless text panel positioned under the orb. Scrollable, auto-following."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -39,6 +49,10 @@ class CaptionWindow(QWidget):
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # Not click-through (unlike the orb): the panel needs to accept mouse
+        # wheel / scrollbar drag so long replies can be scrolled and re-read.
+        # It only exists on screen while a session is active, so this doesn't
+        # steal clicks from other windows at idle.
 
         self._build_ui()
 
@@ -54,8 +68,8 @@ class CaptionWindow(QWidget):
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim: QPropertyAnimation | None = None
 
-        # LLM token akisinda her token icin bir QLabel relayout + pencere
-        # resize olmasin diye guncellemeler tek-atimlik timer'da birlestirilir.
+        # LLM token akisinda her token icin bir relayout + pencere resize
+        # olmasin diye guncellemeler tek-atimlik timer'da birlestirilir.
         self._pending_text: str | None = None
         self._flush_timer = QTimer(self)
         self._flush_timer.setSingleShot(True)
@@ -65,6 +79,18 @@ class CaptionWindow(QWidget):
         )
 
         self._current_text: str = ""
+
+        # ─── Scroll / follow durumu ─────────────────────────────────
+        # True iken: yeni token geldiginde veya TTS bir sonraki cumleye
+        # gectiginde en alta / soylenen noktaya otomatik kaydirilir.
+        # Kullanici elle yukari kaydirinca False olur (okumasi bolunmesin);
+        # tekrar en alta donunce veya yeni bir yanit baslayinca True'ya doner.
+        self._auto_follow: bool = True
+        self._programmatic_scroll: bool = False
+        self._last_follow_range: tuple[int, int] | None = None
+
+        bar = self._text_edit.verticalScrollBar()
+        bar.valueChanged.connect(self._on_scroll_changed)
 
     def _read_config(self) -> None:
         self._width: int = config.get("ui", "orb", "caption_width", default=560)
@@ -76,23 +102,54 @@ class CaptionWindow(QWidget):
         layout.setContentsMargins(_PADDING_H, _PADDING_V, _PADDING_H, _PADDING_V)
         layout.setSpacing(0)
 
-        self._label = QLabel("")
-        self._label.setObjectName("captionLabel")
-        self._label.setWordWrap(True)
-        self._label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-        self._label.setStyleSheet(self._label_stylesheet())
-        layout.addWidget(self._label)
+        self._text_edit = QTextEdit()
+        self._text_edit.setObjectName("captionText")
+        self._text_edit.setReadOnly(True)
+        self._text_edit.setFrameStyle(0)  # QFrame.Shape.NoFrame
+        self._text_edit.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self._text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._text_edit.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self._text_edit.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self._text_edit.setStyleSheet(self._text_stylesheet())
+        self._text_edit.viewport().setAutoFillBackground(False)
+        layout.addWidget(self._text_edit)
 
         self.setFixedWidth(self._width)
 
-    def _label_stylesheet(self) -> str:
+    def _text_stylesheet(self) -> str:
+        accent = styles.Colors.accent()
         return f"""
-            QLabel#captionLabel {{
+            QTextEdit#captionText {{
                 color: {styles.Colors.text_primary()};
                 font-family: {styles.Fonts.transcript_family()};
                 font-size: {styles.Fonts.size_transcript()}px;
                 font-weight: 400;
                 background: transparent;
+                border: none;
+                selection-background-color: {accent};
+                selection-color: #0a0c12;
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+                margin: 0px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba(255, 255, 255, 50);
+                border-radius: 3px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: rgba(255, 255, 255, 90);
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: none;
             }}
         """
 
@@ -110,7 +167,21 @@ class CaptionWindow(QWidget):
         self._flush_timer.stop()
         self._pending_text = None
         self._current_text = ""
-        self._label.setText("")
+        self._text_edit.clear()
+        self._last_follow_range = None
+        self._auto_follow = True
+
+    def follow_to(self, start: int, end: int) -> None:
+        """
+        TTS su an [start, end) karakter araligini soyluyor. O bolumu hafifce
+        vurgula ve — kullanici elle geriye kaydirmadiysa — gorunur alana getir.
+        """
+        self._last_follow_range = (start, end)
+        self._apply_highlight(start, end)
+        if self._auto_follow:
+            self._scroll_cursor_to(end)
+
+    # ─── Internal: text flush ───────────────────────────────────────
 
     def _flush_text(self) -> None:
         if self._pending_text is None:
@@ -119,53 +190,99 @@ class CaptionWindow(QWidget):
         self._pending_text = None
         if text == self._current_text:
             return
+
+        is_new_response = not self._current_text and text
         self._current_text = text
-        self._label.setText(self._elide(text))
+
+        self._text_edit.setPlainText(text)
+        if self._last_follow_range:
+            self._apply_highlight(*self._last_follow_range)
         self._resize_to_content()
 
-    def _elide(self, text: str) -> str:
-        """
-        Clamp to max_lines. Long streaming replies get their HEAD trimmed so the
-        newest words stay visible.
-        """
-        if not text:
-            return text
-        metrics = QFontMetrics(self._label.font())
-        available = self._width - 2 * _PADDING_H
-        max_height = metrics.lineSpacing() * self._max_lines
+        if is_new_response:
+            # Yeni yanit basliyor — onceki oturumdan kalan "kullanici geriye
+            # kaydirmisti" durumunu unut, en alttan takibe devam et.
+            self._auto_follow = True
 
-        bounding = metrics.boundingRect(
-            0, 0, available, 0,
-            int(Qt.TextFlag.TextWordWrap), text,
-        )
-        if bounding.height() <= max_height:
-            return text
+        if self._auto_follow:
+            self._scroll_to_bottom()
 
-        # Bastan kirp: kuyruk (en yeni kelimeler) gorunur kalsin.
-        words = text.split()
-        low, high = 0, len(words)
-        while low < high:
-            mid = (low + high) // 2
-            candidate = "… " + " ".join(words[mid:])
-            h = metrics.boundingRect(
-                0, 0, available, 0, int(Qt.TextFlag.TextWordWrap), candidate
-            ).height()
-            if h <= max_height:
-                high = mid
-            else:
-                low = mid + 1
-        return "… " + " ".join(words[low:]) if low else text
+    def _apply_highlight(self, start: int, end: int) -> None:
+        """Su an konusulan araligi hafif bir vurguyla isaretle (extra selection)."""
+        doc = self._text_edit.document()
+        count = doc.characterCount()
+        if count <= 1:
+            return
+        start = max(0, min(start, count - 1))
+        end = max(start, min(end, count - 1))
+
+        cursor = QTextCursor(doc)
+        cursor.setPosition(start)
+        cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+
+        selection = QTextEdit.ExtraSelection()
+        selection.cursor = cursor
+        fmt = QTextCharFormat()
+        accent = QColor(styles.Colors.accent())
+        accent.setAlpha(45)
+        fmt.setBackground(accent)
+        selection.format = fmt
+        self._text_edit.setExtraSelections([selection])
+
+    def _scroll_cursor_to(self, position: int) -> None:
+        """Gercek imleci (secim yapmadan) verilen noktaya tasi ve gorunur kil."""
+        doc = self._text_edit.document()
+        count = doc.characterCount()
+        if count <= 1:
+            return
+        position = max(0, min(position, count - 1))
+
+        cursor = QTextCursor(doc)
+        cursor.setPosition(position)
+
+        self._programmatic_scroll = True
+        self._text_edit.setTextCursor(cursor)
+        self._text_edit.ensureCursorVisible()
+        self._programmatic_scroll = False
+
+    def _scroll_to_bottom(self) -> None:
+        bar = self._text_edit.verticalScrollBar()
+        self._programmatic_scroll = True
+        bar.setValue(bar.maximum())
+        self._programmatic_scroll = False
+
+    def _on_scroll_changed(self, _value: int) -> None:
+        if self._programmatic_scroll:
+            return
+        # Kullanici scrollbar'i veya tekerlegi kullandi — en alttaysa takibe
+        # devam et, degilse (geri okuyor) otomatik kaydirmayi durdur.
+        bar = self._text_edit.verticalScrollBar()
+        self._auto_follow = bar.value() >= bar.maximum() - _BOTTOM_SLOP_PX
+
+    # ─── Internal: sizing ───────────────────────────────────────────
+
+    def _max_content_height(self) -> int:
+        metrics = QFontMetrics(self._text_edit.font())
+        return metrics.lineSpacing() * self._max_lines
 
     def _resize_to_content(self) -> None:
-        height = self._label.heightForWidth(self._width - 2 * _PADDING_H)
-        if height <= 0:
-            height = self._label.sizeHint().height()
-        self.setFixedHeight(max(1, height) + 2 * _PADDING_V)
+        doc = self._text_edit.document()
+        doc.setTextWidth(self._width - 2 * _PADDING_H)
+        content_height = int(doc.size().height())
+        if content_height <= 0:
+            content_height = QFontMetrics(self._text_edit.font()).lineSpacing()
+
+        capped = min(content_height, self._max_content_height())
+        capped = max(capped, QFontMetrics(self._text_edit.font()).lineSpacing())
+
+        self._text_edit.setFixedHeight(capped)
+        self.setFixedHeight(capped + 2 * _PADDING_V)
+
+    # ─── Fade in/out ──────────────────────────────────────────────
 
     def fade_in(self) -> None:
         if not self.isVisible():
             self.show()
-            win32.set_click_through(int(self.winId()), True)
         self._animate_opacity(1.0)
 
     def fade_out(self) -> None:
@@ -194,7 +311,7 @@ class CaptionWindow(QWidget):
     def apply_settings(self) -> None:
         self._read_config()
         self.setFixedWidth(self._width)
-        self._label.setStyleSheet(self._label_stylesheet())
+        self._text_edit.setStyleSheet(self._text_stylesheet())
         self._flush_interval = config.get(
             "ui", "animation", "text_stream_interval_ms", default=45
         )

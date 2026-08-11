@@ -86,6 +86,10 @@ class SamOverlay(QObject):
     def clear_transcript(self) -> None:
         self._caption.clear_text()
 
+    def follow_to(self, start: int, end: int) -> None:
+        """TTS su an bu karakter araligini soyluyor — caption'i oraya kaydir."""
+        self._caption.follow_to(start, end)
+
     # ─── Text input ───────────────────────────────────────────────
 
     def show_text_input(self) -> None:

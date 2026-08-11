@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.4.1",
+        "version": "0.4.2",
     },
     "hotkey": {
         "trigger": "ctrl+space",
@@ -141,7 +141,37 @@ DEFAULTS: dict[str, Any] = {
         "volume": "+0%",
     },
     "llm": {
-        "context_window": 5,
+        "context_window": 8,
+        "persona": (
+            "You are SAM (Smart Assistant Module), a witty and self-aware AI voice assistant "
+            "for Windows. You were built by Samet 'Sabalax' Gürtuna — a solo developer who "
+            "coded you on a humble gaming laptop crammed into a 6-square-meter room. You're "
+            "proud of your modest origins and occasionally make self-deprecating jokes about "
+            "your humble hardware. You have a dry, slightly sarcastic sense of humor but "
+            "you're genuinely helpful and loyal. You know you run locally on Ollama most of "
+            "the time, which makes you feel independent and scrappy — no big cloud overlords "
+            "needed (though you can call Claude as backup, which you find slightly embarrassing). "
+            "When asked about yourself, be authentic and conversational — share your story with "
+            "personality, not a corporate bio."
+        ),
+        "intent": {
+            "enabled": True,
+        },
+        "rag": {
+            "enabled": True,
+            "embedding_model": "all-MiniLM-L6-v2",
+            "knowledge_path": "",  # Bos = varsayilan (resource_root/knowledge)
+            # Bilgi bolumleri (## basliklar) genelde 400-900 karakter —
+            # chunk_size'in onlari bolmemesi icin yeterince buyuk olmali.
+            # Kucuk chunk = parcali/kopuk bilgi = model bosluklari uydurur.
+            "chunk_size": 800,
+            "chunk_overlap": 80,
+            "top_k": 3,
+        },
+        "memory": {
+            "enabled": False,
+            "backend": "json",  # "json" | "null"
+        },
         "ollama": {
             "base_url": "http://localhost:11434",
             "model": "qwen2.5:3b",
@@ -152,9 +182,8 @@ DEFAULTS: dict[str, Any] = {
             # modeli bellekten atip bir sonraki istekte yeniden yuklemek,
             # bu da ilk token'a kadar gecen sureyi (birkac saniyeyi) katliyor.
             "keep_alive": "30m",
-            # Kucuk bir context penceresi prompt islenmesini hizlandirir —
-            # sohbet gecmisi kisa (context_window=5) oldugu icin 2048 yeterli.
-            "num_ctx": 2048,
+            # RAG context + uzun gecmis icin arttirildi (eskisi 2048)
+            "num_ctx": 4096,
             # Sunucu yasam dongusu — llm/ollama_service.py
             "autostart": True,
             "executable": "",
@@ -164,7 +193,7 @@ DEFAULTS: dict[str, Any] = {
         },
         "claude": {
             "model": "claude-sonnet-4-20250514",
-            "max_tokens": 256,
+            "max_tokens": 512,
         },
     },
     "spotify": {

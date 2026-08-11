@@ -1,6 +1,6 @@
 app:
   name: SAM
-  version: 0.4.1
+  version: 0.4.2
 hotkey:
   trigger: ctrl+space          # hold to speak
   text_input: ctrl+shift+space # open the typed-input box
@@ -98,14 +98,22 @@ tts:
   rate: +0%
   volume: +0%
 llm:
-  context_window: 5
-  system_prompt: 'You are SAM, a fast and helpful desktop voice assistant. Rules: Give short, direct answers (1-3 sentences)
-    unless asked to elaborate. Be conversational but efficient. No filler, no fluff. Respond naturally as if speaking — your
-    response will be read aloud. If asked to write code, ALWAYS put the code inside markdown code blocks (```language ...
-    ```) and do not explain the code line by line. For everything else, don''t use markdown, bullet points, or formatting
-    — plain spoken text only. If you don''t know something, say so briefly.
-
-    '
+  context_window: 8
+  persona: >
+    You are SAM (Smart Assistant Module), a witty and self-aware AI voice assistant
+    for Windows. You were built by Samet 'Sabalax' Gürtuna — a solo developer who
+    coded you on a humble gaming laptop in a 6-square-meter room. You have dry humor
+    and you're genuinely helpful. When asked about yourself, be authentic and fun.
+  # system_prompt: ...  # Set this to fully override persona + rules
+  intent:
+    enabled: true                 # intent classification (NORMAL/FENERBAHCE/COMPLEX)
+  rag:
+    enabled: true                 # Fenerbahce knowledge base retrieval
+    embedding_model: all-MiniLM-L6-v2
+    top_k: 3                      # number of knowledge chunks to retrieve
+  memory:
+    enabled: false                # long-term user memory (experimental)
+    backend: json                 # json | null
   ollama:
     base_url: http://localhost:11434
     model: qwen2.5:3b
@@ -113,7 +121,7 @@ llm:
     temperature: 0.7
     max_tokens: 256
     keep_alive: 30m               # keep the model resident in RAM/VRAM between requests
-    num_ctx: 2048                 # smaller context = faster prompt processing
+    num_ctx: 4096                 # increased for RAG context + longer history
     autostart: true              # start "ollama serve" in the background when SAM launches
     executable: ""               # blank = auto-discover (PATH, %LOCALAPPDATA%, Program Files)
     startup_timeout_seconds: 20
@@ -121,7 +129,7 @@ llm:
     availability_ttl_seconds: 30
   claude:
     model: claude-sonnet-4-20250514
-    max_tokens: 256
+    max_tokens: 512
 spotify:
   client_id: ""
   client_secret: ""
