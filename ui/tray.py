@@ -55,6 +55,11 @@ class TrayManager(QObject):
         
         self._menu.addSeparator()
 
+        # Ask SAM (typed input)
+        ask_action = QAction("⌨️ Ask SAM...", self._menu)
+        ask_action.triggered.connect(self._open_text_input)
+        self._menu.addAction(ask_action)
+
         # Settings
         settings_action = QAction("⚙️ Settings...", self._menu)
         settings_action.triggered.connect(self._open_settings)
@@ -90,12 +95,21 @@ class TrayManager(QObject):
     def _open_settings(self):
         """Settings penceresini ac (tekil instance)."""
         if self._settings_window is None or not self._settings_window.isVisible():
-            self._settings_window = SettingsWindow()
+            self._settings_window = SettingsWindow(controller=self._controller)
+            if self._controller is not None:
+                self._settings_window.settings_saved.connect(
+                    self._controller.apply_settings
+                )
             self._settings_window.show()
         else:
             # Zaten aciksa one getir
             self._settings_window.activateWindow()
             self._settings_window.raise_()
+
+    def _open_text_input(self):
+        """Orb'un altindaki yazi kutusunu ac."""
+        if self._controller is not None:
+            self._controller.text_input_signal.emit()
 
     def _toggle_mute(self):
         """Wake word dinlemeyi ac/kapat."""

@@ -37,13 +37,29 @@ class StatusDot(QWidget):
         self._pulse_alpha: float = 0.0
         self._pulse_dir: float = 1.0
 
-        # Pulse animation timer
+        # Pulse animation timer — sadece gorunurken calisir.
+        # Onceden bar gizliyken de saniyede 30 kez tick atiyordu.
         self._pulse_timer = QTimer(self)
         self._pulse_timer.timeout.connect(self._pulse_tick)
-        self._pulse_timer.start(33)  # ~30fps
+
+        # Glow gradient'i her karede yeniden kurmak yerine sakla
+        self._glow_gradient = QRadialGradient(
+            self.GLOW_RADIUS, self.GLOW_RADIUS, self.GLOW_RADIUS
+        )
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if not self._pulse_timer.isActive():
+            self._pulse_timer.start(33)  # ~30fps
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._pulse_timer.stop()
 
     def set_color(self, hex_color: str) -> None:
         """Change dot color (called on state transitions)."""
+        if self._color.name() == QColor(hex_color).name():
+            return
         self._color = QColor(hex_color)
         self.update()
 
@@ -68,11 +84,10 @@ class StatusDot(QWidget):
         # Outer glow
         glow_color = QColor(self._color)
         glow_color.setAlphaF(0.15 * self._pulse_alpha)
-        glow_gradient = QRadialGradient(center_x, center_y, self.GLOW_RADIUS)
-        glow_gradient.setColorAt(0.0, glow_color)
-        glow_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        self._glow_gradient.setColorAt(0.0, glow_color)
+        self._glow_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(glow_gradient))
+        painter.setBrush(QBrush(self._glow_gradient))
         painter.drawEllipse(
             center_x - self.GLOW_RADIUS, center_y - self.GLOW_RADIUS,
             self.GLOW_RADIUS * 2, self.GLOW_RADIUS * 2
@@ -126,6 +141,12 @@ class FloatingBar(QWidget):
         # Animation settings
         self._slide_ms: int = config.get("ui", "animation", "slide_duration_ms", default=350)
         self._fade_ms: int = config.get("ui", "animation", "fade_duration_ms", default=250)
+
+        # Cached background painting resources (built on first paint)
+        self._bg_path: QPainterPath | None = None
+        self._bg_brush: QBrush | None = None
+        self._highlight_brush: QBrush | None = None
+        self._border_pen: QPen | None = None
 
         # Opacity effect for fade animations
         self._opacity_effect = QGraphicsOpacityEffect(self)
@@ -282,8 +303,14 @@ class FloatingBar(QWidget):
         # Waveform is active during listening and speaking
         self._waveform.set_active(state in ("listening", "speaking"))
 
+    def set_level(self, level: float) -> None:
+        """Forward the live microphone level to the waveform visualizer."""
+        self._waveform.set_level(level)
+
     def set_transcript(self, text: str) -> None:
         """Update the transcript/response text displayed in the bar."""
+        if self._transcript_label.text() == text:
+            return
         self._transcript_label.setText(text)
 
     def clear_transcript(self) -> None:
@@ -309,28 +336,29 @@ class FloatingBar(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Rounded rect path
-        path = QPainterPath()
-        path.addRoundedRect(
-            0.0, 0.0,
-            float(self.width()), float(self.height()),
-            self._border_radius, self._border_radius
-        )
+        # Arka plan bir kez hesaplanir; bar sabit boyutlu oldugu icin
+        # path/gradient/renk her boyamada yeniden kurulmaz.
+        if self._bg_path is None:
+            self._bg_path = QPainterPath()
+            self._bg_path.addRoundedRect(
+                0.0, 0.0,
+                float(self.width()), float(self.height()),
+                self._border_radius, self._border_radius
+            )
+            self._bg_brush = QBrush(QColor(10, 10, 15, int(255 * 0.88)))
 
-        # Dark frosted glass fill
-        bg_color = QColor(10, 10, 15, int(255 * 0.88))
-        painter.fillPath(path, QBrush(bg_color))
+            highlight = QLinearGradient(0, 0, 0, 8)
+            highlight.setColorAt(0.0, QColor(255, 255, 255, 12))
+            highlight.setColorAt(1.0, QColor(255, 255, 255, 0))
+            self._highlight_brush = QBrush(highlight)
 
-        # Subtle top highlight for depth
-        highlight = QLinearGradient(0, 0, 0, 8)
-        highlight.setColorAt(0.0, QColor(255, 255, 255, 12))
-        highlight.setColorAt(1.0, QColor(255, 255, 255, 0))
-        painter.fillPath(path, QBrush(highlight))
+            border_color = QColor(styles.Colors.accent())
+            border_color.setAlpha(25)
+            self._border_pen = QPen(border_color, 1.0)
 
-        # Border
-        border_color = QColor(styles.Colors.accent())
-        border_color.setAlpha(25)
-        painter.setPen(QPen(border_color, 1.0))
-        painter.drawPath(path)
+        painter.fillPath(self._bg_path, self._bg_brush)
+        painter.fillPath(self._bg_path, self._highlight_brush)
+        painter.setPen(self._border_pen)
+        painter.drawPath(self._bg_path)
 
         painter.end()

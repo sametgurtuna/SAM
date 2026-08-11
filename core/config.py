@@ -2,9 +2,12 @@
 # Loads config.yaml and provides typed access with sensible defaults.
 
 import os
+import shutil
 import yaml
 import logging
 from typing import Any
+
+from core import paths
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +15,48 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.3.6",
+        "version": "0.4.1",
     },
     "hotkey": {
         "trigger": "ctrl+space",
+        "text_input": "ctrl+shift+space",
     },
     "ui": {
+        "overlay": {
+            # "orb" = always-visible circular overlay (default)
+            # "bar" = legacy bottom floating bar
+            "style": "orb",
+        },
+        "orb": {
+            "size": 120,             # core disc diameter
+            "glow_padding": 28,      # extra window margin for the outer glow
+            "ring_width": 3,
+            "opacity": 0.95,
+            "label": "SAM",
+            "idle_fps": 12,          # breathing only — this runs 24/7
+            "active_fps": 60,
+            "idle_animation": True,  # False => timer stops entirely at rest
+            "breathe_period_ms": 4000,
+            "spike_count": 36,
+            # auto = katilmayan pencerelerin en altinda durur, sadece SAM
+            #        cagrildiginda (dinleme/dusunme/konusma veya yazi kutusu)
+            #        en one gelir — varsayilan.
+            # topmost = eski davranis, her zaman her seyin ustunde.
+            # normal = ozel z-sira yonetimi yok, sıradan bir pencere gibi.
+            "layer": "auto",
+            "hide_on_fullscreen": True,
+            "click_through": True,
+            "caption_width": 560,
+            "caption_gap": 18,
+            "caption_max_lines": 6,
+            "position": {
+                "anchor": "bottom-right",   # bottom-right | bottom-center | custom
+                "x": None,
+                "y": None,
+                "screen": None,
+                "margin": 48,
+            },
+        },
         "bar": {
             "width": 800,
             "height": 80,
@@ -26,8 +65,8 @@ DEFAULTS: dict[str, Any] = {
             "opacity": 0.92,
         },
         "animation": {
-            "slide_duration_ms": 350,
-            "fade_duration_ms": 250,
+            "slide_duration_ms": 220,
+            "fade_duration_ms": 180,
             "text_stream_interval_ms": 45,
         },
         "auto_hide": {
@@ -36,7 +75,8 @@ DEFAULTS: dict[str, Any] = {
         "colors": {
             "background": "rgba(10, 10, 15, 0.92)",
             "accent": "#00D4AA",
-            "accent_thinking": "#FFB84D",
+            # Mavi-yesil tema: kehribar "thinking" rengi tema disindaydi.
+            "accent_thinking": "#38F2D8",
             "accent_speaking": "#00D4AA",
             "accent_listening": "#00BFFF",
             "text_primary": "#E8E8E8",
@@ -53,7 +93,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "waveform": {
         "bar_count": 35,
-        "fps": 30,
+        "fps": 60,
         "min_height": 3,
         "max_height": 32,
         "bar_width": 3,
@@ -70,11 +110,62 @@ DEFAULTS: dict[str, Any] = {
         "level": "DEBUG",
         "file": "logs/sam.log",
     },
+    # Bu dort bolum eskiden yalnizca config.yaml'daydi; gitignore'lu oldugu
+    # icin temiz bir kurulum (ve frozen build) yanlis varsayilanlarla aciliyordu.
+    "audio": {
+        "sample_rate": 16000,
+        "channels": 1,
+        "dtype": "int16",
+        "silence_threshold": 300,
+        "silence_duration_ms": 1800,
+        "max_record_seconds": 30,
+    },
+    "wake_word": {
+        "engine": "openwakeword",
+        "model": "assets/models/hey_sam.onnx",
+        "threshold": 0.4,
+        "chunk_size": 1280,
+    },
+    "stt": {
+        "engine": "faster-whisper",
+        "model": "small",
+        "language": "en",
+        "beam_size": 1,
+        "device": "cpu",
+        "compute_type": "int8",
+    },
     "tts": {
         "engine": "edge-tts",
         "voice": "en-US-GuyNeural",
         "rate": "+0%",
         "volume": "+0%",
+    },
+    "llm": {
+        "context_window": 5,
+        "ollama": {
+            "base_url": "http://localhost:11434",
+            "model": "qwen2.5:3b",
+            "vision_model": "llava",
+            "temperature": 0.7,
+            "max_tokens": 256,
+            # Modeli bellekte tut — varsayilan Ollama davranisi 5 dk sonra
+            # modeli bellekten atip bir sonraki istekte yeniden yuklemek,
+            # bu da ilk token'a kadar gecen sureyi (birkac saniyeyi) katliyor.
+            "keep_alive": "30m",
+            # Kucuk bir context penceresi prompt islenmesini hizlandirir —
+            # sohbet gecmisi kisa (context_window=5) oldugu icin 2048 yeterli.
+            "num_ctx": 2048,
+            # Sunucu yasam dongusu — llm/ollama_service.py
+            "autostart": True,
+            "executable": "",
+            "startup_timeout_seconds": 20,
+            "stop_on_exit": False,
+            "availability_ttl_seconds": 30,
+        },
+        "claude": {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 256,
+        },
     },
     "spotify": {
         "client_id": "",
@@ -109,12 +200,29 @@ class Config:
             cls._instance._config_path = None
         return cls._instance
 
+    def _seed_if_missing(self, config_path: str) -> None:
+        """
+        Fresh install: copy the bundled config.example.yaml into the writable
+        config location so the user has a commented file to edit. Only ever
+        runs when no config exists — never overwrites.
+        """
+        if os.path.exists(config_path):
+            return
+        example = paths.example_config_path()
+        if not os.path.exists(example):
+            return
+        try:
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            shutil.copyfile(example, config_path)
+            logger.info("Seeded new config at %s from template", config_path)
+        except Exception as e:
+            logger.warning("Could not seed config at %s: %s", config_path, e)
+
     def load(self, config_path: str | None = None) -> None:
         """Load configuration from YAML file, merged with defaults."""
         if config_path is None:
-            # Look for config.yaml relative to project root
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            config_path = os.path.join(project_root, "config.yaml")
+            config_path = paths.config_path()
+            self._seed_if_missing(config_path)
 
         self._config_path = config_path
 

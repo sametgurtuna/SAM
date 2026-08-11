@@ -5,6 +5,7 @@
 import asyncio
 import logging
 import os
+import queue
 import tempfile
 import threading
 import time
@@ -43,12 +44,23 @@ class TTSEngine(QObject):
         self._temp_dir: str = tempfile.mkdtemp(prefix="sam_tts_")
         self._playing: bool = False
 
-        # Cift konusmayi engellemek icin threading lock
-        self._speak_lock = threading.Lock()
+        # ─── Konusma kuyrugu ─────────────────────────────────────
+        # LLM yanitinin tamamlanmasini beklemek yerine cumle cumle
+        # seslendirebilmek icin kalici bir worker + kuyruk kullanilir.
+        # `_generation` sayaci stop() cagrildiginda artar; kuyrukta
+        # bekleyen eski parcalar boylece sessizce atilir.
+        self._queue: "queue.Queue[tuple[int, str, str]]" = queue.Queue()
+        self._generation: int = 0
+        self._gen_lock = threading.Lock()
 
         # Initialize pygame mixer
         self._mixer_ready: bool = False
         self._init_mixer()
+
+        self._worker = threading.Thread(
+            target=self._worker_loop, daemon=True, name="TTSWorker"
+        )
+        self._worker.start()
 
     def _init_mixer(self) -> None:
         """Initialize pygame mixer for audio playback."""
@@ -64,29 +76,51 @@ class TTSEngine(QObject):
 
     def speak(self, text: str) -> None:
         """
-        Convert text to speech and play it. Runs in a background thread.
-        
-        Args:
-            text: The text to speak aloud.
+        Convert text to speech and play it. Non-blocking.
+
+        Replaces anything currently queued or playing — use this for
+        one-shot utterances (command confirmations, errors).
         """
+        self.stop()
         if not text.strip():
             logger.debug("Empty text — skipping TTS")
             self.playback_finished.emit()
             return
 
-        # Mevcut konusmayi durdur — cift konusmayi onle
-        self.stop()
+        self._enqueue("say", text)
+        self._enqueue("end", "")
 
-        thread = threading.Thread(
-            target=self._speak_worker,
-            args=(text,),
-            daemon=True,
-            name="TTSThread"
-        )
-        thread.start()
+    def speak_chunk(self, text: str) -> None:
+        """
+        Queue one more piece of an in-progress utterance without cancelling
+        what is already playing. Used to speak an LLM response sentence by
+        sentence while it is still streaming in.
+        """
+        if not text.strip():
+            return
+        self._enqueue("say", text)
+
+    def end_stream(self) -> None:
+        """Mark the end of a streamed utterance — fires playback_finished."""
+        self._enqueue("end", "")
+
+    def _enqueue(self, kind: str, text: str) -> None:
+        with self._gen_lock:
+            generation = self._generation
+        self._queue.put((generation, kind, text))
 
     def stop(self) -> None:
-        """Stop any currently playing audio."""
+        """Cancel queued speech and stop any currently playing audio."""
+        with self._gen_lock:
+            # Kuyrukta bekleyen her sey artik eski nesle ait — worker atacak
+            self._generation += 1
+
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+
         self._playing = False
         try:
             import pygame.mixer
@@ -95,35 +129,43 @@ class TTSEngine(QObject):
         except Exception:
             pass
 
-    def _speak_worker(self, text: str) -> None:
-        """Background worker: generate TTS audio and play it."""
-        # Lock ile ayni anda sadece bir konusma yapilmasini sagla
-        if not self._speak_lock.acquire(blocking=False):
-            logger.debug("TTS already speaking — skipping duplicate call")
+    def _is_current(self, generation: int) -> bool:
+        with self._gen_lock:
+            return generation == self._generation
+
+    def _worker_loop(self) -> None:
+        """Persistent worker: drains the speech queue in order."""
+        while True:
+            generation, kind, text = self._queue.get()
+
+            # stop() sonrasi kuyrukta kalan eski parcalari atla
+            if not self._is_current(generation):
+                continue
+
+            if kind == "end":
+                self.playback_finished.emit()
+                continue
+
+            try:
+                self._speak_one(text, generation)
+            except Exception as e:
+                logger.error("TTS failed: %s", e)
+
+    def _speak_one(self, text: str, generation: int) -> None:
+        """Synthesize and play a single chunk (blocking, on the worker)."""
+        # Refresh engine setting in case it was changed in GUI
+        self._engine_type = config.get("tts", "engine", default="edge-tts")
+
+        if self._engine_type == "local":
+            self._speak_local(text)
             return
 
-        try:
-            # Refresh engine setting in case it was changed in GUI
-            self._engine_type = config.get("tts", "engine", default="edge-tts")
-            
-            if self._engine_type == "local":
-                self._speak_local(text)
-                return
+        # Edge-TTS: Generate audio file and play
+        audio_path = self._generate_audio(text)
+        if audio_path is None or not self._is_current(generation):
+            return
 
-            # Edge-TTS: Generate audio file and play
-            audio_path = self._generate_audio(text)
-            if audio_path is None:
-                self.playback_finished.emit()
-                return
-
-            # Play audio
-            self._play_audio(audio_path)
-
-        except Exception as e:
-            logger.error("TTS failed: %s", e)
-            self.playback_finished.emit()
-        finally:
-            self._speak_lock.release()
+        self._play_audio(audio_path)
 
     def _generate_audio(self, text: str) -> str | None:
         """Generate TTS audio using edge-tts (async). Returns path to MP3 file."""
@@ -184,7 +226,6 @@ class TTSEngine(QObject):
             logger.error("Local TTS failed: %s", e)
         finally:
             self._playing = False
-            self.playback_finished.emit()
 
     async def _async_generate(self, text: str, output_path: str) -> None:
         """Async edge-tts generation."""
@@ -202,7 +243,6 @@ class TTSEngine(QObject):
         """Play an MP3 file via pygame.mixer and wait for it to finish."""
         if not self._mixer_ready:
             logger.warning("Mixer not ready — cannot play TTS audio")
-            self.playback_finished.emit()
             return
 
         try:
@@ -217,8 +257,10 @@ class TTSEngine(QObject):
             logger.debug("TTS playback started")
 
             # Wait for playback to finish
+            # Kisa poll araligi — zincirlenmis cumleler arasinda
+            # duyulur bir bosluk kalmasini onler.
             while pygame.mixer.music.get_busy() and self._playing:
-                time.sleep(0.1)
+                time.sleep(0.02)
 
             pygame.mixer.music.unload()
             logger.debug("TTS playback finished")
@@ -227,7 +269,6 @@ class TTSEngine(QObject):
             logger.error("TTS playback failed: %s", e)
         finally:
             self._playing = False
-            self.playback_finished.emit()
 
             # Clean up temp file
             try:

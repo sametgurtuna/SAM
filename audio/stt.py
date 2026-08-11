@@ -3,6 +3,7 @@
 # Runs locally, no cloud calls. Model is downloaded on first use.
 
 import logging
+import os
 import threading
 import time
 
@@ -10,6 +11,7 @@ import numpy as np
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from core import paths
 from core.config import config
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ class STTEngine(QObject):
     def __init__(self) -> None:
         super().__init__()
 
-        self._model_size: str = config.get("stt", "model", default="base")
+        self._model_size: str = config.get("stt", "model", default="small")
         self._language: str | None = config.get("stt", "language", default="en")
         self._beam_size: int = config.get("stt", "beam_size", default=2)
         self._device: str = config.get("stt", "device", default="cpu")
@@ -43,15 +45,26 @@ class STTEngine(QObject):
 
         self._model = None
         self._model_loaded: bool = False
+        # Preload thread'i ile STT worker thread'i ayni anda load_model()
+        # cagirabilir; kilit olmadan model iki kez yuklenir (cift RAM,
+        # iki kat yavas ilk transkripsiyon).
+        self._load_lock = threading.Lock()
 
     def load_model(self) -> None:
         """
         Pre-load the Whisper model. Call during startup for faster first transcription.
-        Safe to call from any thread.
+        Safe to call from any thread — concurrent calls block until the first finishes.
         """
         if self._model_loaded:
             return
 
+        with self._load_lock:
+            # Kilidi beklerken baska bir thread yuklemis olabilir.
+            if self._model_loaded:
+                return
+            self._load_model_locked()
+
+    def _load_model_locked(self) -> None:
         try:
             from faster_whisper import WhisperModel
 
@@ -63,13 +76,22 @@ class STTEngine(QObject):
                 self._model_size,
                 device=self._device,
                 compute_type=self._compute_type,
+                # CTranslate2 varsayilan olarak tek cekirdek kullanir.
+                # CPU modunda tum cekirdekleri vermek decode suresini
+                # belirgin sekilde kisaltir.
+                cpu_threads=os.cpu_count() or 4,
+                # Sabit, yazilabilir bir konum — kurulum sihirbazi modeli
+                # onceden buraya indirir, ilk calistirmada bekleme olmaz.
+                download_root=os.path.join(paths.models_dir(), "whisper"),
             )
             elapsed = time.time() - start
             self._model_loaded = True
             logger.info("Whisper model loaded in %.1fs", elapsed)
 
-        except ImportError:
-            logger.error("faster-whisper not installed. Run: pip install faster-whisper")
+        except ImportError as e:
+            # Hangi modulun eksik oldugunu yaz — frozen build'de eksik olan
+            # genelde faster-whisper degil, gecisli bir bagimliligi oluyor.
+            logger.error("faster-whisper unavailable (%s). Run: pip install faster-whisper", e)
         except Exception as e:
             logger.error("Failed to load Whisper model: %s", e)
 
@@ -94,6 +116,9 @@ class STTEngine(QObject):
         """Background worker for transcription."""
         # Ensure model is loaded
         if not self._model_loaded:
+            # Ilk yukleme (ozellikle buyuk modellerde) dakikalar surebilir —
+            # kullanici "Transcribing..." ekraninda takildik sanmasin.
+            self.partial_transcript.emit("Loading speech model...")
             self.load_model()
 
         if self._model is None:
@@ -117,8 +142,14 @@ class STTEngine(QObject):
                 vad_filter=True,           # Filter out non-speech segments
                 vad_parameters=dict(
                     min_silence_duration_ms=300,
-                    speech_pad_ms=400,  # Prevent clipping the start/end of words
+                    speech_pad_ms=200,  # Prevent clipping the start/end of words
                 ),
+                # Sesli komutlar kisa ve bagimsizdir; onceki metne
+                # kosullanmak hem yavaslatir hem de tekrar dongusune
+                # (hallucination loop) yol acabilir.
+                condition_on_previous_text=False,
+                # Zaman damgalari kullanilmiyor — uretmemek decode'u hizlandirir.
+                without_timestamps=True,
             )
 
             # Collect segments — emit partial transcripts as we go

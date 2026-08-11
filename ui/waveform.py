@@ -1,12 +1,12 @@
 # SAM — Animated Waveform Widget
 # Renders a smooth audio-reactive waveform using sinusoidal bar animations.
-# Driven by QPainter at 30fps for efficient rendering.
+# Driven by QPainter, and only while the widget is actually visible.
 
 import math
 import random
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPainter, QColor, QLinearGradient
+from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QGradient
 from PyQt6.QtWidgets import QWidget
 
 from core.config import config
@@ -15,24 +15,29 @@ from core.config import config
 class WaveformWidget(QWidget):
     """
     Animated waveform visualizer with vertical bars.
-    
+
     States:
         - active=True:  Bars pulse with sinusoidal animation (listening/speaking)
         - active=False: Bars collapse to minimum height (idle)
+
+    The animation timer only runs while the widget is visible, and stops
+    entirely once the bars have settled at rest — an idle SAM does no painting.
     """
 
     # Animation constants
     PHASE_SPEED = 0.08          # How fast the wave moves
-    AMPLITUDE_LERP = 0.08       # Smoothing factor for amplitude transitions
+    AMPLITUDE_LERP = 0.18       # Smoothing factor for amplitude transitions
+    LEVEL_LERP = 0.35           # Smoothing for live mic level
     IDLE_AMPLITUDE = 0.0        # Target amplitude when inactive
     ACTIVE_AMPLITUDE = 1.0      # Target amplitude when active
+    REST_EPSILON = 0.004        # Below this, treat the animation as settled
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         # Load config
         self._bar_count: int = config.get("waveform", "bar_count", default=35)
-        self._fps: int = config.get("waveform", "fps", default=30)
+        self._fps: int = config.get("waveform", "fps", default=60)
         self._min_h: int = config.get("waveform", "min_height", default=3)
         self._max_h: int = config.get("waveform", "max_height", default=32)
         self._bar_w: int = config.get("waveform", "bar_width", default=3)
@@ -42,12 +47,16 @@ class WaveformWidget(QWidget):
         # Animation state
         self._active: bool = False
         self._amplitude: float = 0.0       # Current amplitude (lerped)
+        self._level: float = 0.0           # Live mic level (lerped, 0.0–1.0)
+        self._level_target: float = 0.0
         self._phase: float = 0.0           # Wave phase offset
-        self._time: float = 0.0            # Monotonic time counter
 
         # Per-bar random seeds for organic variation
         self._seeds: list[float] = [random.uniform(0.5, 1.5) for _ in range(self._bar_count)]
         self._phase_offsets: list[float] = [random.uniform(0, math.tau) for _ in range(self._bar_count)]
+
+        # Bar x positions never change — hesapla ve sakla
+        self._xs: list[int] = [i * (self._bar_w + self._bar_gap) for i in range(self._bar_count)]
 
         # Fixed size based on bar count
         total_width = self._bar_count * (self._bar_w + self._bar_gap) - self._bar_gap
@@ -56,77 +65,135 @@ class WaveformWidget(QWidget):
         # Transparent background
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Animation timer
+        # Tek bir gradient nesnesi tum cubuklar icin yeniden kullanilir:
+        # ObjectBoundingMode sayesinde koordinatlar cizilen sekle gore
+        # 0..1 araliginda yorumlanir, her cubuk icin yenisini kurmak gerekmez.
+        self._gradient = QLinearGradient(0.0, 0.0, 0.0, 1.0)
+        self._gradient.setCoordinateMode(QGradient.CoordinateMode.ObjectBoundingMode)
+        self._gradient_alpha_key: tuple[str, int] | None = None
+
+        # Animation timer — only runs while visible (see showEvent/hideEvent)
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.timeout.connect(self._tick)
-        self._timer.start(1000 // self._fps)
+        self._interval_ms = max(8, 1000 // self._fps)
+
+    # ─── Visibility-driven timer ──────────────────────────────────
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._start_timer()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._timer.stop()
+
+    def _start_timer(self) -> None:
+        if not self._timer.isActive() and self.isVisible():
+            self._timer.start(self._interval_ms)
+
+    # ─── Public API ───────────────────────────────────────────────
 
     def set_active(self, active: bool) -> None:
         """Enable or disable waveform animation."""
+        if active == self._active:
+            return
         self._active = active
+        if not active:
+            self._level_target = 0.0
+        # Durum degistiginde animasyonun yeniden baslamasi gerekir
+        self._start_timer()
 
     def set_color(self, color_hex: str) -> None:
         """Change the waveform bar color dynamically."""
+        if color_hex == self._color_hex:
+            return
         self._color_hex = color_hex
+        self._gradient_alpha_key = None  # gradient'i yeniden kur
+        self._start_timer()
+
+    def set_level(self, level: float) -> None:
+        """
+        Feed the live microphone level (0.0–1.0) so the bars react to the
+        user's actual voice instead of only running a canned sine loop.
+        """
+        self._level_target = max(0.0, min(1.0, level))
+        self._start_timer()
+
+    # ─── Animation ────────────────────────────────────────────────
 
     def _tick(self) -> None:
         """Animation frame — update phase and amplitude, trigger repaint."""
-        self._time += 1.0 / self._fps
-
-        # Smooth amplitude transition
         target = self.ACTIVE_AMPLITUDE if self._active else self.IDLE_AMPLITUDE
         self._amplitude += (target - self._amplitude) * self.AMPLITUDE_LERP
+        self._level += (self._level_target - self._level) * self.LEVEL_LERP
 
-        # Advance wave phase
         self._phase += self.PHASE_SPEED
 
+        # Dinlenme durumuna oturduysa timer'i durdur — bos ekranda
+        # saniyede 60 kez bos boyama yapmanin anlami yok.
+        if (not self._active
+                and abs(self._amplitude - target) < self.REST_EPSILON
+                and self._level < self.REST_EPSILON):
+            self._amplitude = target
+            self._level = 0.0
+            self._timer.stop()
+
         self.update()
+
+    def _bar_gradient(self) -> QLinearGradient:
+        """Amplitude'a gore alfa degerleri guncellenmis paylasilan gradient."""
+        # Alfa'yi 8'lik kovalara yuvarla — gozle farkedilmez ama
+        # gradient'i her karede yeniden kurmaktan kurtarir.
+        bucket = int(self._amplitude * 255) // 8
+        key = (self._color_hex, bucket)
+        if key == self._gradient_alpha_key:
+            return self._gradient
+
+        base = QColor(self._color_hex)
+        edge = QColor(base)
+        edge.setAlpha(int(80 * self._amplitude) + 40)
+        center = QColor(base)
+        center.setAlpha(int(200 * self._amplitude) + 55)
+
+        self._gradient.setColorAt(0.0, edge)
+        self._gradient.setColorAt(0.5, center)
+        self._gradient.setColorAt(1.0, edge)
+        self._gradient_alpha_key = key
+        return self._gradient
 
     def paintEvent(self, event) -> None:
         """Render waveform bars using QPainter."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self._bar_gradient())
 
-        base_color = QColor(self._color_hex)
         widget_h = self.height()
+        span = self._max_h - self._min_h
+        phase = self._phase
+        # Canli mikrofon seviyesi taban bir zemin olusturur; sinus dalgasi
+        # bunun uzerine dokusunu ekler. Boylece cubuklar gercekten konusmaya
+        # tepki verir ama sessizlikte de tamamen olu gorunmez.
+        voice = 0.35 + 0.65 * self._level
 
         for i in range(self._bar_count):
             # Compute bar height from layered sine waves for organic feel
             sin_val = (
-                math.sin(self._phase + self._phase_offsets[i]) * 0.5
-                + math.sin(self._phase * 1.7 + i * 0.4) * 0.3
-                + math.sin(self._phase * 0.6 + i * 0.8) * 0.2
+                math.sin(phase + self._phase_offsets[i]) * 0.5
+                + math.sin(phase * 1.7 + i * 0.4) * 0.3
+                + math.sin(phase * 0.6 + i * 0.8) * 0.2
             )
-            # Normalize to [0, 1] range
-            normalized = (sin_val + 1.0) / 2.0
-            # Apply per-bar seed variation
-            normalized *= self._seeds[i]
-            normalized = min(normalized, 1.0)
+            # Normalize to [0, 1] range, apply per-bar seed variation
+            normalized = min((sin_val + 1.0) * 0.5 * self._seeds[i], 1.0)
 
-            # Scale by current amplitude
-            bar_h = self._min_h + (self._max_h - self._min_h) * normalized * self._amplitude
-            bar_h = max(bar_h, self._min_h)
+            bar_h = self._min_h + span * normalized * self._amplitude * voice
+            if bar_h < self._min_h:
+                bar_h = self._min_h
 
-            # Position — bars are bottom-anchored, centered vertically
-            x = i * (self._bar_w + self._bar_gap)
-            y = (widget_h - bar_h) / 2
-
-            # Gradient: full color at center, faded at tips
-            gradient = QLinearGradient(x, y, x, y + bar_h)
-            alpha_edge = int(80 * self._amplitude) + 40
-            alpha_center = int(200 * self._amplitude) + 55
-
-            color_edge = QColor(base_color)
-            color_edge.setAlpha(alpha_edge)
-            color_center = QColor(base_color)
-            color_center.setAlpha(alpha_center)
-
-            gradient.setColorAt(0.0, color_edge)
-            gradient.setColorAt(0.5, color_center)
-            gradient.setColorAt(1.0, color_edge)
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(gradient)
-            painter.drawRoundedRect(int(x), int(y), self._bar_w, int(bar_h), 1.5, 1.5)
+            y = (widget_h - bar_h) * 0.5
+            painter.drawRoundedRect(
+                self._xs[i], int(y), self._bar_w, int(bar_h), 1.5, 1.5
+            )
 
         painter.end()

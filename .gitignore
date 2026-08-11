@@ -62,6 +62,12 @@ sam_tts_*/
 *.onnx
 *.pt
 *.pth
+# Wake word modeli kucuk (~200KB) ve uygulamanin calismasi icin sart —
+# repoda olmazsa klonlayan herkeste wake word sessizce devre disi kaliyor.
+!assets/models/*.onnx
+
+# Indirilen Whisper agirliklari (core/paths.models_dir() — dev'de repo koku)
+models/
 
 # ─── Testing ─────────────────────────────────────────────────
 .pytest_cache/
@@ -75,3 +81,7 @@ htmlcov/
 *.spec
 pip-log.txt
 pip-delete-this-directory.txt
+# Build tarifleri versiyonlanmali
+!SAM.spec
+!installer/*.iss
+installer/Output/

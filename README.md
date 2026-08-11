@@ -1,528 +1,367 @@
 <div align="center">
 
-<img src="assets/sam-logo.png" alt="SAM Logo" width="120" />
+<img src="assets/icon.png" alt="SAM" width="88" />
 
-# SAM Smart Assistant Module
+# SAM — Smart Assistant Module
 
-### The Local, Privacy-First, Zero-Latency Desktop Voice Companion
+### A local, always-on voice assistant that lives on your desktop
 
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg?style=for-the-badge)](LICENSE)
-[![Powered by Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-1a1a2e.svg?style=for-the-badge&logo=ollama)](https://ollama.ai)
-[![UI: PyQt6](https://img.shields.io/badge/UI-PyQt6-41cd52.svg?style=for-the-badge&logo=qt)](https://www.riverbankcomputing.com/software/pyqt/)
-[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6.svg?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
+<p>
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Ollama-Local%20LLM-1a1a2e?style=for-the-badge&logo=ollama" alt="Powered by Ollama">
+  <img src="https://img.shields.io/badge/UI-PyQt6-41cd52?style=for-the-badge&logo=qt" alt="UI: PyQt6">
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows" alt="Platform: Windows">
+</p>
 
-> Your data is yours alone. SAM brings the power of modern Large Language Models and Voice Recognition directly to your desktopwith **zero cloud dependencies**, **zero telemetry**, and **zero latency constraints**. Fully offline, highly performant, and deeply integrated into your operating system.
+<img src="assets/preview-orb-states.png" alt="SAM orb — idle, listening, thinking, speaking" width="760">
 
----
+<sub>The orb's four states — idle breathing, level-reactive listening, a sweeping thinking arc, speaking.</sub>
 
-[📖 Architecture](docs/ARCHITECTURE.md) · [⚙️ Configuration](#-configuration-deep-dive) · [🗺️ Roadmap](ROADMAP.md) · [📦 Setup Guide](setup.md) · [🤝 Contributing](#-contributing--code-of-conduct)
+<br><br>
+
+**[Setup Guide](setup.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Roadmap](ROADMAP.md)**
 
 </div>
 
 ---
 
-## Table of Contents
+## What SAM actually is
 
-- [Philosophy & Vision](#-philosophy--vision)
-- [Key Architecture & Features](#-key-architecture--features)
-- [Local vs Cloud Comparison](#-the-sam-advantage-local-vs-cloud)
-- [Hardware Recommendations](#-hardware-recommendations--benchmarks)
-- [Prerequisites & System Setup](#-prerequisites--system-setup)
-- [Installation Guide](#-installation-guide)
-- [Usage Guide](#-usage-guide--interface-interaction)
-- [Command Reference](#-comprehensive-command-reference)
-- [Configuration Deep-Dive](#-configuration-deep-dive)
-- [Developer Guide: Custom Commands](#-developer-guide-writing-custom-commands)
-- [Troubleshooting](#-troubleshooting--diagnostics-matrix)
-- [Project Structure](#-project-directory-layout)
-- [Roadmap](#-roadmap)
-- [Security & Privacy](#-security--privacy-audit-pledge)
-- [Contributing](#-contributing--code-of-conduct)
-- [License](#-license)
+SAM is a Windows background app that sits on your desktop as a small circular **orb** —
+out of the way until you need it, gone from the window stack, then instantly on top the
+moment you speak, type, or click it.
+
+> Say the wake word or press a hotkey → SAM records you → transcribes locally with
+> `faster-whisper` → either runs a matching OS command directly, or streams a reply from a
+> local **Ollama** model → speaks the answer back.
+
+It's not a cloud assistant with a local UI bolted on. Voice, transcription, and — with
+Ollama — the language model itself, all run on your machine. SAM's only unprompted network
+call is to `localhost:11434` (your own Ollama server); a cloud fallback (Claude) is opt-in.
 
 ---
 
-## 🎉 What's New in v0.3.6 (Custom Wake Word & Brand Update)
+## ✨ What's new in v0.4.0
 
-- **Official Wake Word Model Change:** SAM now uses its own custom wake-word model (**"Hey Sam"**) out of the box! We transitioned from the default "Hey Jarvis" model to a custom-trained `hey_sam.onnx` model, located under `assets/models/hey_sam.onnx`.
-- **Custom Wake Word File Browser:** Added a **"Browse..."** button next to the Wake Word selection in the Settings Window. You can now select any custom-trained openWakeWord `.onnx` or `.tflite` model directly from the UI.
-- **Dynamic Terminal Displays:** Terminal activation instructions and GUI version logs now automatically format the wake word name and version number dynamically based on your config.
+<table>
+<tr>
+<td width="50%" valign="top">
 
----
+**🟢 The orb**
+An always-on circle replaces the trigger-only floating bar. It breathes gently when idle
+and reacts to your voice while engaged.
 
-## 🎉 What's New in v0.3.5 (Performance & Fluidity Update)
+**⬇️ Out of your way, by default**
+Sits at the very bottom of the window stack — below your other windows, above only the
+wallpaper — until wake word, hotkey, or a click summons it to the front. Then sinks back
+down. Configurable via `ui.orb.layer`.
 
-- **Fluid STT (Continuous Listening):** No need to pause after "Hey Jarvis". Speak naturally and seamlessly; the new ring-buffer architecture captures your entire sentence instantly.
-- **Lightning Fast Transcription:** Removed legacy noise-reduction bottlenecks and optimized silence detection (from 1.5s to 0.8s) for near-instant command recognition.
-- **Command Chaining (`and` / `ve`):** You can now chain multiple system commands together! Example: *"open spotify and play"* or *"volume up and play"*.
-- **Smart Execution Delay:** When chaining commands, SAM intelligently waits for launched applications (like Spotify) to fully open before sending subsequent keypresses.
-- **Audio Control Fix:** Resolved a critical bug with the `pycaw` audio endpoint interface for absolute volume control.
+**🖱️ Click-through**
+Only the visible circle is clickable; everything else in its bounding box passes mouse
+clicks straight to your desktop. `Ctrl` + drag moves it; position is remembered.
 
----
+</td>
+<td width="50%" valign="top">
 
-## 🌟 Philosophy & Vision
+**⌨️ Typed input**
+`Ctrl+Shift+Space`, or a click on the orb, opens a text box under it — same
+router → LLM → TTS pipeline as speech.
 
-In an era where voice assistants listen constantly to harvest data, sell advertisements, and train proprietary cloud models, **SAM was built with a radical premise: What if your AI lived entirely on your hardware?**
+**🦙 Ollama auto-start**
+SAM finds and starts the Ollama server itself, hidden, with no console flash. Never
+touches a server you already had running.
 
-SAM (Smart Assistant Module) is an open-source, highly optimized desktop companion designed to bridge the gap between local generative models and your operating system. It runs quietly in the background as a multi-threaded system service, monitoring the audio input buffer using localized TensorFlow Lite wake word models.
+**🛡️ A real safety fix**
+SAM can no longer be told, by voice *or* text, to open a shell — see
+[Security & Privacy](#-security--privacy).
 
-When summoned via the voice wake word or global keyboard hooks, SAM renders a hardware-accelerated, transparent PyQt6 visual overlay. It transcribes user speech using optimized CTranslate2 Whisper models, dynamically cleans input via spectral noise gating, and routes commands through an instantaneous regex execution router. If the request is conversational, SAM feeds it to a local Ollama instance with a custom system prompt, generating streaming responses in real time.
+**📦 A real installer**
+`SAM-Setup-x.y.z.exe` — see the [Setup Guide](setup.md).
 
-> **SAM does not require an active internet connection.** It safeguards your personal workspace while giving you developer-level control over your operating system.
-
----
-
-## ✨ Key Architecture & Features
-
-SAM is designed for power users who demand an autonomous desktop assistant that respects system resources.
-
-### 🛡️ Absolute Privacy & Local Execution
-
-| Capability | Details |
-|:---|:---|
-| Zero Cloud Leakage | No telemetry, no usage analytics, no remote data transfers |
-| Offline TTS / STT | Audio processing, wake-word validation, noise removal, and transcription happen entirely on local CPU/GPU buffers |
-| Local Context Database | Conversational memories are kept in volatile local RAM dequesno persistent cloud tracking |
-
-### 🎙️ Advanced Audio DSP Pipeline
-
-| Component | Technology | Description |
-|:---|:---|:---|
-| Wake Word Detection | `openwakeword` + TFLite | Real-time inference over a sliding audio buffer with negligible CPU utilization |
-| Voice Activity Detection | NumPy RMS Analysis | Dynamically adjusts recording duration; stops precisely when you finish speaking |
-| Spectral Noise Gate | `noisereduce` | Subtracts stationary environmental noise (fans, HVAC, wind) prior to transcription |
-
-### ⚡ High-Performance Whisper Engine (STT)
-
-- **CTranslate2 Optimization** Uses `faster-whisper` with `int8` quantization, reducing model sizes by **4×** and increasing transcription speeds up to **400%** compared to standard PyTorch wrappers.
-- **Accent & Dialect Biasing** Custom `initial_prompt` seeding inside the decoding loop biases the transformer toward command vocabularies, eliminating phonetic errors from non-native accents.
-
-### 💻 Instant OS Command Routing
-
-- **Direct Subprocess / API Hooks** For core intents (launching software, volume control, media playback, system lock), the Command Router triggers Windows API Virtual Key Codes, `ctypes`, or system process managers within **3–10 ms**.
-- **Zero LLM Token Costs** Bypassing the local LLM for simple actions saves battery, CPU cycles, and VRAM.
-
-### 🧠 Dynamic Conversational LLM Engine
-
-- **Ollama Integration** Natively interfaces with Ollama's local HTTP endpoints, supporting models such as `qwen2.5:3b`, `llama3.2:3b`, `gemma2:2b`, and larger parameter networks.
-- **Conversational Memory** A rolling conversational history preserves context for multi-turn dialogues.
-- **API Fallbacks** Optionally configures fallback modules to connect to Claude (Anthropic) or GPT (OpenAI) for external reasoning.
-
-### 🎨 Modern, Fluid Overlay & Settings UI
-
-- **PyQt6 Overlay**Frameless, click-through-capable floating window anchored to the lower desktop margin.
-- **Dynamic Waveform Visualizer**High-framerate sinusoidal and block audio waves mapping microphone amplitude to visual states.
-- **System Tray**Right-click for quick toggles (Mute, Clear Context); double-click to open the Settings Dashboard.
-- **Settings Interface**Sleek, dark-themed sidebar UI to configure hotkeys, LLM parameters, Spotify API keys, and UI aestheticsno `.yaml` editing required.
+</td>
+</tr>
+</table>
 
 ---
 
-## ⚖️ The SAM Advantage: Local vs Cloud
+## How it works
 
-| Metric | SAM (100% Local) | Commercial Assistants | Cloud LLM APIs |
-|:---|:---|:---|:---|
-| **Privacy** | Absolutezero external data transfer | Poorcontinuous voice harvesting | Moderatesubject to API data policies |
-| **System Integration** | Deepcontrols registry, tasks, & local APIs | Nonelimited to smart-home ecosystems | Nonerestricted to sandbox environments |
-| **Command Latency** | **3–10 ms** (instant local routing) | 1500–3000 ms (cloud roundtrip) | 1000–2000 ms (API request overhead) |
-| **Cost** | Free foreverzero token fees | Indirectproprietary hardware lock-in | Pay-per-tokenaccumulates fast |
-| **Offline Support** | ✅ Fully operational without internet | ❌ Fails without network | ❌ Fails without network |
-| **Customizability** | Totalopen-source modular Python | Lockedno backend access | Limitedrestricted to model prompts |
+```mermaid
+flowchart LR
+    WW["🎙️ Wake word"] --> ROUTE
+    HK["⌨️ Ctrl+Space"] --> ROUTE
+    TX["⌨️ Typed input"] -.skips recording.-> STT
+    ROUTE(( )) --> REC["Recorder — VAD"]
+    REC --> STT["STT — faster-whisper"]
+    STT --> CMD{"Matches a\ncommand pattern?"}
+    CMD -- yes --> SYS["OS action\n(no shell, ever)"]
+    CMD -- no --> LLM["Ollama / Claude\n(streaming)"]
+    SYS --> TTS["🔊 edge-tts / pyttsx3"]
+    LLM --> TTS
+    TTS --> IDLE["back to idle"]
 
----
+    style SYS fill:#0d3b32,stroke:#00D4AA,color:#e8e8e8
+    style LLM fill:#0d2a3b,stroke:#00BFFF,color:#e8e8e8
+    style TTS fill:#1a1a24,stroke:#38F2D8,color:#e8e8e8
+```
 
-## 💻 Hardware Recommendations & Benchmarks
+Everything is orchestrated by `AppController` (`core/app.py`) through PyQt signals — no
+component calls another directly. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for
+the full picture, including the state machine, threading model, and the z-order mechanics
+behind "out of your way until called."
 
-### Hardware Profiles
-
-| Profile | CPU / GPU | RAM | Recommended Models | Expected Latency |
-|:---|:---|:---|:---|:---|
-| **Ultra-Light** | Intel i3 (10th Gen) / Ryzen 3 | 8 GB | STT: `tiny` · LLM: `gemma2:2b` (CPU) | ~2.5–3.5 s |
-| **Standard** ⭐ | Intel i5 / Ryzen 5 | 16 GB | STT: `base` or `small` · LLM: `qwen2.5:3b` | ~0.8–1.5 s |
-| **Pro / Creator** | Intel i7 / Ryzen 7 + RTX 3060+ | 16+ GB | STT: `small` (CUDA) · LLM: `qwen2.5:7b` (GPU) | **~0.2–0.5 s** |
-
-### Resource Consumption (Idle)
-
-| Mode | CPU | RAM |
-|:---|:---|:---|
-| Wake Word Detection | ~1.2% | ~110 MB |
-| Active Transcription (STT Base) | Variable | ~350 MB |
-| Active Conversation (Ollama) | Variable | Depends on model (e.g. Qwen 3B ≈ 2.2 GB) |
-
----
-
-## 📦 Prerequisites & System Setup
-
-### Operating System
-
-| OS | Status | Notes |
-|:---|:---|:---|
-| **Windows 10/11** | ✅ Primary | Native virtual keycodes, taskkill commands, process handlers |
-| **Linux** |🔜 Coming Soon| Requires `portaudio19-dev`; X11 or Wayland-Xwayland compositor |
-| **macOS** |❓ Unclear| Requires system accessibility permissions for keyboard shortcuts |
-
-### Python Environment
-
-- **Python 3.11** or **3.12** recommended. Some libraries (`openwakeword`) require specific TensorFlow/TFLite wheels most stable on these versions.
-
-### Core External Dependencies
-
-| Dependency | Purpose | Installation |
-|:---|:---|:---|
-| [Ollama](https://ollama.com) | Local LLM routing | Download from official website |
-| [FFmpeg](https://ffmpeg.org) | Audio resampling for `faster-whisper` | Windows: `choco install ffmpeg` or `winget install Gstreamer.FFmpeg` <br> macOS: `brew install ffmpeg` <br> Linux: `sudo apt install ffmpeg` |
-
-> **Important:** Ensure FFmpeg is added to your system `PATH`.
+| Stage | What runs |
+|:--|:--|
+| Wake word | `openwakeword` (ONNX), continuous, low CPU |
+| Recording | RMS-based voice activity detection |
+| Transcription | `faster-whisper` (CTranslate2, int8) |
+| Instant commands | Regex router → `os.startfile` / `ctypes` / list-form `subprocess` — never a shell |
+| Conversation | Local Ollama, or Claude if you configure it |
+| Speech out | `edge-tts` (online voices) or `pyttsx3` (fully offline) |
+| Overlay | Always-on orb + fading caption + typed-input box |
 
 ---
 
-## 🚀 Installation Guide
+## 🚀 Installation
 
-> **Quick Start:** For a detailed, step-by-step walkthrough with troubleshooting, see the [Setup Guide](setup.md).
+> [!TIP]
+> Most people should grab the installer. Full walkthrough — including what each checkbox
+> does — in the **[Setup Guide](setup.md)**.
 
-### 1. Clone the Repository
+<table>
+<tr><th>📦 Installer (recommended)</th><th>🛠️ From source (development)</th></tr>
+<tr>
+<td valign="top">
 
-```bash
+```
+SAM-Setup-x.y.z.exe
+```
+
+Per-user install, no admin needed. Optionally
+installs Ollama, pre-pulls the model, pre-downloads
+the speech model, and adds a startup entry.
+
+</td>
+<td valign="top">
+
+```powershell
 git clone https://github.com/sametgurtuna/SAM.git
 cd SAM
-```
-
-### 2. Create a Virtual Environment
-
-```bash
-# Windows PowerShell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-
-# Linux / macOS
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install --upgrade pip
 pip install -r requirements.txt
-```
 
-### 4. Pull the Local LLM
-
-Start the Ollama daemon, then pull your desired model:
-
-```bash
 ollama pull qwen2.5:3b
-```
-
-> **Tip:** Low on resources? Try `gemma2:2b`. Have 8 GB+ VRAM? Try `qwen2.5:7b` or `llama3.1:8b`.
-
-### 5. Launch SAM
-
-```bash
 python main.py
 ```
 
-On first launch, SAM automatically downloads the Whisper transcription model and the wake word model. This is a one-time process.
+</td>
+</tr>
+</table>
+
+No build step for source use — it's a script you run directly. `config.yaml` is created
+from `config.example.yaml` on first run if it doesn't already exist.
 
 ---
 
-## 🎮 Usage Guide & Interface Interaction
+## 🎮 Using SAM
 
-Once initiated, SAM operates as a background task:
-
-### Initialization Flow
-
-```
-Startup → Load config.yaml → Discover Audio Devices → Lazy-load Models → Enter Wake Word Monitor (Idle)
-```
-
-### Triggering the Assistant
-
-| Method | How |
-|:---|:---|
-| 🎤 **Voice** | Say **"Hey Sam"** (or your custom wake word) clearly. The wake word thread registers the phonetic pattern and activates the system. |
-| ⌨️ **Keyboard** | Press **`Ctrl + Space`** globally (from any window) to bypass wake-word detection and open the mic buffer immediately. |
-
-### UI States
-
-| State | Behavior |
-|:---|:---|
-| **Idle** | UI hidden. SAM consumes negligible CPU while waiting for a trigger. |
-| **Listening** | A sleek bar slides onto the bottom of the screen with an animated audio visualizer. |
-| **Transcribing** | The visualizer shifts to a smooth loading animation while Whisper processes your speech. |
-| **Responding** | Text streams onto the overlay in real time (LLM) or a command status is displayed (instant). |
-| **Settings** | Double-click the system tray icon to open the full Settings Dashboard. |
+| Method | Result |
+|:--|:--|
+| Say **"Hey Sam"** (default wake word) | Orb lights up, starts listening |
+| Press `Ctrl+Space` | Same, no wake word needed |
+| Press `Ctrl+Shift+Space` | Opens a text box under the orb instead |
+| Click the orb | Same as the text hotkey |
+| `Ctrl` + drag the orb | Moves it — position is remembered |
+| Right-click the tray icon | Settings, mute wake word, clear memory, "Ask SAM…", quit |
 
 ---
 
-## ⌨️ Comprehensive Command Reference
+## ⌨️ Command reference
 
-If SAM's transcription matches any of the patterns below, it intercepts the instruction and executes it locallybypassing the LLM entirely.
+Matches here execute directly — no LLM round-trip, response in milliseconds. Everything
+else falls through to the local LLM.
 
-### 🖥️ App Control
+<table>
+<tr><th>Category</th><th>Examples</th></tr>
+<tr><td>Launch / close apps</td><td><code>"open spotify"</code> · <code>"launch notepad"</code> · <code>"close discord"</code></td></tr>
+<tr><td>Volume</td><td><code>"volume up"</code> · <code>"set volume to 50"</code> · <code>"mute"</code></td></tr>
+<tr><td>Media</td><td><code>"play"</code> · <code>"pause"</code> · <code>"next track"</code></td></tr>
+<tr><td>Spotify search ¹</td><td><code>"play blinding lights on spotify"</code></td></tr>
+<tr><td>Window / session</td><td><code>"minimize all"</code> · <code>"lock screen"</code></td></tr>
+<tr><td>Power ²</td><td><code>"shutdown computer"</code> · <code>"restart computer"</code></td></tr>
+<tr><td>Web</td><td><code>"go to github.com"</code> · <code>"search for local weather"</code></td></tr>
+<tr><td>Screenshot</td><td><code>"take a screenshot"</code></td></tr>
+</table>
 
-| Intent | Example Commands | OS Action |
-|:---|:---|:---|
-| **Launch** | `"open spotify"`, `"run chrome"`, `"launch notepad"` | Scans registry/environment paths to spawn the application |
-| **Terminate** | `"close discord"`, `"kill steam"`, `"exit word"` | Forcefully terminates the process tree |
+> ¹ Needs a Spotify Client ID/Secret — Settings → Integrations, or the
+> `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` environment variables (these win). The
+> OAuth token is cached in `%LOCALAPPDATA%\SAM\`, never in the project folder.
+>
+> ² **Two-step by design.** `"shutdown computer"` only arms the action and starts a
+> 30-second countdown; say `"confirm"` to execute it, `"cancel"` to abort. The phrase
+> must name an explicit object (`computer`/`pc`/`machine`/`laptop`), so
+> `"restart chrome"` goes to the app handler, never the power handler.
 
-### 🔊 System & Media
-
-| Intent | Example Commands | OS Action |
-|:---|:---|:---|
-| **Set Volume** | `"set volume to 50"`, `"volume 30 percent"` | PowerShell COM objects set absolute level |
-| **Volume Up** | `"volume up"`, `"louder"`, `"volume up 20"` | Increases by specified or default 10% step |
-| **Volume Down** | `"volume down"`, `"quieter"`, `"volume down 15"` | Decreases by specified or default 10% step |
-| **Mute / Unmute** | `"mute"`, `"unmute"`, `"silence"` | Emits `VK_VOLUME_MUTE` (0xAD) |
-| **Spotify Play** | `"play blinding lights on spotify"` | Spotipy API queries track ID and plays directly ¹ |
-| **Media Playback** | `"play"`, `"pause"`, `"resume"` | Emits `VK_MEDIA_PLAY_PAUSE` (0xB3) |
-| **Track Control** | `"next track"`, `"previous track"`, `"skip"` | Emits `VK_MEDIA_NEXT_TRACK` / `VK_MEDIA_PREV_TRACK` |
-
-> ¹ Requires configuring Spotify Client ID / Secret via the Settings UI (Integrations tab).
-
-### 🖥️ OS Session
-
-| Intent | Example Commands | OS Action |
-|:---|:---|:---|
-| **Minimize All** | `"minimize all"`, `"show desktop"` | Triggers `Win + D` |
-| **Lock Device** | `"lock screen"`, `"lock pc"` | Invokes `LockWorkStation` API |
-| **Shutdown** | `"shutdown computer"`, `"turn off machine"` | 30-second countdown → `shutdown /s /t 30` |
-| **Restart** | `"restart computer"`, `"reboot"` | 30-second countdown → `shutdown /r /t 30` |
-| **Cancel** | `"cancel shutdown"`, `"stop reboot"` | Aborts with `shutdown /a` |
-
-### 🌐 Web & Search
-
-| Intent | Example Commands | OS Action |
-|:---|:---|:---|
-| **URL Navigation** | `"go to github.com"` | Opens URL in default browser |
-| **Web Search** | `"search for local weather"`, `"google python"` | Formulates query and opens in default browser |
+**Shells cannot be opened by voice or text, on purpose** — see below.
 
 ---
 
-## ⚙️ Configuration Deep-Dive
+## ⚙️ Configuration
 
-All settings are exposed through `config.yaml` in the project root. Below is a fully annotated reference:
+Every key in `config.yaml` has a default in `core/config.py`, so a missing or partial file
+never breaks the app. Edit it via **Settings** in the tray menu (Orb-tab cosmetics —
+size, opacity, fps, click-through, layer, auto-hide delay — apply live; everything else
+needs a restart), or directly — the full annotated template is
+[`config.example.yaml`](config.example.yaml).
 
 ```yaml
-# ═══════════════════════════════════════════════════════════════════
-# SAMCore Configuration
-# ═══════════════════════════════════════════════════════════════════
-
-app:
-name: "SAM"
-version: "0.3.6"
-debug: false# Enable raw audio energy and model logs to stdout
-
 hotkey:
-trigger: "ctrl+space" # Global shortcut to activate listening
+  trigger: ctrl+space          # hold to speak
+  text_input: ctrl+shift+space # open the typed-input box
 
-# ── Audio Pipeline ───────────────────────────────────────────────
-audio:
-sample_rate: 16000# Required by Whisper / openwakeword (16 kHz)
-channels: 1 # Monomandatory for DSP models
-chunk_size: 1024# Buffer block size (lower = less latency, more CPU)
-silence_threshold: 350# RMS thresholdbelow this is considered silence
-silence_duration_ms: 1800 # ms of silence before auto-transcription triggers
-max_record_seconds: 30# Hard cutoff to prevent memory bloat
-noise_reduction:
-enabled: true # Spectral noise subtraction via noisereduce
-prop_decrease: 0.8# Noise reduction ratio (0.0–1.0)
-n_fft: 512# FFT block size for noise profiling
+ui:
+  orb:
+    layer: auto        # auto (bottom until called, then on top) | topmost | normal
+    click_through: true
+    idle_animation: true
+    idle_fps: 12        # SAM runs 24/7 — this is what it costs while idle
+    active_fps: 60
 
-# ── Wake Word ────────────────────────────────────────────────────
 wake_word:
-model: "assets/models/hey_sam.onnx"# Wake-word model (.onnx / .tflite, cached locally)
-threshold: 0.5# Confidence limit (lower for easier activation)
-check_interval_ms: 100# Inference interval (smaller = faster, more CPU)
+  model: assets/models/hey_sam.onnx
+  threshold: 0.5        # lower = triggers more easily
 
-# ── Speech-to-Text ───────────────────────────────────────────────
 stt:
-model: "small"# Options: tiny, base, small, medium, large-v3
-device: "cpu" # Compute device: cpu, cuda, or auto
-compute_type: "int8"# Quantization: int8 (CPU), float16 (CUDA)
-language: "en"# ISO 639-1 codeprevents hallucinations
-beam_size: 5# Beam search width (higher = better quality, slower)
-initial_prompt: >-# Decoder bias toward OS commands
-open spotify, close, volume up, volume down,
-mute, lock screen, shutdown, search for
+  model: small           # tiny | base | small | medium | large-v3
+  device: cpu             # or cuda, with a working CUDA + cuDNN setup
 
-# ── LLM Engine ───────────────────────────────────────────────────
 llm:
-engine: "ollama"# Primary: ollama | anthropic | openai
-context_window: 5 # Rolling memoryprevious message cycles
-system_prompt: >-
-You are SAM, a fast, concise, and helpful desktop voice assistant.
-The user is speaking to you. Respond directly in a conversational,
-friendly manner. Keep your answers short, clear, and action-oriented.
-Do not write markdown formatting in your response.
-ollama:
-base_url: "http://localhost:11434"
-model: "qwen2.5:3b" # Model pulled via `ollama pull`
-temperature: 0.7# 0.0 (factual) → 1.0 (creative)
-max_tokens: 200 # Token cap for concise replies
-fallback:
-anthropic_key: "" # Optional cloud fallback
-openai_key: ""# Optional cloud fallback
+  ollama:
+    model: qwen2.5:3b
+    autostart: true       # SAM starts "ollama serve" itself if it isn't running
+    stop_on_exit: false   # never kill a server you already had running
 ```
 
 ---
 
-## 🛠️ Developer Guide: Writing Custom Commands
+## 🧩 Writing a custom command
 
-SAM's modular architecture makes it straightforward to add new OS capabilities or custom macro routines.
-
-### Step 1Define Intent Patterns
-
-Add regex patterns in the Command Router module:
+A regex in `commands/router.py` plus a handler in `commands/system.py` (or a new module)
+that returns a spoken-style confirmation string.
 
 ```python
-# Türkçe / İngilizce VS Code açma intent'i
-VSCODE_PATTERNS = [
-r"\bopen (vscode|vs code|code)\b",
-r"\b(vscode|kod) aç\b"
-]
+# commands/router.py — inside _build_patterns()
+patterns.append((
+    re.compile(r"\b(what'?s|check) (my )?cpu (temp|temperature)\b", re.IGNORECASE),
+    lambda m: system.get_cpu_temperature()
+))
 ```
-
-### Step 2Implement the Handler
-
-Create a function in the `commands/` directory (e.g., `commands/vscode_control.py`):
 
 ```python
-import subprocess
-import os
-
-def launch_vscode_at_project(project_path=None):
-"""
-VS Code'u başlatır. Opsiyonel olarak bir proje dizini açar.
-"""
-# Proje dizinini doğrula ve VS Code'u başlat
-try:
-command = ["code"]
-if project_path and os.path.exists(project_path):
-command.append(project_path)
-
-# UI kilitlenmesini önlemek için subprocess.Popen kullanıyoruz
-subprocess.Popen(command, shell=True)
-return "Visual Studio Code başarıyla başlatıldı."
-except Exception as e:
-return f"VS Code başlatılırken hata oluştu: {str(e)}"
+# commands/system.py
+def get_cpu_temperature() -> str:
+    """Handlers never raise — the router already wraps calls in try/except,
+    but a clean string beats a caught traceback."""
+    try:
+        # Real OS side effects go through list-form subprocess or os.startfile —
+        # never shell=True, and never pass transcript text into a shell.
+        ...
+        return f"Your CPU is at {celsius:.1f} degrees."
+    except Exception:
+        return "Sorry, I couldn't read the CPU temperature."
 ```
 
-### Step 3Register in the Router
-
-Inside the main command router execution loop:
-
-```python
-for pattern in VSCODE_PATTERNS:
-if re.search(pattern, transcript_lowercase):
-# Varsayılan çalışma dizinini aç veya sadece VS Code başlat
-response = launch_vscode_at_project("C:\\Users\\samet\\Desktop\\SAM")
-return True, response
-```
+See [`CLAUDE.md`](CLAUDE.md)'s **Conventions** for the full rule set this codebase
+follows — no `shell=True`, destructive actions are two-step and anchored, secrets come
+from the environment first.
 
 ---
 
-## 🚑 Troubleshooting & Diagnostics Matrix
+## 🚑 Troubleshooting
 
-| Symptom | Probable Cause | Resolution |
-|:---|:---|:---|
-| `No LLM engine found` | Ollama is offline or model not pulled | 1. Ensure Ollama is running in system tray <br> 2. Run `ollama run qwen2.5:3b` to verify <br> 3. Check `llm.ollama.base_url` matches port `11434` |
-| Wake word doesn't trigger | Mic not active, low volume, or high threshold | 1. Verify input device in OS sound settings <br> 2. Set `app.debug: true` to monitor audio energy <br> 3. Lower `wake_word.threshold` to `0.35` |
-| Whisper outputs gibberish | Processing silent ambient noise | 1. Increase `audio.silence_threshold` <br> 2. Ensure `noise_reduction.enabled: true` <br> 3. Set `stt.language` explicitly |
-| `PortAudio` crash | PortAudio libraries missing | Windows: `pip install pipwin && pipwin install pyaudio` <br> Linux: `sudo apt install portaudio19-dev python3-pyaudio` |
-| `Ctrl + Space` not working | Keyboard hook lacks permission | Run terminal / IDE as **Administrator** |
-| CUDA error or slow STT | GPU drivers missing or CPU fallback | 1. Install CUDA Toolkit + cuDNN <br> 2. Set `stt.device: "cuda"` and `compute_type: "float16"` |
+| Symptom | Likely cause | Fix |
+|:--|:--|:--|
+| `No LLM engine found` in the log | Ollama isn't installed, or the model isn't pulled | Check the log for "Ollama is not installed"; otherwise `ollama pull qwen2.5:3b` |
+| Wake word doesn't trigger | Threshold too high, or wrong mic | Lower `wake_word.threshold` (try `0.35`); check your default input device |
+| Whisper transcribes garbage on silence | Known Whisper hallucination behavior on background noise | Raise `audio.silence_threshold` — also why shells can't be voice-opened, see below |
+| `Ctrl+Space` does nothing | `keyboard` needs to see other apps' keystrokes | Run SAM as Administrator, or check `logs/sam.log` for a hotkey error |
+| A second orb / doubled hotkeys | Two SAM processes running | SAM allows one instance only (named mutex) — check the tray before starting another |
+| Settings won't save | Installed build's config lives in `%APPDATA%\SAM\config.yaml`, not next to the exe | Edit that file, or use the Settings window |
+
+Logs: `logs/sam.log` from source, `%APPDATA%\SAM\logs\sam.log` when installed.
 
 ---
 
-## 📂 Project Directory Layout
+## 📂 Project layout
 
 ```
 SAM/
-├── assets/ # Icons, sound chimes, static visual elements
-├── audio/# Audio pipeline core
-│ ├── wake_word.py# openwakeword detection thread (TFLite)
-│ └── recorder.py # Voice Activity Detector (VAD) & recording
-├── commands/ # Direct OS command triggers
-│ ├── system.py # Windows user32, shell keycodes, power mgmt
-│ └── router.py # Regex-based intent routing
-├── core/ # Core application logic
-│ ├── app.py# AppControllercentral state machine
-│ ├── stt.py# Speech-to-Text engine
-│ └── code_parser.py# LLM code block extractor
-├── docs/ # Developer documentation
-│ └── ARCHITECTURE.md # Threading, design patterns, class reference
-├── llm/# Generative LLM interfaces
-│ ├── ollama_client.py# Local Ollama stream handler
-│ └── cloud_fallbacks.py# Anthropic / OpenAI backup
-├── logs/ # Local diagnostic logs
-├── ui/ # Graphical interface
-│ ├── floating_bar.py # PyQt6 frameless overlay bar
-│ └── waveform.py # Audio level visualizer widget
-├── config.yaml # Master configuration
-├── main.py # Application entry point
-├── requirements.txt# Python dependencies
-├── setup.md# Detailed setup guide
-├── ROADMAP.md# Development roadmap
-└── README.md # ← You are here
+├── assets/                    icon, activation chime, wake word model
+├── audio/                     wake word · recorder (VAD) · STT · TTS
+├── commands/                  regex router + OS side effects
+├── core/
+│   ├── app.py                   AppController — the state machine, wires everything together
+│   ├── config.py                DEFAULTS + config.yaml loader/saver
+│   ├── paths.py                 dev vs. frozen-exe path resolution, single-instance lock
+│   ├── code_parser.py           extracts ```code``` blocks from LLM replies to the Desktop
+│   └── installer_steps.py       `SAM.exe --install-models` — used by the installer
+├── llm/                        LLMEngine base + Ollama/Claude engines + router + OllamaService
+├── ui/
+│   ├── orb.py · caption.py · text_input.py · overlay.py     the always-on overlay
+│   ├── win32.py                 click-through, z-order, foreground-focus ctypes helpers
+│   ├── floating_bar.py          legacy bottom bar (ui.overlay.style: bar)
+│   └── settings_window.py · tray.py · styles.py · waveform.py
+├── installer/SAM.iss          Inno Setup script
+├── tools/make_icon.py         regenerates assets/icon.ico from the orb design
+├── SAM.spec                   PyInstaller build spec
+├── config.example.yaml        committed template — config.yaml is gitignored
+├── docs/ARCHITECTURE.md
+├── setup.md
+└── main.py
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 🛡️ Security & Privacy
 
-SAM is under active development. See the full [Roadmap](ROADMAP.md) for detailed milestone plans.
-
-**Upcoming highlights:**
-
-| Milestone | Focus |
-|:---|:---|
-| **v0.4.0** | Visual & Workspace Intelligencescreen awareness, clipboard integration |
-| **v0.5.0** | Desktop Productivity Suitescheduling, calendar, meeting summarizer |
-| **v0.6.0** | Local Knowledge Base & RAGvector DB, document indexing |
-| **v0.7.0** | Customization & Ecosystemdynamic plugins, custom wake words, multi-platform |
-| **v1.0.0** | Production Releasenative installers, offline TTS, auto-updater |
-
----
-
-## 🛡️ Security & Privacy Audit Pledge
-
-SAM is built for users who prioritize privacy. The codebase maintains the following standards:
-
-1. **No External Networking**SAM does not connect to the internet unless configured for third-party fallback APIs (OpenAI, Anthropic). With local models, your network interface can be disabled and SAM remains fully operational.
-2. **Local Audio Buffering**Voice recordings are processed in-memory as NumPy arrays. They are cleared immediately after transcription and **never saved to disk**.
-3. **Open-Source Auditing**All subprocess calls, shell executions, and API requests are written in clear Python code. We encourage independent security audits.
+- **No shell, ever, from voice or text.** faster-whisper occasionally hallucinates short
+  phrases from silence or background noise. If that hallucination ever contained something
+  like "open command prompt," earlier versions of SAM would have genuinely opened one — a
+  real terminal window appearing for no reason is exactly what makes an always-listening
+  assistant feel unsafe. `cmd`, `powershell`, `wt`, `bash`, and friends are hard-blocked in
+  `commands/system.py`, regardless of how the request arrives.
+- **Destructive actions are two-step.** `shutdown`/`restart` only arm; a separate
+  `"confirm"` executes, within a 30-second window.
+- **Transcripts never reach a shell.** All OS actions use `os.startfile()` or list-form
+  `subprocess` — never `shell=True`.
+- **No telemetry.** SAM's only self-initiated network calls are to your local Ollama
+  server, Spotify (only if configured), and edge-tts (only if you use it instead of the
+  fully offline `pyttsx3`). Claude is opt-in only.
+- **Audio isn't written to disk** — processed in memory, discarded after transcription.
+- **Secrets stay out of the repo.** `config.yaml` is gitignored; API keys are read from
+  the environment first. OAuth caches live in `%LOCALAPPDATA%\SAM\`, and the PyInstaller
+  build refuses to bundle either.
 
 ---
 
-## 🤝 Contributing & Code of Conduct
+## 🤝 Contributing
 
-Contributions are welcome! Follow these steps:
-
-1. **Fork** the repository and clone your fork locally
-2. **Create a feature branch:** `git checkout -b feature/amazing-feature`
-3. **Commit** your changes with clear, descriptive messages
-4. **Push** to your fork: `git push origin feature/amazing-feature`
-5. **Open a Pull Request** describing your changes and testing procedures
-
-### Code Style
-
-| Scope | Convention |
-|:---|:---|
-| Code formatting | PEP 8 |
-| Documentation & README files | English |
-| In-line code comments (`.py`) | Turkish (per project rules) |
+1. Fork and branch: `git checkout -b feature/whatever`
+2. Follow [`CLAUDE.md`](CLAUDE.md) — English identifiers/docstrings, Turkish in-line
+   comments (existing convention), config access through `config.get(...)`, no `shell=True`.
+3. No test suite — verify manually with `python main.py` and `logs/sam.log`.
+4. Open a PR describing what changed and how you tested it.
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
-
----
+MIT — see [LICENSE](LICENSE).
 
 <div align="center">
 
-**Keep your data local. Keep your control native.**
+*Keep your data local.*
 
 </div>
