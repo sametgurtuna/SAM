@@ -6,9 +6,10 @@ import logging
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QListWidget, QStackedWidget,
     QLabel, QLineEdit, QComboBox, QSlider, QSpinBox, QPushButton,
-    QGroupBox, QDoubleSpinBox, QMessageBox, QWidget, QFileDialog
+    QGroupBox, QDoubleSpinBox, QMessageBox, QWidget, QFileDialog, QCheckBox,
+    QScrollArea
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from core.config import config
@@ -159,8 +160,12 @@ class SettingsWindow(QDialog):
     Modern sidebar layout uzerinden ayarlari duzenler.
     """
 
-    def __init__(self, parent=None):
+    # Ayarlar kaydedildi — controller ucuz anahtarlari restart'siz uygular.
+    settings_saved = pyqtSignal()
+
+    def __init__(self, parent=None, controller=None):
         super().__init__(parent)
+        self._controller = controller
         self.setWindowTitle("SAM — Settings")
         self.setFixedSize(720, 560)
         self.setStyleSheet(SETTINGS_STYLESHEET)
@@ -222,8 +227,18 @@ class SettingsWindow(QDialog):
         main_layout.addLayout(footer_layout)
 
     def _add_page(self, name: str, widget: QWidget):
+        # Sayfalar kaydirilabilir: yeni ayar eklendiginde (orn. Orb sayfasi)
+        # icerik sabit yukseklikli pencereden tasip kirpilmasin.
+        scroll = QScrollArea()
+        scroll.setWidget(widget)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.viewport().setStyleSheet("background: transparent;")
+
         self.sidebar.addItem(name)
-        self.stack.addWidget(widget)
+        self.stack.addWidget(scroll)
 
     def _change_page(self, index: int):
         self.stack.setCurrentIndex(index)
@@ -240,7 +255,15 @@ class SettingsWindow(QDialog):
         form.setSpacing(12)
 
         self._hotkey_input = QLineEdit(config.get("hotkey", "trigger", default="ctrl+space"))
-        form.addRow("Hotkey:", self._hotkey_input)
+        form.addRow("Voice Hotkey:", self._hotkey_input)
+
+        self._text_hotkey_input = QLineEdit(
+            config.get("hotkey", "text_input", default="ctrl+shift+space")
+        )
+        self._text_hotkey_input.setToolTip(
+            "Opens the typed-input box under the orb. Clicking the orb does the same."
+        )
+        form.addRow("Text Hotkey:", self._text_hotkey_input)
 
         self._wake_model_combo = QComboBox()
         wake_models = ["assets/models/hey_sam.onnx", "hey_jarvis", "alexa", "hey_mycroft", "ok_google"]
@@ -388,6 +411,31 @@ class SettingsWindow(QDialog):
         self._context_window.setValue(config.get("llm", "context_window", default=5))
         form.addRow("Context Window:", self._context_window)
 
+        self._ollama_autostart = QCheckBox("Start the Ollama server when SAM launches")
+        self._ollama_autostart.setChecked(
+            config.get("llm", "ollama", "autostart", default=True)
+        )
+        form.addRow("Auto-start:", self._ollama_autostart)
+
+        exe_layout = QHBoxLayout()
+        self._ollama_exe = QLineEdit(config.get("llm", "ollama", "executable", default=""))
+        self._ollama_exe.setPlaceholderText("Auto-detect (leave blank)")
+        exe_browse = QPushButton("Browse...")
+        exe_browse.clicked.connect(self._browse_ollama_exe)
+        exe_layout.addWidget(self._ollama_exe, 1)
+        exe_layout.addWidget(exe_browse)
+        form.addRow("Executable:", exe_layout)
+
+        self._ollama_stop_on_exit = QCheckBox("Stop the server when SAM quits")
+        self._ollama_stop_on_exit.setToolTip(
+            "Only applies to a server SAM started itself. Off by default so a "
+            "server you were already using is never killed."
+        )
+        self._ollama_stop_on_exit.setChecked(
+            config.get("llm", "ollama", "stop_on_exit", default=False)
+        )
+        form.addRow("", self._ollama_stop_on_exit)
+
         ollama_group.setLayout(form)
         layout.addWidget(ollama_group)
         layout.addStretch()
@@ -400,25 +448,36 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        bar_group = QGroupBox("Floating Bar")
+        orb_group = QGroupBox("Orb")
         form = QFormLayout()
         form.setSpacing(12)
 
-        self._bar_width = QSpinBox()
-        self._bar_width.setRange(400, 1920)
-        self._bar_width.setSingleStep(50)
-        self._bar_width.setValue(config.get("ui", "bar", "width", default=800))
-        form.addRow("Width (px):", self._bar_width)
+        self._overlay_style = QComboBox()
+        self._overlay_style.addItems(["orb", "bar"])
+        idx = self._overlay_style.findText(
+            config.get("ui", "overlay", "style", default="orb")
+        )
+        if idx >= 0:
+            self._overlay_style.setCurrentIndex(idx)
+        form.addRow("Overlay Style:", self._overlay_style)
 
-        self._bar_height = QSpinBox()
-        self._bar_height.setRange(40, 200)
-        self._bar_height.setValue(config.get("ui", "bar", "height", default=80))
-        form.addRow("Height (px):", self._bar_height)
+        self._orb_size = QSpinBox()
+        self._orb_size.setRange(60, 320)
+        self._orb_size.setSingleStep(10)
+        self._orb_size.setSuffix(" px")
+        self._orb_size.setValue(config.get("ui", "orb", "size", default=120))
+        form.addRow("Size:", self._orb_size)
+
+        self._orb_ring_width = QSpinBox()
+        self._orb_ring_width.setRange(1, 12)
+        self._orb_ring_width.setSuffix(" px")
+        self._orb_ring_width.setValue(config.get("ui", "orb", "ring_width", default=3))
+        form.addRow("Ring Width:", self._orb_ring_width)
 
         opacity_layout = QHBoxLayout()
         self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self._opacity_slider.setRange(30, 100)
-        current_opacity = config.get("ui", "bar", "opacity", default=0.92)
+        current_opacity = config.get("ui", "orb", "opacity", default=0.95)
         self._opacity_slider.setValue(int(current_opacity * 100))
         self._opacity_label = QLabel(f"{current_opacity:.2f}")
         self._opacity_label.setFixedWidth(36)
@@ -429,22 +488,80 @@ class SettingsWindow(QDialog):
         opacity_layout.addWidget(self._opacity_label)
         form.addRow("Opacity:", opacity_layout)
 
+        # SAM 7/24 arkaplanda calisiyor — idle animasyon maliyeti onemli.
+        self._orb_idle_anim = QComboBox()
+        self._orb_idle_anim.addItems([
+            "Off (0% CPU when idle)",
+            "Breathing (12 fps)",
+            "Smooth (24 fps)",
+        ])
+        if not config.get("ui", "orb", "idle_animation", default=True):
+            self._orb_idle_anim.setCurrentIndex(0)
+        elif config.get("ui", "orb", "idle_fps", default=12) >= 20:
+            self._orb_idle_anim.setCurrentIndex(2)
+        else:
+            self._orb_idle_anim.setCurrentIndex(1)
+        form.addRow("Idle Animation:", self._orb_idle_anim)
+
+        self._orb_click_through = QCheckBox("Mouse passes through (except the circle)")
+        self._orb_click_through.setChecked(
+            config.get("ui", "orb", "click_through", default=True)
+        )
+        form.addRow("Click-through:", self._orb_click_through)
+
+        self._orb_layer = QComboBox()
+        self._orb_layer.addItems(["auto", "topmost", "normal"])
+        self._orb_layer.setToolTip(
+            "auto: stays at the bottom, only comes to front when SAM is called\n"
+            "topmost: always on top of every window\n"
+            "normal: no special stacking behavior"
+        )
+        idx = self._orb_layer.findText(config.get("ui", "orb", "layer", default="auto"))
+        if idx >= 0:
+            self._orb_layer.setCurrentIndex(idx)
+        form.addRow("Layer:", self._orb_layer)
+
+        self._orb_hide_fullscreen = QCheckBox("Hide during fullscreen apps")
+        self._orb_hide_fullscreen.setChecked(
+            config.get("ui", "orb", "hide_on_fullscreen", default=True)
+        )
+        form.addRow("", self._orb_hide_fullscreen)
+
+        self._caption_width = QSpinBox()
+        self._caption_width.setRange(280, 1400)
+        self._caption_width.setSingleStep(20)
+        self._caption_width.setSuffix(" px")
+        self._caption_width.setValue(config.get("ui", "orb", "caption_width", default=560))
+        form.addRow("Caption Width:", self._caption_width)
+
         self._auto_hide = QSpinBox()
         self._auto_hide.setRange(1, 30)
         self._auto_hide.setSuffix(" sec")
         self._auto_hide.setValue(config.get("ui", "auto_hide", "delay_seconds", default=4))
         form.addRow("Auto-hide Delay:", self._auto_hide)
 
-        self._border_radius = QSpinBox()
-        self._border_radius.setRange(0, 32)
-        self._border_radius.setSuffix(" px")
-        self._border_radius.setValue(config.get("ui", "bar", "border_radius", default=16))
-        form.addRow("Border Radius:", self._border_radius)
+        reset_pos_btn = QPushButton("Reset Orb Position")
+        reset_pos_btn.clicked.connect(self._reset_orb_position)
+        form.addRow("", reset_pos_btn)
 
-        bar_group.setLayout(form)
-        layout.addWidget(bar_group)
+        orb_group.setLayout(form)
+        layout.addWidget(orb_group)
         layout.addStretch()
         return tab
+
+    def _reset_orb_position(self) -> None:
+        """Snap the orb back to its default corner (Ctrl+drag moves it)."""
+        if self._controller is not None and hasattr(self._controller._bar, "reset_position"):
+            self._controller._bar.reset_position()
+            QMessageBox.information(self, "Orb Position", "Orb position reset.")
+        else:
+            config.set("ui", "orb", "position", "anchor", value="bottom-right")
+            config.set("ui", "orb", "position", "x", value=None)
+            config.set("ui", "orb", "position", "y", value=None)
+            config.save()
+            QMessageBox.information(
+                self, "Orb Position", "Orb position reset. Restart SAM to apply."
+            )
 
     # ─── Integrations (Spotify) Tab ───────────────────────────────
 
@@ -512,6 +629,7 @@ class SettingsWindow(QDialog):
         try:
             # General
             config.set("hotkey", "trigger", value=self._hotkey_input.text().strip())
+            config.set("hotkey", "text_input", value=self._text_hotkey_input.text().strip())
             config.set("wake_word", "model", value=self._wake_model_combo.currentText())
             config.set("wake_word", "threshold", value=self._wake_threshold.value())
 
@@ -530,12 +648,30 @@ class SettingsWindow(QDialog):
             config.set("llm", "ollama", "temperature", value=self._temp_slider.value() / 100)
             config.set("llm", "ollama", "max_tokens", value=self._max_tokens.value())
             config.set("llm", "context_window", value=self._context_window.value())
+            config.set("llm", "ollama", "autostart", value=self._ollama_autostart.isChecked())
+            config.set("llm", "ollama", "executable", value=self._ollama_exe.text().strip())
+            config.set("llm", "ollama", "stop_on_exit",
+                       value=self._ollama_stop_on_exit.isChecked())
 
-            # UI
-            config.set("ui", "bar", "width", value=self._bar_width.value())
-            config.set("ui", "bar", "height", value=self._bar_height.value())
-            config.set("ui", "bar", "opacity", value=self._opacity_slider.value() / 100)
-            config.set("ui", "bar", "border_radius", value=self._border_radius.value())
+            # UI — Orb
+            config.set("ui", "overlay", "style", value=self._overlay_style.currentText())
+            config.set("ui", "orb", "size", value=self._orb_size.value())
+            config.set("ui", "orb", "ring_width", value=self._orb_ring_width.value())
+            config.set("ui", "orb", "opacity", value=self._opacity_slider.value() / 100)
+            config.set("ui", "orb", "click_through",
+                       value=self._orb_click_through.isChecked())
+            config.set("ui", "orb", "layer", value=self._orb_layer.currentText())
+            config.set("ui", "orb", "hide_on_fullscreen",
+                       value=self._orb_hide_fullscreen.isChecked())
+            config.set("ui", "orb", "caption_width", value=self._caption_width.value())
+
+            idle_index = self._orb_idle_anim.currentIndex()
+            config.set("ui", "orb", "idle_animation", value=idle_index != 0)
+            if idle_index == 2:
+                config.set("ui", "orb", "idle_fps", value=24)
+            elif idle_index == 1:
+                config.set("ui", "orb", "idle_fps", value=12)
+
             config.set("ui", "auto_hide", "delay_seconds", value=self._auto_hide.value())
 
             # Spotify
@@ -548,9 +684,14 @@ class SettingsWindow(QDialog):
 
             if success:
                 logger.info("Settings saved via UI")
+                # Ucuz anahtarlar (orb boyutu/fps/opaklik/click-through,
+                # auto-hide) restart'siz uygulanir.
+                self.settings_saved.emit()
                 QMessageBox.information(
                     self, "Settings Saved",
-                    "Settings saved successfully.\\nRestart SAM to apply changes."
+                    "Settings saved.\n\n"
+                    "Orb appearance and auto-hide apply immediately.\n"
+                    "Hotkeys, speech models and overlay style need a restart."
                 )
                 self.close()
             else:
@@ -559,6 +700,14 @@ class SettingsWindow(QDialog):
         except Exception as e:
             logger.error("Failed to save settings: %s", e)
             QMessageBox.critical(self, "Error", f"Error saving settings:\n{e}")
+
+    def _browse_ollama_exe(self):
+        """Browse for the ollama executable."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select ollama.exe", "", "Executables (*.exe);;All Files (*)"
+        )
+        if file_path:
+            self._ollama_exe.setText(file_path)
 
     def _browse_custom_wake_model(self):
         """Browse for custom openwakeword model file."""
@@ -569,18 +718,11 @@ class SettingsWindow(QDialog):
             "Wake Word Models (*.onnx *.tflite);;All Files (*)"
         )
         if file_path:
-            import os
-            try:
-                # Get path relative to the application workspace if possible
-                rel_path = os.path.relpath(file_path, os.getcwd())
-                if not rel_path.startswith(".."):
-                    file_path = rel_path
-            except ValueError:
-                pass
-            
-            # Normalize path separators for cross-platform stability
+            # Mutlak yol olarak sakla. Eskiden CWD'ye gore goreli yapiliyordu,
+            # ama SAM bir kisayoldan baslatildiginda CWD proje kokune esit
+            # olmadigi icin model bulunamiyordu.
             file_path = file_path.replace("\\", "/")
-            
+
             # Add file path to combo box if not present, and select it
             idx = self._wake_model_combo.findText(file_path)
             if idx < 0:

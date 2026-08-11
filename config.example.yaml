@@ -1,9 +1,35 @@
 app:
   name: SAM
-  version: 0.3.6
+  version: 0.4.1
 hotkey:
-  trigger: ctrl+space
+  trigger: ctrl+space          # hold to speak
+  text_input: ctrl+shift+space # open the typed-input box
 ui:
+  overlay:
+    style: orb                 # orb (always-visible circle) | bar (legacy bottom bar)
+  orb:
+    size: 120                  # core disc diameter in px
+    glow_padding: 28           # window margin reserved for the outer glow
+    ring_width: 3
+    opacity: 0.95
+    label: SAM
+    idle_fps: 12               # breathing framerate — SAM runs 24/7, keep this low
+    active_fps: 60
+    idle_animation: true       # false = orb stops painting entirely when idle (0% CPU)
+    breathe_period_ms: 4000
+    spike_count: 36            # radial spikes drawn while listening/speaking
+    layer: auto                # auto (bottom of z-order until called, then on top) | topmost | normal
+    hide_on_fullscreen: true
+    click_through: true        # mouse passes through everything except the circle
+    caption_width: 560
+    caption_gap: 18
+    caption_max_lines: 6
+    position:
+      anchor: bottom-right     # bottom-right | bottom-center | custom (set by Ctrl+drag)
+      x: null
+      y: null
+      screen: null
+      margin: 48
   bar:
     width: 800
     height: 80
@@ -11,15 +37,15 @@ ui:
     margin_bottom: 40
     opacity: 0.68
   animation:
-    slide_duration_ms: 350
-    fade_duration_ms: 250
+    slide_duration_ms: 220
+    fade_duration_ms: 180
     text_stream_interval_ms: 45
   auto_hide:
     delay_seconds: 4
   colors:
     background: rgba(10, 10, 15, 0.92)
     accent: '#00D4AA'
-    accent_thinking: '#FFB84D'
+    accent_thinking: '#38F2D8'
     accent_speaking: '#00D4AA'
     accent_listening: '#00BFFF'
     text_primary: '#E8E8E8'
@@ -33,7 +59,7 @@ ui:
     size_status: 11
 waveform:
   bar_count: 35
-  fps: 30
+  fps: 60
   min_height: 3
   max_height: 32
   bar_width: 3
@@ -57,13 +83,13 @@ audio:
 wake_word:
   engine: openwakeword
   model: assets/models/hey_sam.onnx
-  threshold: 0.5
+  threshold: 0.4               # lower = easier to trigger (more false positives)
   chunk_size: 1280
 stt:
   engine: faster-whisper
   model: small
   language: en
-  beam_size: 5
+  beam_size: 1
   device: cpu
   compute_type: int8
 tts:
@@ -86,6 +112,13 @@ llm:
     vision_model: llava
     temperature: 0.7
     max_tokens: 256
+    keep_alive: 30m               # keep the model resident in RAM/VRAM between requests
+    num_ctx: 2048                 # smaller context = faster prompt processing
+    autostart: true              # start "ollama serve" in the background when SAM launches
+    executable: ""               # blank = auto-discover (PATH, %LOCALAPPDATA%, Program Files)
+    startup_timeout_seconds: 20
+    stop_on_exit: false          # never kill a server the user already had running
+    availability_ttl_seconds: 30
   claude:
     model: claude-sonnet-4-20250514
     max_tokens: 256

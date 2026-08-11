@@ -22,7 +22,7 @@ class Colors:
 
     @staticmethod
     def accent_thinking() -> str:
-        return config.get("ui", "colors", "accent_thinking", default="#FFB84D")
+        return config.get("ui", "colors", "accent_thinking", default="#38F2D8")
 
     @staticmethod
     def accent_speaking() -> str:

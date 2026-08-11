@@ -4,6 +4,7 @@
 # Signals the app controller when the wake word is detected.
 
 import logging
+import os
 import threading
 import time
 
@@ -13,6 +14,7 @@ import sounddevice as sd
 from PyQt6.QtCore import QObject, pyqtSignal
 import collections
 
+from core import paths
 from core.config import config
 
 logger = logging.getLogger(__name__)
@@ -39,12 +41,17 @@ class WakeWordEngine(QObject):
     def __init__(self) -> None:
         super().__init__()
 
-        self._model_name: str = config.get("wake_word", "model", default="assets/models/hey_sam.onnx")
+        # Config yolu goreliyse CWD'ye degil, uygulama koklerine gore cozulur —
+        # kisayoldan veya frozen exe'den baslatildiginda da bulunur.
+        self._model_name: str = paths.resolve_asset(
+            config.get("wake_word", "model", default="assets/models/hey_sam.onnx")
+        )
         self._threshold: float = config.get("wake_word", "threshold", default=0.5)
         self._chunk_size: int = config.get("wake_word", "chunk_size", default=1280)
         self._sample_rate: int = config.get("audio", "sample_rate", default=16000)
 
         self._running: bool = False
+        self._paused: bool = False
         self._thread: threading.Thread | None = None
         self._model = None
 
@@ -93,8 +100,11 @@ class WakeWordEngine(QObject):
             import openwakeword
             from openwakeword.model import Model
 
-            # Download pre-trained models if needed
-            openwakeword.utils.download_models()
+            # download_models() her aciliste aga cikip acilisi geciktiriyordu.
+            # Model yerel bir dosyaysa (varsayilan: assets/models/hey_sam.onnx)
+            # indirmeye hic gerek yok.
+            if not os.path.isfile(self._model_name):
+                openwakeword.utils.download_models()
 
             self._model = Model(
                 wakeword_models=[self._model_name],
@@ -135,8 +145,12 @@ class WakeWordEngine(QObject):
 
                     # Check detection scores
                     for model_name, score in self._model.prediction_buffer.items():
-                        # score is a list of recent predictions
-                        latest_score = score[-1] if score else 0.0
+                        # Tek bir chunk'in skoru yerine son birkac chunk'in
+                        # en yuksegine bak — model skoru genelde 1-2 frame'lik
+                        # dar bir pikte tepe yapiyor, sadece son degere bakmak
+                        # o piki kacirip algilamayi zorlastirabiliyor.
+                        recent = list(score)[-5:] if score else []
+                        latest_score = max(recent) if recent else 0.0
 
                         if latest_score >= self._threshold:
                             now = time.time()

@@ -196,21 +196,22 @@ class CommandRouter:
             lambda m: system.play_on_spotify(m.group(1).strip())
         ))
 
-        # Play/Pause
+        # Play/Pause — tam eslesme sart, yoksa "play some music for me"
+        # gibi LLM'e gitmesi gereken cumleler medya tusuna basiyor.
         patterns.append((
-            re.compile(r'\b(?:play|pause|resume)\b', re.IGNORECASE),
+            re.compile(r'^(?:play|pause|resume)$', re.IGNORECASE),
             lambda m: system.media_play_pause()
         ))
 
         # Next track
         patterns.append((
-            re.compile(r'\b(?:next|next track|next song|skip)\b', re.IGNORECASE),
+            re.compile(r'^(?:next|next track|next song|skip)$', re.IGNORECASE),
             lambda m: system.media_next()
         ))
 
         # Previous track
         patterns.append((
-            re.compile(r'\b(?:previous|prev|previous track|previous song|go back)\b', re.IGNORECASE),
+            re.compile(r'^(?:previous|prev|previous track|previous song|go back)$', re.IGNORECASE),
             lambda m: system.media_prev()
         ))
 
@@ -234,15 +235,16 @@ class CommandRouter:
         # SISTEM KOMUTLARI
         # ═══════════════════════════════════════════════════════
 
-        # Lock screen
+        # Lock screen — sadece "lock" tek basina veya nesnesiyle birlikte.
+        # Yalin \block\b "unlock the door" gibi cumlelerde de eslesiyordu.
         patterns.append((
-            re.compile(r'\b(?:lock|lock screen|lock computer)\b', re.IGNORECASE),
+            re.compile(r'^lock(?:\s+(?:the\s+)?(?:screen|computer|pc|workstation))?$', re.IGNORECASE),
             lambda m: system.lock_screen()
         ))
 
         # Screenshot
         patterns.append((
-            re.compile(r'\b(?:screenshot|screen shot)\b', re.IGNORECASE),
+            re.compile(r'^(?:take a |take )?(?:screenshot|screen shot)$', re.IGNORECASE),
             lambda m: system.screenshot()
         ))
 
@@ -252,22 +254,32 @@ class CommandRouter:
             lambda m: system.minimize_all()
         ))
 
-        # Shutdown
+        # Cancel shutdown — shutdown/restart desenlerinden ONCE gelmeli,
+        # aksi halde "cancel shutdown" once kapatma olarak eslesir.
         patterns.append((
-            re.compile(r'\b(?:shut ?down|power off)\b', re.IGNORECASE),
+            re.compile(r'\b(?:cancel|abort|stop)\s+(?:the\s+)?(?:shutdown|shut down|restart|reboot)\b', re.IGNORECASE),
+            lambda m: system.cancel_shutdown()
+        ))
+
+        # Guc islemi onayi
+        patterns.append((
+            re.compile(r'^(?:confirm|yes confirm|confirm it|do it)$', re.IGNORECASE),
+            lambda m: system.confirm_power_action()
+        ))
+
+        # Shutdown — nesne zorunlu ("shut down chrome" degil, PC kapatma)
+        patterns.append((
+            re.compile(r'^(?:shut ?down|power off|turn off)\s+(?:the\s+|my\s+)?(?:computer|pc|machine|system|laptop)$',
+                       re.IGNORECASE),
             lambda m: system.shutdown_pc()
         ))
 
-        # Restart
+        # Restart — nesne zorunlu. Onceki yalin \brestart\b deseni
+        # "restart chrome" gibi ifadelerde bilgisayari kapatiyordu.
         patterns.append((
-            re.compile(r'\b(?:restart|reboot)\b', re.IGNORECASE),
+            re.compile(r'^(?:restart|reboot)\s+(?:the\s+|my\s+)?(?:computer|pc|machine|system|laptop)$',
+                       re.IGNORECASE),
             lambda m: system.restart_pc()
-        ))
-
-        # Cancel shutdown
-        patterns.append((
-            re.compile(r'\b(?:cancel shutdown)\b', re.IGNORECASE),
-            lambda m: system.cancel_shutdown()
         ))
 
         return patterns

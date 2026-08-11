@@ -40,6 +40,8 @@ class OllamaEngine(LLMEngine):
         self._model: str = config.get("llm", "ollama", "model", default="qwen2.5:3b")
         self._temperature: float = config.get("llm", "ollama", "temperature", default=0.7)
         self._max_tokens: int = config.get("llm", "ollama", "max_tokens", default=256)
+        self._keep_alive = config.get("llm", "ollama", "keep_alive", default="30m")
+        self._num_ctx: int = config.get("llm", "ollama", "num_ctx", default=2048)
 
         self._generating: bool = False
         self._thread: threading.Thread | None = None
@@ -124,9 +126,14 @@ class OllamaEngine(LLMEngine):
                 "model": target_model,
                 "messages": messages,
                 "stream": True,
+                # Modeli bellekte tut — istekler arasi bosluklardan sonra
+                # agirliklarin yeniden yuklenmesini (birkac saniyelik gecikme)
+                # onler. Bkz. core/config.py DEFAULTS aciklamasi.
+                "keep_alive": self._keep_alive,
                 "options": {
                     "temperature": self._temperature,
                     "num_predict": self._max_tokens,
+                    "num_ctx": self._num_ctx,
                 },
             }
 

@@ -9,13 +9,13 @@ import numpy as np
 from PyQt6.QtCore import QTimer, QObject, pyqtSignal
 
 from core.config import config
-from ui.floating_bar import FloatingBar
 from audio.wake_word import WakeWordEngine
 from audio.recorder import Recorder
 from audio.stt import STTEngine
 from audio.tts import TTSEngine
 from audio.sounds import play_activation_sound
 from llm.router import LLMRouter
+from llm.ollama_service import OllamaService
 from commands.router import CommandRouter
 
 logger = logging.getLogger(__name__)
@@ -44,12 +44,25 @@ class AppController(QObject):
 
     # Signal emitted from hotkey thread → main Qt thread
     trigger_signal = pyqtSignal(object)
+    # Text-input hotkey → main Qt thread
+    text_input_signal = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()
 
         self._state: str = AppState.IDLE
-        self._bar = FloatingBar()
+
+        # Overlay — "orb" (her zaman gorunur daire) varsayilan; "bar" eski
+        # alttan kayan cubugu geri getirir. Ikisi de ayni API'yi sunuyor,
+        # bu yuzden asagidaki tum cagri yerleri degismiyor.
+        overlay_style = config.get("ui", "overlay", "style", default="orb")
+        if overlay_style == "bar":
+            from ui.floating_bar import FloatingBar
+            self._bar = FloatingBar()
+        else:
+            from ui.overlay import SamOverlay
+            self._bar = SamOverlay()
+            self._bar.text_submitted.connect(self.submit_text)
 
         # ─── Audio engines ────────────────────────────────────────
         self._wake_word = WakeWordEngine()
@@ -60,6 +73,15 @@ class AppController(QObject):
         # ─── LLM engine ──────────────────────────────────────────
         self._llm = LLMRouter()
 
+        # ─── Ollama server lifecycle ─────────────────────────────
+        # Kullanici Ollama'yi elle baslatmak zorunda kalmasin diye SAM
+        # acilirken sunucuyu arka planda (gizli) kendisi ayaga kaldirir.
+        self._ollama = OllamaService()
+        self._ollama.ready.connect(self._llm.refresh_engine)
+        self._ollama.unavailable.connect(self._on_ollama_unavailable)
+        if config.get("llm", "ollama", "autostart", default=True):
+            self._ollama.ensure_running()
+
         # ─── Command Router ──────────────────────────────────────
         self._cmd_router = CommandRouter()
 
@@ -67,6 +89,7 @@ class AppController(QObject):
 
         # Trigger sources → activation
         self.trigger_signal.connect(self._on_trigger)
+        self.text_input_signal.connect(self._open_text_input)
         self._wake_word.detected.connect(self._on_trigger)
 
         # Recorder → STT pipeline
@@ -96,6 +119,11 @@ class AppController(QObject):
 
         # ─── LLM streaming state ─────────────────────────────────
         self._llm_response_text: str = ""
+        # Akis sirasinda TTS'e gonderilmis olan on ek
+        self._tts_spoken_text: str = ""
+        # Yanitta kod blogu (```) gorulunce akisli seslendirme durur;
+        # kod TTS'e gitmemeli, tamamlaninca dosyaya kaydedilir.
+        self._tts_stream_ok: bool = True
 
         # ─── Last transcript (for context) ────────────────────────
         self._last_transcript: str = ""
@@ -118,30 +146,70 @@ class AppController(QObject):
         thread = threading.Thread(target=_load, daemon=True, name="STTPreload")
         thread.start()
 
+    @staticmethod
+    def _combo_keys(combo: str) -> set[str]:
+        return {part.strip().lower() for part in combo.split("+") if part.strip()}
+
     def _register_hotkey(self) -> None:
-        """Register global hotkey in a background thread (keyboard library blocks)."""
-        hotkey_combo: str = config.get("hotkey", "trigger", default="ctrl+space")
+        """Register global hotkeys in a background thread (keyboard library blocks)."""
+        trigger_combo: str = config.get("hotkey", "trigger", default="ctrl+space")
+        text_combo: str = config.get("hotkey", "text_input", default="ctrl+shift+space")
+
+        # `keyboard` fazladan basili modifier'lari umursamaz. "ctrl+shift+space"
+        # "ctrl+space"in ust kumesi oldugu icin metin kisayolu ses kisayolunu da
+        # atesler. Farki bir kez hesaplayip _on_hotkey_pressed'de eleyecegiz.
+        self._text_hotkey_extra_keys: set[str] = (
+            self._combo_keys(text_combo) - self._combo_keys(trigger_combo)
+        )
 
         def _listen_hotkey():
             try:
                 import keyboard
-                keyboard.add_hotkey(hotkey_combo, self._on_hotkey_pressed)
-                logger.info("Global hotkey registered: %s", hotkey_combo)
-                keyboard.wait()
             except ImportError:
-                logger.error(
-                    "keyboard module not installed. Run: pip install keyboard"
-                )
+                logger.error("keyboard module not installed. Run: pip install keyboard")
+                return
+
+            # Her kisayot ayri try/except: hatali bir kullanici kombosu
+            # digerini de olduremesin.
+            try:
+                keyboard.add_hotkey(trigger_combo, self._on_hotkey_pressed)
+                logger.info("Voice hotkey registered: %s", trigger_combo)
             except Exception as e:
-                logger.error("Failed to register hotkey: %s", e)
+                logger.error("Failed to register voice hotkey '%s': %s", trigger_combo, e)
+
+            if text_combo:
+                try:
+                    keyboard.add_hotkey(text_combo, self._on_text_hotkey_pressed)
+                    logger.info("Text input hotkey registered: %s", text_combo)
+                except Exception as e:
+                    logger.error("Failed to register text hotkey '%s': %s", text_combo, e)
+
+            try:
+                keyboard.wait()
+            except Exception as e:
+                logger.error("Hotkey listener stopped: %s", e)
 
         hotkey_thread = threading.Thread(target=_listen_hotkey, daemon=True)
         hotkey_thread.start()
 
     def _on_hotkey_pressed(self) -> None:
         """Called from hotkey thread — emits signal to Qt main thread."""
+        if self._text_hotkey_extra_keys:
+            try:
+                import keyboard
+                # Metin kisayolunun fazladan tuslari basiliysa bu tetikleme
+                # aslinda metin kisayolu — sesi baslatma.
+                if any(keyboard.is_pressed(k) for k in self._text_hotkey_extra_keys):
+                    return
+            except Exception:
+                pass
         logger.debug("Hotkey pressed")
         self.trigger_signal.emit(None)
+
+    def _on_text_hotkey_pressed(self) -> None:
+        """Called from hotkey thread — emits signal to Qt main thread."""
+        logger.debug("Text input hotkey pressed")
+        self.text_input_signal.emit()
 
     # ─── Activation ───────────────────────────────────────────────
 
@@ -176,6 +244,46 @@ class AppController(QObject):
         # Start listening
         self._start_listening(pre_audio)
 
+    # ─── Typed input ──────────────────────────────────────────────
+
+    def _open_text_input(self) -> None:
+        """Open (or close) the typed-input box under the orb."""
+        if not hasattr(self._bar, "toggle_text_input"):
+            logger.debug("Text input is not available with the legacy bar overlay")
+            return
+
+        # Kayit sirasinda yazmaya baslanirsa, yazi kazanir.
+        if self._state == AppState.LISTENING:
+            self._cancel_and_reset()
+
+        self._bar.toggle_text_input()
+
+    def submit_text(self, text: str) -> None:
+        """
+        Handle typed input. Reuses the exact transcript pipeline, so command
+        router → LLM → TTS all behave identically to a spoken question.
+        """
+        text = text.strip()
+        if not text:
+            return
+
+        logger.info("Typed input: '%s'", text)
+
+        # Devam eden her seyi durdur.
+        self._cancel_auto_hide_timer()
+        self._recorder.stop()
+        self._llm.stop()
+        self._tts.stop()
+        self._wake_word.pause()   # _on_tts_finished / _reset_to_idle geri aciyor
+
+        # ZORUNLU: _on_llm_token yalnizca state tam olarak THINKING ise
+        # SPEAKING'e geciyor — bunu _on_transcript_ready'den once ayarla.
+        self._set_state(AppState.THINKING)
+        self._bar.activate()
+
+        # _on_transcript_ready _last_transcript'i kendisi set ediyor.
+        self._on_transcript_ready(text)
+
     # ─── State Machine ────────────────────────────────────────────
 
     def _set_state(self, new_state: str) -> None:
@@ -195,8 +303,8 @@ class AppController(QObject):
         self._recorder.start(pre_audio)
 
     def _on_audio_level(self, level: float) -> None:
-        """Receive live audio level from recorder for waveform visualization."""
-        pass
+        """Receive live audio level from recorder and drive the waveform."""
+        self._bar.set_level(level)
 
     def _on_recording_done(self, audio_data: object) -> None:
         """Recording finished — send audio to STT."""
@@ -241,14 +349,19 @@ class AppController(QObject):
                 self._cancel_and_reset()
             return
 
-        # 2. Sistem komutu degilse, LLM'e yonlendir
-        # Pass image_b64 if available
-        QTimer.singleShot(400, lambda: self._generate_response(cmd_result.image_b64))
+        # 2. Sistem komutu degilse, LLM'e yonlendir.
+        # Onceden burada 400ms'lik yapay bir gecikme vardi — her sohbet
+        # yanitina bedelsiz 400ms ekliyordu, kaldirildi.
+        self._generate_response(cmd_result.image_b64)
 
     def _generate_response(self, image_b64: str | None = None) -> None:
         """Send transcript to LLM and stream the response."""
         self._bar.set_transcript("Thinking...")
         self._llm_response_text = ""
+        self._tts_spoken_text = ""
+        self._tts_stream_ok = True
+        # Yeni bir yanit basliyor — onceki konusmayi ve kuyrugu temizle
+        self._tts.stop()
 
         # Send to LLM router (auto-detects Ollama or Claude)
         self._llm.generate(self._last_transcript, image_b64=image_b64)
@@ -264,6 +377,44 @@ class AppController(QObject):
 
         self._llm_response_text += token
         self._bar.set_transcript(self._llm_response_text)
+        self._flush_streaming_tts()
+
+    # ─── Akisli TTS ───────────────────────────────────────────────
+
+    # Cumle sonu sayilan noktalama isaretleri
+    _SENTENCE_ENDINGS = (".", "!", "?", "\n", "…")
+    # Bundan kisa parcalari seslendirmek kopuk duyuluyor
+    _MIN_TTS_CHUNK = 12
+
+    def _flush_streaming_tts(self) -> None:
+        """
+        Tamamlanmis cumleleri, LLM hala yazmaya devam ederken TTS'e gonder.
+        Yanitin tamaminin beklenmesi yerine ilk cumle hemen duyulur.
+        """
+        if not self._tts_stream_ok:
+            return
+
+        pending = self._llm_response_text[len(self._tts_spoken_text):]
+
+        # Kod blogu basladi — buradan sonrasi seslendirilmez
+        if "```" in pending:
+            self._tts_stream_ok = False
+            return
+
+        # En son cumle sinirini bul
+        cut = -1
+        for i, ch in enumerate(pending):
+            if ch in self._SENTENCE_ENDINGS:
+                cut = i
+        if cut < 0:
+            return
+
+        chunk = pending[: cut + 1]
+        if len(chunk.strip()) < self._MIN_TTS_CHUNK:
+            return
+
+        self._tts_spoken_text += chunk
+        self._tts.speak_chunk(chunk.strip())
 
     def _on_llm_complete(self, full_response: str) -> None:
         """LLM generation complete — speak the response aloud."""
@@ -285,8 +436,22 @@ class AppController(QObject):
         from core.code_parser import extract_and_save_code
         spoken_response = extract_and_save_code(full_response)
 
-        # Speak aloud via TTS
-        self._tts.speak(spoken_response)
+        # Akis sirasinda zaten seslendirilmis kismi tekrar okuma —
+        # sadece kalan bolumu kuyruga ekleyip akisi kapat.
+        already = self._tts_spoken_text
+        if already and spoken_response.startswith(already):
+            remainder = spoken_response[len(already):].strip()
+            if remainder:
+                self._tts.speak_chunk(remainder)
+            self._tts.end_stream()
+        elif already:
+            # On ek eslesmedi (kod cikarimi metnin basini degistirdi) —
+            # bastan okumak tekrara yol acar, sadece akisi kapat.
+            logger.debug("Streamed TTS prefix diverged — skipping remainder")
+            self._tts.end_stream()
+        else:
+            # Hic akisli parca gonderilmemis — klasik tek seferlik okuma
+            self._tts.speak(spoken_response)
 
     def _on_llm_error(self, error: str) -> None:
         """LLM generation failed — show error and dismiss."""
@@ -353,12 +518,40 @@ class AppController(QObject):
 
     # ─── Cleanup ──────────────────────────────────────────────────
 
+    def _on_ollama_unavailable(self, reason: str) -> None:
+        """Ollama could not be reached — log it; Claude fallback may still work."""
+        if reason == "not-installed":
+            logger.warning(
+                "Ollama is not installed — local LLM unavailable. "
+                "Install from https://ollama.com/download, then restart SAM."
+            )
+        else:
+            logger.warning("Ollama server unavailable (%s)", reason)
+        # Yine de tespit calissin: Claude anahtari varsa oraya duser.
+        self._llm.refresh_engine()
+
+    def apply_settings(self) -> None:
+        """
+        Live-apply the settings that don't need a restart (orb geometry, colors,
+        fps, click-through, auto-hide delay). Everything else keeps the
+        "restart SAM" note in the settings window.
+        """
+        self._auto_hide_delay = config.get(
+            "ui", "auto_hide", "delay_seconds", default=4
+        ) * 1000
+        if hasattr(self._bar, "apply_settings"):
+            self._bar.apply_settings()
+            # Yeniden kurulan orb mevcut duruma gore boyansin.
+            self._bar.set_state(self._state)
+        logger.info("Settings applied live")
+
     def shutdown(self) -> None:
         """Clean up all resources on application exit."""
         self._cancel_auto_hide_timer()
         self._wake_word.stop()
         self._recorder.stop()
         self._llm.stop()
+        self._ollama.shutdown()
         self._tts.cleanup()
         try:
             import keyboard

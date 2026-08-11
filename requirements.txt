@@ -16,3 +16,12 @@ pycaw>=20230407
 comtypes>=1.2.0
 pyttsx3>=2.90
 Pillow>=10.0.0
+requests>=2.31.0
+
+# ─── Optional ────────────────────────────────────────────────────
+# Claude cloud fallback. llm/claude_engine.py imports this lazily and treats
+# ImportError as "Claude unavailable", so SAM runs local-only without it.
+#   pip install anthropic
+#
+# ─── Build only ──────────────────────────────────────────────────
+#   pip install pyinstaller

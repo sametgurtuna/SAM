@@ -1,401 +1,426 @@
 <div align="center">
 
-# 🏗️ SAM — Architecture & Developer Guide
+# 🏗️ SAM — Architecture
 
-**Internal technical documentation for core developers, security auditors, and contributors.**
+**Internal technical reference.** Trust this and the source over anything else if they
+disagree — this file is kept close to the code, but the code always wins.
+
+<p>
+  <img src="https://img.shields.io/badge/state_machine-4_states-38F2D8?style=flat-square">
+  <img src="https://img.shields.io/badge/threading-signals_only-00BFFF?style=flat-square">
+  <img src="https://img.shields.io/badge/overlay-4_windows-00D4AA?style=flat-square">
+</p>
 
 </div>
 
 ---
 
-## Table of Contents
+## Contents
 
-1. [System Philosophy](#1-system-philosophy)
-2. [Global Pipeline Architecture](#2-global-pipeline-architecture)
-3. [Subsystem Deep-Dive](#3-subsystem-deep-dive)
-4. [State Machine Definition](#4-state-machine-definition)
-5. [Multi-Threading & Concurrency](#5-multi-threading--concurrency-constraints)
-6. [Memory Profile & Optimization](#6-memory-profile--optimization)
-7. [Class Structure & Interface Reference](#7-class-structure--interface-reference)
-8. [Architectural Roadmap](#8-architectural-roadmap)
-
----
-
-## 1. System Philosophy
-
-Traditional desktop assistant architectures rely on heavy web-views, external cloud APIs, or synchronous loops that block the user interface. SAM was designed to solve three fundamental challenges:
-
-| Challenge | SAM's Approach |
-|:---|:---|
-| **Zero-Latency Execution** | Simple commands (volume, app launch) bypass the LLM entirely, executing native OS commands in **< 10 ms** |
-| **Minimal Resource Overhead** | Memory optimization via quantized weights (`int8`), lazy loading, and efficient threading minimizes background resource usage |
-| **UI Fluidity** | Heavy processing (audio analysis, noise cancellation, AI inference) never blocks the GUI thread — strict multi-threaded separation |
+1. [Orchestration model](#1-orchestration-model)
+2. [Pipeline](#2-pipeline)
+3. [State machine](#3-state-machine)
+4. [Threading](#4-threading)
+5. [The overlay](#5-the-overlay)
+6. [Ollama lifecycle](#6-ollama-lifecycle)
+7. [Paths — dev vs. frozen exe](#7-paths--dev-vs-frozen-exe)
+8. [Single-instance guard](#8-single-instance-guard)
+9. [Packaging](#9-packaging)
+10. [Module reference](#10-module-reference)
 
 ---
 
-## 2. Global Pipeline Architecture
+## 1. Orchestration model
 
-The entire lifecycle of a user interaction is managed centrally by the `AppController` ([core/app.py](../core/app.py)). Communication between UI, audio hardware, transcription models, and execution layers is governed by **PyQt Signals and Slots** — a fully decoupled, event-driven pattern.
-
-### Subsystem Flow Diagram
+Everything is wired together by **`AppController`** (`core/app.py`), a `QObject` that owns
+every engine and connects them purely through PyQt signals/slots.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Mic as 🎙️ Audio Input
-    participant WW as WakeWordThread
-    participant App as AppController
-    participant Rec as RecorderThread
-    participant STT as STTThread
-    participant Router as Command Router
-    participant LLM as LLMThread
-    participant UI as Overlay UI
-
-    Note over Mic,WW: Phase 1 — Background Monitoring
-    Mic->>WW: Continuous PCM chunks (16 kHz, Mono)
-    WW-->>WW: TFLite Mel-spectrogram + Inference
-    WW->>App: emit wake_word_detected()
-
-    Note over App,UI: Phase 2 — Voice Acquisition
-    App->>UI: show() + transition → Listening
-    App->>Rec: Start audio capture
-    Mic->>Rec: Read audio frames
-    Rec->>UI: emit level_updated(rms)
-    Rec-->>Rec: VAD silence check loop
-    Rec->>App: emit recording_completed(np.ndarray)
-    App->>UI: Transition → Transcribing
-
-    Note over App,STT: Phase 3 — Local Transcription
-    App->>STT: transcribe(np.ndarray)
-    STT-->>STT: Spectral noise reduction
-    STT-->>STT: Quantized Whisper inference
-    STT->>App: emit transcription_ready(text)
-
-    Note over App,Router: Phase 4 — Intent Routing
-    App->>Router: Parse transcript
-
-    alt Command Match
-        Router-->>Router: Execute OS API / Subprocess
-        Router->>App: handled=True, response
-        App->>UI: Render status + confirmation chime
-    else Conversational Query
-        Router->>App: handled=False
-        App->>UI: Transition → LLM Generating
-        App->>LLM: Dispatch query (context + text)
-        loop Token Streaming
-            LLM->>UI: emit token_received(token)
-            UI-->>UI: Append to output buffer
-        end
-        LLM->>App: emit generation_completed(response)
+flowchart TB
+    subgraph AC["AppController — core/app.py"]
+        direction TB
+        STATE["_state: AppState"]
     end
 
-    Note over App,UI: Phase 5 — Cooldown
-    App-->>App: QTimer delay (4000 ms)
-    App->>UI: slide_out_and_hide()
-    App->>WW: Re-arm detector
+    WW["WakeWordEngine"] -- "detected(audio)" --> AC
+    REC["Recorder"] -- "recording_done(np.ndarray)\nlevel_update(float)" --> AC
+    STT["STTEngine"] -- "transcript_ready(str)\npartial_transcript(str)" --> AC
+    LLM["LLMRouter"] -- "token_received(str)\ngeneration_complete(str)\ngeneration_error(str)" --> AC
+    TTS["TTSEngine"] -- "playback_finished()" --> AC
+    OV["SamOverlay"] -- "text_submitted(str)" --> AC
+
+    AC -- "direct method calls\n(activate/set_state/…)" --> OV
+    AC -- "start() / speak() / generate()" --> WW & REC & STT & LLM & TTS
+
+    style AC fill:#12121a,stroke:#00D4AA,stroke-width:2px,color:#e8e8e8
 ```
+
+**No engine calls another engine directly** — `WakeWordEngine` doesn't know `Recorder`
+exists; `STTEngine` doesn't know about `LLMRouter`. `AppController` is the only component
+that knows the whole pipeline, and `AppController._set_state()` is the only place UI state
+changes. This is the file to read first when tracing any feature end to end.
 
 ---
 
-## 3. Subsystem Deep-Dive
+## 2. Pipeline
 
-### 3.1 Audio Acquisition & DSP
+```mermaid
+flowchart LR
+    A["🎙️ Wake word"] --> D{{"AppController\n._on_trigger"}}
+    B["⌨️ Ctrl+Space"] --> D
+    C["⌨️ Typed input"] --> E["_on_transcript_ready()"]
 
-> Located in `audio/` — interfaces with native audio drivers via `sounddevice` and `numpy`.
+    D --> R["Recorder\n(VAD)"]
+    R --> S["STTEngine\nfaster-whisper"]
+    S --> E
 
-#### Wake Word Detector — `audio/wake_word.py`
+    E --> M{"CommandRouter\nmatch?"}
+    M -- "yes" --> H["OS action\nspoken confirmation"]
+    M -- "no" --> L["LLMRouter\nOllama / Claude, streaming"]
 
-Runs continuously on a dedicated daemon thread:
-- Samples audio input at **16,000 Hz** (mono)
-- Slices incoming buffers into **1280-sample blocks**
-- Feeds blocks to an `openwakeword` pre-trained `.tflite` model
-- Mel-spectrogram generation and predictions execute in-memory
-- When confidence values exceed the configured threshold → emits Qt signal
+    H --> T["TTSEngine"]
+    L --> T
+    T --> I["auto-hide timer\n→ IDLE"]
 
-#### Voice Activity Detector — `audio/recorder.py`
+    style E fill:#12121a,stroke:#00D4AA,color:#e8e8e8
+    style M fill:#12121a,stroke:#00BFFF,color:#e8e8e8
+```
 
-When activated, the recorder opens a high-fidelity input channel. For each 100 ms chunk, it calculates Root Mean Square (RMS) energy:
+Three entry points converge on the same downstream pipeline. **Typed input**
+(`Ctrl+Shift+Space`, or clicking the orb) skips recording/STT entirely:
+`AppController.submit_text()` sets state to `THINKING` and calls
+`_on_transcript_ready()` directly — the exact method the STT pipeline calls — so command
+routing and LLM generation behave identically whether the words came from a microphone or
+a keyboard.
 
-$$\text{RMS} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} x_i^2}$$
-
-| Parameter | Default | Description |
-|:---|:---|:---|
-| `silence_threshold` | 350 | RMS below this → considered silence |
-| `silence_duration_ms` | 1800 ms | Contiguous silence duration before auto-stop |
-| `max_record_seconds` | 30 s | Hard cutoff for memory protection |
-
-When silence is detected, the audio loop terminates and returns a **32-bit float NumPy array**.
+> **Streaming TTS.** The LLM response is spoken while it is still generating.
+> `_flush_streaming_tts()` watches the accumulating token buffer and hands each completed
+> sentence to `TTSEngine.speak_chunk()`; `_on_llm_complete` sends whatever prose is left and
+> calls `end_stream()`. `TTSEngine` is a queue plus one persistent worker thread —
+> `playback_finished` fires once per utterance, on the `end` marker, not per chunk. A
+> ```` ``` ```` fence in the stream stops streaming speech for that turn
+> (`core/code_parser.py` writes the code to the Desktop instead; it's never read aloud).
 
 ---
 
-### 3.2 Speech-to-Text Engine
+## 3. State machine
 
-> Located in `core/stt.py`
-
-| Stage | Technology | Purpose |
-|:---|:---|:---|
-| Noise Reduction | `noisereduce` | Spectral gating — profiles initial frames to subtract ambient noise |
-| Model Execution | `faster-whisper` (CTranslate2) | `int8` quantized models — 75% smaller, AVX-512 optimized |
-| Decoder Biasing | `initial_prompt` injection | Primes cross-attention layers toward command keywords |
-
-**Decoder Biasing** is critical for accuracy: the Whisper model is initialized with an `initial_prompt` containing key command vocabularies (*"open, close, volume, mute, lock screen, shutdown"*). This steers the output toward these keywords even with heavy non-native accents.
-
----
-
-### 3.3 Command Router Engine
-
-> Located in `commands/router.py` and `commands/system.py`
-
-**Regex Intent Matching** — Transcription output is evaluated against regex pattern maps instead of wasting compute on LLM classification. The matcher handles common phonetic variations (e.g., "mute" → "muth", "mut").
-
-**Direct OS API Execution** — Once matched, actions route to native APIs:
-
-```python
-import ctypes
-
-# Ses kapat / aç — Virtual Key Code VK_VOLUME_MUTE
-ctypes.windll.user32.keybd_event(0xAD, 0, 0, 0)  # Key Down
-ctypes.windll.user32.keybd_event(0xAD, 0, 2, 0)  # Key Up
-```
-
-**Application Control** — Uses `subprocess.Popen` with custom flags (`CREATE_NO_WINDOW`) to launch or terminate software without blocking the main event thread.
-
----
-
-### 3.4 Local LLM Connector
-
-> Located in `llm/ollama_client.py`
-
-**Engine Health Validation**
-
-On initialization, SAM polls the Ollama API:
-
-```
-GET http://localhost:11434/api/tags
-```
-
-If the request times out within 2 seconds, SAM checks environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) for cloud fallback.
-
-**Conversation State Deque**
-
-```python
-from collections import deque
-
-# Son 5 mesaj döngüsüne kısıtlanmış FIFO bellek kuyruğu
-context_history = deque(maxlen=5)
-```
-
-This keeps LLM prompt sizes small, reducing VRAM usage and keeping response times fast.
-
-**Chunked HTTP Streams**
-
-The LLM runner makes a streaming POST to `/api/generate`, reading chunked NDJSON block-by-block. Each parsed token is dispatched via Qt signals directly to the UI overlay for real-time display.
-
----
-
-### 3.5 PyQt6 Overlay UI
-
-> Located in `ui/floating_bar.py` and `ui/waveform.py`
-
-**Window Composition Flags:**
-
-```python
-from PyQt6.QtCore import Qt
-
-self.setWindowFlags(
-    Qt.WindowType.FramelessWindowHint      # İşletim sistemi pencere kenarlıklarını kaldırır
-    | Qt.WindowType.WindowStaysOnTopHint   # Tüm pencerelerin üstünde tutar
-    | Qt.WindowType.Tool                    # İşletim sistemi görev çubuğundan gizler
-)
-self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # Arka planı şeffaf yapar
-```
-
-**Waveform Rendering:**
-
-The visualizer overrides the `paintEvent` method of `WaveformWidget`. It uses `QPainter` to draw antialiased lines. When the recorder emits the microphone's current RMS level, the widget scales waveform bar heights using a smoothing factor — providing a clean, reactive visualization mapped directly to user speech.
-
----
-
-## 4. State Machine Definition
-
-SAM uses a centralized state machine to ensure consistent behavior across threads:
+`AppState` is four plain string constants — not an enum, not six states:
 
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
+    IDLE --> LISTENING: wake word / hotkey / typed text
+    LISTENING --> THINKING: VAD silence, or empty
+    THINKING --> SPEAKING: command matched, spoken
+    THINKING --> SPEAKING: first LLM token
+    SPEAKING --> IDLE: TTS finished + auto-hide timeout
 
-    IDLE --> LISTENING : Wake word detected / Hotkey pressed
-    LISTENING --> TRANSCRIBING : VAD silence detected / Timeout
-    TRANSCRIBING --> ROUTING : Transcription complete
-    ROUTING --> SPEAKING : Command match → execute
-    ROUTING --> LLM_STREAMING : No match → query LLM
-    LLM_STREAMING --> SPEAKING : Generation complete
-    SPEAKING --> IDLE : 4s cooldown delay
-
-    IDLE --> ERROR : Exception
-    LISTENING --> ERROR : Exception
-    TRANSCRIBING --> ERROR : Exception
-    LLM_STREAMING --> ERROR : Exception
-    ERROR --> IDLE : Error displayed
+    note right of THINKING
+        Covers BOTH "transcribing"
+        and "waiting on the LLM" —
+        no separate state for each.
+        The caption text communicates
+        the sub-phase, not the FSM.
+    end note
 ```
 
-| State | Description | Transition |
-|:---|:---|:---|
-| `STATE_IDLE` | Background daemon listening. UI hidden. | → `LISTENING` on wake word or hotkey |
-| `STATE_LISTENING` | UI visible. Microphone buffer active. | → `TRANSCRIBING` on VAD silence or timeout |
-| `STATE_TRANSCRIBING` | Audio processed by Whisper STT. | → `ROUTING` on transcription complete |
-| `STATE_ROUTING` | Command Router checks transcript against regex intents. | → `SPEAKING` if match; → `LLM_STREAMING` otherwise |
-| `STATE_LLM_STREAMING` | Query sent to local LLM. Responses stream to UI. | → `SPEAKING` on generation complete |
-| `STATE_SPEAKING` | Response synthesized or chime played. | → `IDLE` after 4-second delay |
-| `STATE_ERROR` | Exception occurred (LLM offline, audio device busy). | → `IDLE` after error message |
+`AppController._set_state()` is the single funnel: it updates `self._state` and calls
+`self._bar.set_state(new_state)` — nothing else touches overlay state directly.
 
 ---
 
-## 5. Multi-Threading & Concurrency Constraints
+## 4. Threading
 
-Python's Global Interpreter Lock (GIL) prevents multiple native threads from executing Python bytecodes simultaneously. SAM uses a multi-threaded architecture to keep the GUI thread free:
+```mermaid
+flowchart TB
+    subgraph MAIN["Qt main thread"]
+        UI["Overlay paint / animation timers"]
+        SIG["Signal handlers in AppController"]
+    end
 
+    subgraph WORKERS["daemon threading.Thread — one per engine"]
+        T1["WakeWordEngine"]
+        T2["Recorder"]
+        T3["STTEngine"]
+        T4["TTSEngine worker"]
+        T5["OllamaEngine / ClaudeEngine"]
+        T6["OllamaService.ensure_running"]
+        T7["LLMRouter.refresh_engine"]
+    end
+
+    T1 -. "pyqtSignal only" .-> SIG
+    T2 -. "pyqtSignal only" .-> SIG
+    T3 -. "pyqtSignal only" .-> SIG
+    T4 -. "pyqtSignal only" .-> SIG
+    T5 -. "pyqtSignal only" .-> SIG
+    T6 -. "pyqtSignal only" .-> SIG
+    T7 -. "pyqtSignal only" .-> SIG
+
+    style MAIN fill:#0d1420,stroke:#00BFFF
+    style WORKERS fill:#0d1a16,stroke:#00D4AA
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│ MAIN SYSTEM RUNTIME (Python Process)                                │
-│                                                                      │
-│  ┌────────────────────────────────────────────────────────────────┐  │
-│  │ Main GUI Thread (PyQt6 Event Loop)                            │  │
-│  │ • UI render loop (60 FPS waveform paint)                      │  │
-│  │ • Window slide-in / slide-out animations                      │  │
-│  │ • Receives async Qt Signals to update text                    │  │
-│  └──────────┬──────────────┬───────────────┬──────────────┬──────┘  │
-│             │ Qt Signal    │ Qt Signal     │ Qt Signal    │ Signal  │
-│  ┌──────────▼──────┐  ┌───▼──────────┐  ┌─▼────────────┐ ┌▼──────┐ │
-│  │ WakeWord Thread │  │ Recorder     │  │ STT Engine   │ │ LLM   │ │
-│  │ • TFLite WW     │  │ • Audio VAD  │  │ • Noise gate │ │ Thread│ │
-│  │   inference     │  │   capture    │  │ • Whisper    │ │• HTTP │ │
-│  │ • Daemon worker │  │ • Active     │  │   inference  │ │  stream││
-│  └─────────────────┘  └──────────────┘  └──────────────┘ └───────┘ │
-└──────────────────────────────────────────────────────────────────────┘
-```
 
-### Thread Implementation Rules
+Every engine that blocks does its work on a daemon thread and reports back to the Qt main
+thread **exclusively** via `pyqtSignal`. Never touch a PyQt widget from inside one of
+these threads.
 
-| Rule | Rationale |
-|:---|:---|
-| **Never modify UI from background threads** | PyQt6 widgets are not thread-safe. UI mutations from worker threads cause memory corruption. Use `pyqtSignal` exclusively. |
-| **Use daemon workers** | Wake word detection and similar threads run as daemons — auto-shutdown when the main application closes. |
-| **Prevent CPU overhead** | Background threads use small sleep intervals (`time.sleep(0.01)`) to avoid CPU spikes. |
+`LLMRouter` is worth calling out specifically: engine detection (`is_available()`, a
+2-second-timeout HTTP probe) used to run synchronously in `__init__` and again on *every*
+`generate()` call — a real, measured 2-second stall on the Qt thread whenever Ollama was
+down. It's now `QTimer.singleShot(0, refresh_engine)` at startup and never probes on the
+hot path; redetection is driven asynchronously by `OllamaService.ready`, a connection-error
+heuristic on `generation_error`, or an optional staleness TTL — all dispatching a
+background probe and applying the result later via a queued signal.
 
 ---
 
-## 6. Memory Profile & Optimization
+## 5. The overlay
 
-SAM is optimized for standard desktop environments:
+```mermaid
+flowchart TB
+    OV["SamOverlay — ui/overlay.py\n(facade: activate / dismiss / set_state / set_level /\nset_transcript / clear_transcript)"]
+    OV --> ORB["OrbWindow\nui/orb.py"]
+    OV --> CAP["CaptionWindow\nui/caption.py"]
+    OV --> INP["TextInputWindow\nui/text_input.py"]
 
-| Optimization | Details |
-|:---|:---|
-| **Lazy Model Loading** | Whisper models load only on first activation, keeping initial footprint at ~110 MB RAM |
-| **Float16 Support** | When NVIDIA GPUs are available (`cuda` device mode), STT runs in `float16` — reducing VRAM usage |
-| **Audio Buffer Cleanup** | Recordings are processed as temporary NumPy arrays, cleared immediately after transcription to prevent memory leaks |
+    ORB -. "position_changed" .-> OV
+    ORB -. "clicked" .-> OV
+    INP -. "submitted(str)" .-> OV
+    OV -. "text_submitted(str)" .-> AC["AppController"]
 
----
-
-## 7. Class Structure & Interface Reference
-
-### Class Diagram
-
-```
-┌───────────────────────────────────────────────────────────────────┐
-│ AppController (core/app.py)                                       │
-│ ─────────────────────────────────────────────────────────────────  │
-│ Fields:                                                           │
-│   state: StateEnum                                                │
-│   ui_window: FloatingBarWindow                                    │
-│ Signals:                                                          │
-│   state_changed(new_state)                                        │
-│ Methods:                                                          │
-│   + start_assistant() → None                                      │
-│   + handle_wake_word_detected() → None                            │
-│   + handle_recording_completed(audio: np.ndarray) → None          │
-│   + handle_transcription_ready(text: str) → None                  │
-│   + execute_routing(transcript: str) → None                       │
-└────────────┬───────────────────┬────────────────────┬─────────────┘
-             │                   │                    │
-             ▼                   ▼                    ▼
-┌────────────────────┐ ┌────────────────────┐ ┌────────────────────┐
-│ WakeWordDetector   │ │ AudioRecorder      │ │ STTEngine          │
-│ (audio/wake_word)  │ │ (audio/recorder)   │ │ (core/stt)         │
-│ ────────────────── │ │ ────────────────── │ │ ────────────────── │
-│ ww_model: TFLite   │ │ silence_limit: f   │ │ model: Whisper     │
-│ ────────────────── │ │ ────────────────── │ │ ────────────────── │
-│ Signals:           │ │ Signals:           │ │ Methods:           │
-│  wake_word_detected│ │  level_updated(rms)│ │  transcribe(audio) │
-│ Methods:           │ │  recording_done()  │ │  clean_noise()     │
-│  run()             │ │ Methods:           │ │                    │
-│  stop()            │ │  record_voice_vad()│ │                    │
-│                    │ │  get_rms()         │ │                    │
-└────────────────────┘ └────────────────────┘ └────────────────────┘
+    style OV fill:#12121a,stroke:#00D4AA,stroke-width:2px,color:#e8e8e8
 ```
 
-### Module Reference
+Four top-level windows, one facade. `SamOverlay` presents the exact method surface
+`FloatingBar` (the legacy bottom bar, `ui.overlay.style: bar`) used to, so
+`AppController` only differs by which class it constructs. Semantics shifted, though:
+`activate()` no longer shows a window (the orb is always visible) — it energises the ring
+and fades the caption in; `dismiss()` fades the caption back out and lets the orb settle
+to breathing. The orb itself never hides during a normal session.
 
-#### `AppController` — `core/app.py`
+### Click-through and the circular hit-test
 
-The central coordinator. Manages overlay UI lifecycle, initializes worker threads, and routes data between subsystems.
+A window can be `WS_EX_TRANSPARENT` (receives no mouse input at all — used for the
+caption, and for the orb when disabled), or it can answer `WM_NCHITTEST` itself. The orb
+does the latter:
 
-| Member | Type | Description |
-|:---|:---|:---|
-| `state_changed(new_state)` | Signal | Fired on state transitions |
-| `start_assistant()` | Method | Initializes setup, checks Ollama, spawns wake word thread |
-| `handle_wake_word_detected()` | Method | Triggered by wake-word thread; plays chime, transitions to listening |
+```mermaid
+flowchart LR
+    M["WM_NCHITTEST\nscreen x,y"] --> D{"inside the\ncircular hit radius?"}
+    D -- yes --> C["HTCLIENT\nclick lands on the orb"]
+    D -- no --> T["HTTRANSPARENT\nclick falls through to the desktop"]
+```
 
-#### `WakeWordDetector` — `audio/wake_word.py`
+`OrbWindow.nativeEvent()` intercepts `WM_NCHITTEST` and returns `HTTRANSPARENT` for every
+point outside its circular hit radius, `HTCLIENT` inside it — so the square window around
+the circle lets clicks fall through everywhere except the visible disc.
 
-Monitors audio input for the wake word *"Hey Jarvis"*.
+> ⚠️ **`super().nativeEvent()` is deliberately never called** in this handler. PyQt6's
+> default implementation returns an invalid pointer for this message and crashes the
+> process with an access violation if allowed to run.
 
-| Member | Type | Description |
-|:---|:---|:---|
-| `wake_word_detected` | Signal | Emitted when confidence score exceeds threshold |
-| `run()` | Method | Core loop — continuous audio read + TFLite inference |
+### Z-order: the `auto` layer
 
-#### `AudioRecorder` — `audio/recorder.py`
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant Orb as OrbWindow
+    participant Win as SetWindowPos (win32.py)
 
-Handles active recording after trigger, with VAD-based auto-stop.
+    Note over Orb: idle — HWND_BOTTOM<br/>below every normal window
+    U->>Orb: wake word / hotkey / click
+    Orb->>Orb: set_state(LISTENING)
+    Orb->>Win: bring_to_top(hwnd)
+    Note over Orb: engaged — HWND_TOPMOST
+    U->>Orb: session ends → IDLE
+    Orb->>Win: send_to_bottom(hwnd)
+    Note over Orb: back to the bottom
+```
 
-| Member | Type | Description |
-|:---|:---|:---|
-| `level_updated(rms_value)` | Signal | Real-time volume metrics for UI visualizer |
-| `recording_completed(audio_array)` | Signal | Final recorded buffer as NumPy array |
+`ui.orb.layer` (default `auto`) makes the orb sit at the very bottom of the Windows
+z-order — below every normal window, above only the wallpaper — until it's actually
+summoned. `ui/win32.py` wraps `SetWindowPos` with the `HWND_BOTTOM` / `HWND_TOPMOST`
+pseudo-handles for this; `OrbWindow._sync_zorder()` calls it whenever the engaged/idle
+state flips (`set_state`) or the typed-input box opens/closes
+(`set_foreground_request`) — the two conditions are OR'd, so opening the text box while
+idle still brings the orb forward. `topmost` (always on top, the old default) and `normal`
+(no special handling) are also available, static, and never touch `SetWindowPos`.
 
-#### `STTEngine` — `core/stt.py`
+A 2-second `QTimer` watchdog (`_check_fullscreen`) additionally hides the orb while a
+genuinely fullscreen window (a game, a video — not just a maximized app; the check requires
+no title bar/border, see `win32.foreground_is_fullscreen`) is in the foreground, unless SAM
+is actively engaged, in which case it's exempt so the orb still appears when called.
 
-Audio preprocessing and speech-to-text transcription.
+### Typed input and the foreground-lock problem
 
-| Member | Type | Description |
-|:---|:---|:---|
-| `transcribe(audio_data)` | Method | Runs noise gating + Whisper decoding on audio buffer |
+`TextInputWindow` is the one overlay window that must take keyboard focus, so — unlike the
+orb and caption — it does **not** set `WA_ShowWithoutActivating`. That alone isn't enough:
+Windows' foreground lock silently refuses `SetForegroundWindow` from a background process
+(exactly SAM's situation when a global hotkey fires), so `win32.force_foreground()`
+attaches to the current foreground thread's input queue for the duration of the call to
+lift the restriction.
 
-#### `CommandRouter` — `commands/router.py`
-
-Parses transcription for local system commands before LLM routing.
-
-| Member | Type | Description |
-|:---|:---|:---|
-| `route_intent(text)` | Method | Regex match → execute action → return `True` if handled |
+The hotkey shares the existing single `keyboard` listener thread
+(`AppController._register_hotkey`) rather than spawning a second one. Because `keyboard`
+fires a hotkey when its keys are down regardless of *extra* modifiers held,
+`ctrl+shift+space` is a superset of `ctrl+space` and would otherwise also fire the voice
+trigger; `_on_hotkey_pressed` checks whether the text hotkey's extra keys are currently
+held and bails out if so.
 
 ---
 
-## 8. Architectural Roadmap
+## 6. Ollama lifecycle
 
-Future architectural improvements planned for SAM:
+```mermaid
+flowchart TD
+    Start(["AppController starts\nautostart: true"]) --> Ping{"/api/tags\nresponds?"}
+    Ping -- yes --> Already["already running\n_we_started = False"]
+    Ping -- no --> Find{"ollama.exe\nfound?"}
+    Find -- no --> Unavail1["unavailable('not-installed')"]
+    Find -- yes --> Spawn["Popen([exe, 'serve'],\nCREATE_NO_WINDOW | DETACHED_PROCESS)"]
+    Spawn --> Poll["poll /api/tags\nevery 500ms"]
+    Poll -- "ready within timeout" --> Ready["ready"]
+    Poll -- "timeout" --> Unavail2["unavailable('timeout')"]
 
-| Initiative | Description |
-|:---|:---|
-| **Cross-Platform OS Interfaces** | Port Windows-specific API calls in `commands/system.py` to macOS (PyObjC) and Linux (DBus, systemd) |
-| **Local TTS Integration** | Replace remote TTS APIs with fast, offline synthesis (Piper or Coqui) running on a separate background process |
-| **Multi-Processing for GIL Bypass** | Move Whisper transcription and LLM inference into separate system processes via `multiprocessing` — bypassing GIL for better multi-core performance |
+    Already --> Ready
+    style Ready fill:#0d3b32,stroke:#00D4AA,color:#e8e8e8
+    style Spawn fill:#0d2a3b,stroke:#00BFFF,color:#e8e8e8
+```
+
+`llm/ollama_engine.py` is a pure HTTP client; `llm/ollama_service.py` (`OllamaService`)
+owns the *process*, entirely on a daemon thread. Executable lookup order: config override →
+`PATH` → the two locations the official Windows installer uses.
+
+On shutdown, the server is terminated **only if** `_we_started` **and**
+`llm.ollama.stop_on_exit` is true (default `false`) — SAM never kills a server the user
+already had running, and doesn't kill its own by default either, since model load time is
+expensive.
 
 ---
+
+## 7. Paths — dev vs. frozen exe
+
+```mermaid
+flowchart LR
+    subgraph Dev["Source checkout"]
+        D1["resource_root() = repo root"]
+        D2["user_data_dir() = repo root"]
+    end
+    subgraph Frozen["Installed exe"]
+        F1["resource_root() = sys._MEIPASS\n(read-only)"]
+        F2["user_data_dir() = %APPDATA%\\SAM\n(writable)"]
+    end
+```
+
+`core/paths.py` is the single source of truth for "where do files live?" — separating a
+read-only bundle from writable per-user state. The dev-mode fallback is deliberate:
+`user_data_dir()` returning the repo root in development means `config.yaml`, `logs/`, and
+`assets/` resolve exactly where they always did, so this refactor changed nothing for a
+source checkout. Only the frozen build relocates.
+
+`Config.load()` seeds a fresh `%APPDATA%\SAM\config.yaml` from the bundled
+`config.example.yaml` the first time it finds none — this is what makes the installed
+exe's Settings window able to actually save. (The old behavior wrote into the read-only,
+temp-extracted PyInstaller payload and silently lost every change.)
+
+`resolve_asset()` is used wherever a *config value* names a file (the wake word model
+path, in particular) — it checks the user data dir, then the bundle, so a value that used
+to be resolved against the process's current working directory (breaking whenever SAM was
+launched from a shortcut) now resolves consistently regardless of launch method.
+
+---
+
+## 8. Single-instance guard
+
+`core/paths.py::single_instance_lock()` claims a `Local\SAM_SingleInstance` named mutex via
+`CreateMutexW`; `main.py` calls it before anything else and exits immediately if another
+instance already holds it. This became mandatory once the installer can add a Windows
+startup entry — without it, a manual launch on top of the auto-started instance would spawn
+a second orb, a second wake-word microphone stream, and two processes fighting over the
+same global hotkey.
+
+---
+
+## 9. Packaging
+
+```mermaid
+flowchart LR
+    SRC["Source tree"] --> SPEC["SAM.spec\nPyInstaller (onedir)"]
+    SPEC --> DIST["dist/SAM/"]
+    DIST --> ISS["installer/SAM.iss\nInno Setup"]
+    ISS --> EXE["SAM-Setup-x.y.z.exe"]
+
+    EXE -. "--install-models" .-> STEPS["core/installer_steps.py\n(no Qt)"]
+    STEPS -. "ollama pull" .-> M1["language model"]
+    STEPS -. "WhisperModel(download_root=...)" .-> M2["speech model"]
+
+    style SPEC fill:#12121a,stroke:#00D4AA,color:#e8e8e8
+    style ISS fill:#12121a,stroke:#00BFFF,color:#e8e8e8
+```
+
+- **`SAM.spec`** bundles the wake word model, activation chime, `config.example.yaml`, and
+  the native libraries PyInstaller doesn't auto-detect (`ctranslate2`, `onnxruntime`). It
+  deliberately excludes `torch`/`torchvision` (openwakeword's unused training-only
+  backend — SAM always runs it with `inference_framework="onnx"`), which alone cuts the
+  build from ~830 MB to ~450 MB. It refuses to build at all if `config.yaml` or any OAuth
+  cache file would be bundled — a hard assertion, not just a `.gitignore` entry.
+- **`installer/SAM.iss`** is a per-user install (no admin required), with tasks for
+  installing Ollama, pre-pulling the model, and pre-downloading the Whisper model. Model
+  downloads run through `SAM.exe --install-models` rather than a second helper binary,
+  specifically so the installer and the running app can never disagree about model names
+  or download paths.
+
+---
+
+## 10. Module reference
+
+<table>
+<tr><th>Package</th><th>Contents</th></tr>
+<tr><td><code>core/</code></td><td>
+<code>app.py</code> (controller/state machine) ·
+<code>config.py</code> (defaults + loader/saver) ·
+<code>paths.py</code> (dev/frozen path resolution, single-instance lock) ·
+<code>code_parser.py</code> (pulls code blocks out of LLM replies) ·
+<code>installer_steps.py</code> (installer-only, no Qt)
+</td></tr>
+<tr><td><code>audio/</code></td><td>
+<code>wake_word.py</code> · <code>recorder.py</code> · <code>stt.py</code> ·
+<code>tts.py</code> · <code>sounds.py</code>
+</td></tr>
+<tr><td><code>commands/</code></td><td>
+<code>router.py</code> (regex intent matching, chained commands via "and"/"ve") ·
+<code>system.py</code> (all OS side effects — app launch/kill, volume, power, Spotify,
+and the shell-launch blocklist) ·
+<code>vision.py</code> (screen capture for vision-model requests)
+</td></tr>
+<tr><td><code>llm/</code></td><td>
+<code>base.py</code> (abstract <code>LLMEngine</code>) · <code>ollama_engine.py</code> ·
+<code>ollama_service.py</code> (process lifecycle, distinct from the HTTP client) ·
+<code>claude_engine.py</code> · <code>router.py</code>
+</td></tr>
+<tr><td><code>ui/</code></td><td>
+<code>orb.py</code> / <code>caption.py</code> / <code>text_input.py</code> /
+<code>overlay.py</code> (the current overlay) ·
+<code>win32.py</code> (click-through / z-order / foreground-focus ctypes helpers) ·
+<code>floating_bar.py</code> + <code>waveform.py</code> (legacy bar, still selectable) ·
+<code>settings_window.py</code> · <code>tray.py</code> · <code>styles.py</code> ·
+<code>icon_generator.py</code>
+</td></tr>
+<tr><td><code>tools/make_icon.py</code></td><td>
+Regenerates <code>assets/icon.ico</code> from the orb design — run by hand after a visual
+change, the output is committed.
+</td></tr>
+<tr><td><code>main.py</code></td><td>
+single-instance check → config load → logging setup → <code>QApplication</code> →
+<code>AppController</code> → <code>TrayManager</code> → event loop. Also the
+<code>--install-models</code> argv branch used by the installer.
+</td></tr>
+</table>
 
 <div align="center">
 
-*For usage and setup instructions, see the [README](../README.md) and [Setup Guide](../setup.md).*
+For usage, see the **[README](../README.md)**; for a step-by-step install, see the
+**[Setup Guide](../setup.md)**.
 
 </div>

@@ -9,6 +9,8 @@ import math
 import logging
 import threading
 
+from core import paths
+
 logger = logging.getLogger(__name__)
 
 # Sound parameters — short, subtle notification
@@ -22,9 +24,10 @@ FADE_MS = 30                    # Fade in/out to avoid clicks
 FREQUENCY_HZ_2 = 830
 DURATION_MS_2 = 120
 
-# File path
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
-SOUND_FILE = os.path.join(ASSETS_DIR, "activation.wav")
+# Okuma: pakete gomulu ses. Yazma: kullanici cache'i — paket dizini
+# (Program Files / _internal) salt-okunur olabilir.
+BUNDLED_SOUND_FILE = paths.resource_path("assets", "activation.wav")
+GENERATED_SOUND_FILE = os.path.join(paths.cache_dir(), "activation.wav")
 
 
 def _generate_tone(freq: float, duration_ms: int, sample_rate: int,
@@ -55,9 +58,7 @@ def _generate_tone(freq: float, duration_ms: int, sample_rate: int,
 
 
 def _generate_activation_sound() -> None:
-    """Generate the two-note activation chime and save as WAV."""
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-
+    """Generate the two-note activation chime into the writable cache dir."""
     # Generate two tones
     tone1 = _generate_tone(FREQUENCY_HZ, DURATION_MS, SAMPLE_RATE, AMPLITUDE, FADE_MS)
     # Short gap between notes (20ms silence)
@@ -67,21 +68,26 @@ def _generate_activation_sound() -> None:
     all_samples = tone1 + gap + tone2
 
     # Write WAV file
-    with wave.open(SOUND_FILE, "w") as wav:
+    with wave.open(GENERATED_SOUND_FILE, "w") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)  # 16-bit
         wav.setframerate(SAMPLE_RATE)
         for sample in all_samples:
             wav.writeframes(struct.pack("<h", sample))
 
-    logger.info("Activation sound generated: %s", SOUND_FILE)
+    logger.info("Activation sound generated: %s", GENERATED_SOUND_FILE)
 
 
 def ensure_activation_sound() -> str:
-    """Ensure the activation sound file exists, generate if missing. Returns file path."""
-    if not os.path.exists(SOUND_FILE):
+    """
+    Return a playable activation sound path.
+    Prefers the bundled asset; only synthesizes (into the cache dir) if missing.
+    """
+    if os.path.exists(BUNDLED_SOUND_FILE):
+        return BUNDLED_SOUND_FILE
+    if not os.path.exists(GENERATED_SOUND_FILE):
         _generate_activation_sound()
-    return SOUND_FILE
+    return GENERATED_SOUND_FILE
 
 
 def play_activation_sound() -> None:
