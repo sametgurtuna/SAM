@@ -6,6 +6,7 @@ import logging
 import os
 import threading
 from collections import deque
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
@@ -17,6 +18,9 @@ from llm.claude_engine import ClaudeEngine
 from llm.intent import Intent, IntentClassifier
 from llm.prompt_builder import PromptBuilder
 from llm.memory import create_memory_store
+
+if TYPE_CHECKING:
+    from llm.rag import RAGEngine
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +196,8 @@ class LLMRouter(QObject):
 
     # ─── Generation ───────────────────────────────────────────────
 
-    def generate(self, user_message: str, image_b64: str | None = None) -> None:
+    def generate(self, user_message: str, image_b64: str | None = None,
+                 language: str | None = None) -> None:
         """
         Generate a response to the user's message.
 
@@ -201,6 +206,10 @@ class LLMRouter(QObject):
           2. Modu ayarla
           3. Motoru sec
           4. Dispatch
+
+        Args:
+            language: STT'nin algiladigi dil kodu ("tr"/"en") — LLM'e hangi
+                dilde cevap vermesi gerektigini soylemek icin kullanilir.
         """
         # 1. Intent siniflandirmasi
         result = self._classifier.classify(user_message)
@@ -226,10 +235,10 @@ class LLMRouter(QObject):
         logger.info("Routing to %s", engine.engine_name)
 
         # 4. Dispatch
-        self._dispatch(user_message, image_b64)
+        self._dispatch(user_message, image_b64, language=language)
 
     def _dispatch(self, user_message: str, image_b64: str | None,
-                  record_history: bool = True) -> None:
+                  record_history: bool = True, language: str | None = None) -> None:
         """Build the message list and hand it to the active engine."""
         if self._active_engine is None:
             self._emit_no_engine_error()
@@ -257,6 +266,7 @@ class LLMRouter(QObject):
             mode=mode,
             knowledge=knowledge,
             memory=memory,
+            language=language,
         )
 
         # ── Mesaj listesi ─────────────────────────────────────────
@@ -275,45 +285,68 @@ class LLMRouter(QObject):
 
         self._active_engine.generate(messages)
 
+    def _ensure_rag_constructed(self) -> "RAGEngine | None":
+        """RAGEngine instance'ini olustur (henuz olusturulmadiysa). Model/DB yuklemez."""
+        if self._rag is not None:
+            return self._rag
+
+        try:
+            from llm.rag import RAGEngine
+
+            # NOT: config.get() sadece anahtar HIC YOKSA default'a duser.
+            # config.yaml'da bos string ('') olarak tanimliysa onu aynen
+            # dondurur — bu yuzden "or" ile bos degerleri de eliyoruz.
+            knowledge_path = config.get(
+                "llm", "rag", "knowledge_path", default=""
+            ) or os.path.join(paths.resource_root(), "knowledge")
+            embedding_model = config.get(
+                "llm", "rag", "embedding_model",
+                default="all-MiniLM-L6-v2",
+            ) or "all-MiniLM-L6-v2"
+            top_k = config.get("llm", "rag", "top_k", default=3) or 3
+            chunk_size = config.get("llm", "rag", "chunk_size", default=800) or 800
+            chunk_overlap = config.get("llm", "rag", "chunk_overlap", default=80) or 80
+
+            self._rag = RAGEngine(
+                knowledge_path=knowledge_path,
+                embedding_model=embedding_model,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                top_k=top_k,
+            )
+            logger.info(
+                "RAG engine created (path=%s, chunk_size=%d) — lazy init on first use",
+                knowledge_path, chunk_size,
+            )
+        except ImportError as e:
+            logger.warning(
+                "RAG dependencies not installed (sentence-transformers, chromadb): %s", e
+            )
+            self._rag_enabled = False
+            return None
+
+        return self._rag
+
     def _get_rag_knowledge(self, query: str) -> str | None:
         """RAG'den bilgi al. Lazy init — ilk cagride model yukler."""
-        if self._rag is None:
-            try:
-                from llm.rag import RAGEngine
+        rag = self._ensure_rag_constructed()
+        if rag is None:
+            return None
+        return rag.retrieve(query)
 
-                # NOT: config.get() sadece anahtar HIC YOKSA default'a duser.
-                # config.yaml'da bos string ('') olarak tanimliysa onu aynen
-                # dondurur — bu yuzden "or" ile bos degerleri de eliyoruz.
-                knowledge_path = config.get(
-                    "llm", "rag", "knowledge_path", default=""
-                ) or os.path.join(paths.resource_root(), "knowledge")
-                embedding_model = config.get(
-                    "llm", "rag", "embedding_model",
-                    default="all-MiniLM-L6-v2",
-                ) or "all-MiniLM-L6-v2"
-                top_k = config.get("llm", "rag", "top_k", default=3) or 3
-                chunk_size = config.get("llm", "rag", "chunk_size", default=800) or 800
-                chunk_overlap = config.get("llm", "rag", "chunk_overlap", default=80) or 80
-
-                self._rag = RAGEngine(
-                    knowledge_path=knowledge_path,
-                    embedding_model=embedding_model,
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
-                    top_k=top_k,
-                )
-                logger.info(
-                    "RAG engine created (path=%s, chunk_size=%d) — lazy init on first query",
-                    knowledge_path, chunk_size,
-                )
-            except ImportError as e:
-                logger.warning(
-                    "RAG dependencies not installed (sentence-transformers, chromadb): %s", e
-                )
-                self._rag_enabled = False
-                return None
-
-        return self._rag.retrieve(query)
+    def warm_rag(self) -> None:
+        """
+        RAG motorunu (embedding modeli + index) arka planda onceden yukle.
+        Ilk gercek FENERBAHCE sorgusunun bu yuku beklemesini onler.
+        Ayni self._rag instance'ini kullanir — _get_rag_knowledge ile yaris
+        durumu RAGEngine._ensure_initialized() icindeki kilit tarafindan
+        guvenli sekilde ele alinir.
+        """
+        if not self._rag_enabled:
+            return
+        rag = self._ensure_rag_constructed()
+        if rag is not None:
+            rag.warm()
 
     # ─── Error handling ───────────────────────────────────────────
 
@@ -377,6 +410,10 @@ class LLMRouter(QObject):
         """Clear conversation history."""
         self._history.clear()
         logger.debug("Conversation context cleared")
+
+    def remember(self, category: str, key: str, value: str) -> None:
+        """Uzun vadeli hafizaya bir bilgi kaydet (bkz. llm/memory.py)."""
+        self._memory.store(key, value, category)
 
     @property
     def active_engine_name(self) -> str:

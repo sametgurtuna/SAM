@@ -14,7 +14,7 @@ from llm.base import LLMEngine
 logger = logging.getLogger(__name__)
 
 # Default Ollama API endpoint
-DEFAULT_BASE_URL = "http://localhost:11434"
+DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 CHAT_ENDPOINT = "/api/chat"
 TAGS_ENDPOINT = "/api/tags"
 

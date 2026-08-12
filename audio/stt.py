@@ -27,12 +27,16 @@ class STTEngine(QObject):
     Signals:
         transcript_ready(str): Full transcription text.
         partial_transcript(str): Intermediate segment text (for live display).
+        language_detected(str, float): Detected language code and confidence,
+            emitted right before transcript_ready (bilingual TTS voice pick).
     """
 
     # Signal: full transcription complete
     transcript_ready = pyqtSignal(str)
     # Signal: partial transcript (segment-by-segment)
     partial_transcript = pyqtSignal(str)
+    # Signal: algilanan dil (kod, olasilik) — transcript_ready'den once yayilir
+    language_detected = pyqtSignal(str, float)
 
     def __init__(self) -> None:
         super().__init__()
@@ -167,6 +171,7 @@ class STTEngine(QObject):
             logger.info("Transcription complete in %.2fs: '%s' (language=%s, prob=%.2f)",
                         elapsed, full_text, info.language, info.language_probability)
 
+            self.language_detected.emit(info.language, info.language_probability)
             self.transcript_ready.emit(full_text)
 
         except Exception as e:

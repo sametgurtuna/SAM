@@ -1,6 +1,6 @@
 app:
   name: SAM
-  version: 0.4.2
+  version: 0.4.3
 hotkey:
   trigger: ctrl+space          # hold to speak
   text_input: ctrl+shift+space # open the typed-input box
@@ -78,7 +78,7 @@ audio:
   channels: 1
   dtype: int16
   silence_threshold: 300
-  silence_duration_ms: 1800
+  silence_duration_ms: 900    # tunable — lower feels snappier, too low cuts users off mid-sentence
   max_record_seconds: 30
 wake_word:
   engine: openwakeword
@@ -88,15 +88,19 @@ wake_word:
 stt:
   engine: faster-whisper
   model: small
-  language: en
+  language: null               # null = auto-detect spoken language (required for bilingual TTS)
   beam_size: 1
   device: cpu
   compute_type: int8
 tts:
   engine: edge-tts
-  voice: en-US-GuyNeural
+  voice: en-US-GuyNeural        # fallback voice — used when auto_language is off or the detected language isn't in `voices`
   rate: +0%
   volume: +0%
+  auto_language: true           # switch voice automatically to match the language you spoke in
+  voices:
+    tr: tr-TR-EmelNeural
+    en: en-US-JennyNeural
 llm:
   context_window: 8
   persona: >
@@ -109,13 +113,13 @@ llm:
     enabled: true                 # intent classification (NORMAL/FENERBAHCE/COMPLEX)
   rag:
     enabled: true                 # Fenerbahce knowledge base retrieval
-    embedding_model: all-MiniLM-L6-v2
-    top_k: 3                      # number of knowledge chunks to retrieve
+    embedding_model: paraphrase-multilingual-MiniLM-L12-v2  # TR/EN cross-lingual
+    top_k: 5                      # number of knowledge chunks to retrieve
   memory:
-    enabled: false                # long-term user memory (experimental)
-    backend: json                 # json | null
+    enabled: true                  # long-term user memory — learns facts (name, job, school) as you talk
+    backend: json                  # json | null — writes memory.json + a human-readable memory.md, both local-only
   ollama:
-    base_url: http://localhost:11434
+    base_url: http://127.0.0.1:11434
     model: qwen2.5:3b
     vision_model: llava
     temperature: 0.7
@@ -124,7 +128,8 @@ llm:
     num_ctx: 4096                 # increased for RAG context + longer history
     autostart: true              # start "ollama serve" in the background when SAM launches
     executable: ""               # blank = auto-discover (PATH, %LOCALAPPDATA%, Program Files)
-    startup_timeout_seconds: 20
+    startup_timeout_seconds: 45
+    existing_server_grace_seconds: 8   # wait this long for Ollama's own autostart before starting a server ourselves
     stop_on_exit: false          # never kill a server the user already had running
     availability_ttl_seconds: 30
   claude:

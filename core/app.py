@@ -99,6 +99,8 @@ class AppController(QObject):
         # STT → LLM pipeline
         self._stt.partial_transcript.connect(self._on_partial_transcript)
         self._stt.transcript_ready.connect(self._on_transcript_ready)
+        # Iki dilli TTS — algilanan dile gore ses/cevap dili secimi
+        self._stt.language_detected.connect(self._on_language_detected)
 
         # LLM → TTS pipeline
         self._llm.token_received.connect(self._on_llm_token)
@@ -136,12 +138,20 @@ class AppController(QObject):
         # ─── Last transcript (for context) ────────────────────────
         self._last_transcript: str = ""
 
+        # ─── Bilingual TTS state ───────────────────────────────────
+        # STT'nin son algiladigi dil — TTS sesi ve LLM'e verilen dil
+        # talimati bundan turer (bkz. _on_language_detected).
+        self._detected_language: str | None = None
+
         # ─── Start wake word and hotkey ───────────────────────────
         self._register_hotkey()
         self._wake_word.start()
 
         # Pre-load Whisper model in background (avoids delay on first use)
         self._preload_stt_model()
+        # Pre-warm RAG (embedding model + index) so the first Fenerbahce
+        # question doesn't pay the load cost inline.
+        self._preload_rag()
 
         logger.info("AppController initialized — state: %s, LLM: %s",
                      self._state, self._llm.active_engine_name)
@@ -152,6 +162,17 @@ class AppController(QObject):
             logger.info("Pre-loading Whisper model in background...")
             self._stt.load_model()
         thread = threading.Thread(target=_load, daemon=True, name="STTPreload")
+        thread.start()
+
+    def _preload_rag(self) -> None:
+        """Pre-warm the RAG engine (embedding model + index) in the background."""
+        if not config.get("llm", "rag", "enabled", default=True):
+            return
+
+        def _load():
+            logger.info("Pre-warming RAG engine in background...")
+            self._llm.warm_rag()
+        thread = threading.Thread(target=_load, daemon=True, name="RAGPreload")
         thread.start()
 
     @staticmethod
@@ -333,6 +354,34 @@ class AppController(QObject):
         if self._state == AppState.THINKING:
             self._bar.set_transcript(text)
 
+    # ─── Iki dilli TTS ────────────────────────────────────────────
+
+    # Su an sadece bu iki dil icin ses/persona eslesmesi tanimli
+    # (bkz. config tts.voices).
+    _SUPPORTED_TTS_LANGS = {"tr", "en"}
+    # Kisa/belirsiz ifadelerde ("evet", "ok") faster-whisper'in dil tahmini
+    # guvenilmez — bu esigin altinda mevcut sesi/dili koru.
+    _LANG_CONFIDENCE_MIN = 0.5
+
+    def _on_language_detected(self, language: str, probability: float) -> None:
+        """
+        STT her transkripsiyondan algiladigi dili bildirir. Guvenilir ve
+        desteklenen bir dilse TTS sesini ve LLM'e verilecek dil talimatini
+        buna gore guncelle. transcript_ready'den once tetiklenir, boylece
+        _generate_response() cagrildiginda deger hazir olur.
+        """
+        if not config.get("tts", "auto_language", default=True):
+            return
+        if probability < self._LANG_CONFIDENCE_MIN or language not in self._SUPPORTED_TTS_LANGS:
+            return
+
+        self._detected_language = language
+        voices = config.get("tts", "voices", default={}) or {}
+        voice = voices.get(language) or config.get("tts", "voice", default="en-US-GuyNeural")
+        self._tts.set_voice(voice)
+        logger.debug("Language detected: %s (%.2f) — voice set to %s",
+                      language, probability, voice)
+
     def _on_transcript_ready(self, transcript: str) -> None:
         """Full transcription complete — send to LLM."""
         if not transcript.strip():
@@ -343,6 +392,10 @@ class AppController(QObject):
         logger.info("Transcript: '%s'", transcript)
         self._last_transcript = transcript
         self._bar.set_transcript(transcript)
+
+        # Kullanicinin kendi cumlesinden kalici bilgi cikar (isim, meslek, vb.)
+        # — arka planda, yanit hizini hic etkilemeden.
+        self._extract_and_store_facts(transcript)
 
         # 1. Once system komutu mu diye kontrol et (LLM'e gitmeden)
         cmd_result = self._cmd_router.try_handle(transcript)
@@ -373,7 +426,28 @@ class AppController(QObject):
         self._tts.stop()
 
         # Send to LLM router (auto-detects Ollama or Claude)
-        self._llm.generate(self._last_transcript, image_b64=image_b64)
+        self._llm.generate(
+            self._last_transcript,
+            image_b64=image_b64,
+            language=self._detected_language,
+        )
+
+    def _extract_and_store_facts(self, transcript: str) -> None:
+        """
+        Kullanici transkriptinden kalici bilgi (isim, meslek, okul vb.) cikar
+        ve hafizaya yaz. Fire-and-forget arka plan thread — cevap suresini
+        hic etkilemez, _generate_response()'dan once baslatilir.
+        """
+        if not config.get("llm", "memory", "enabled", default=True):
+            return
+
+        def _run():
+            from llm.fact_extractor import extract_facts
+            for category, key, value in extract_facts(transcript):
+                self._llm.remember(category, key, value)
+
+        thread = threading.Thread(target=_run, daemon=True, name="FactExtract")
+        thread.start()
 
     # ─── LLM Streaming ────────────────────────────────────────────
 

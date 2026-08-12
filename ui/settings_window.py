@@ -314,8 +314,10 @@ class SettingsWindow(QDialog):
             self._stt_model_combo.setCurrentIndex(idx)
         form.addRow("Model:", self._stt_model_combo)
 
-        self._stt_language = QLineEdit(config.get("stt", "language", default="en"))
-        self._stt_language.setPlaceholderText("en, tr, de, fr... (null = auto)")
+        # None = otomatik dil algilama (varsayilan) — QLineEdit None kabul
+        # etmedigi icin bos string'e cevir.
+        self._stt_language = QLineEdit(config.get("stt", "language", default=None) or "")
+        self._stt_language.setPlaceholderText("en, tr, de, fr... (empty = auto)")
         form.addRow("Language:", self._stt_language)
 
         self._stt_device_combo = QComboBox()
@@ -351,11 +353,35 @@ class SettingsWindow(QDialog):
         self._tts_voice.setEditable(True)
         current_voice = config.get("tts", "voice", default="en-US-GuyNeural")
         self._tts_voice.setCurrentText(current_voice)
-        form2.addRow("Voice:", self._tts_voice)
+        form2.addRow("Fallback voice:", self._tts_voice)
 
         self._tts_rate = QLineEdit(config.get("tts", "rate", default="+0%"))
         self._tts_rate.setPlaceholderText("+0%, +20%, -10%")
         form2.addRow("Rate:", self._tts_rate)
+
+        self._tts_auto_language = QCheckBox(
+            "Switch voice automatically to match the language you spoke in"
+        )
+        self._tts_auto_language.setChecked(
+            config.get("tts", "auto_language", default=True)
+        )
+        form2.addRow(self._tts_auto_language)
+
+        self._tts_voice_tr = QComboBox()
+        self._tts_voice_tr.addItems(voices)
+        self._tts_voice_tr.setEditable(True)
+        self._tts_voice_tr.setCurrentText(
+            config.get("tts", "voices", "tr", default="tr-TR-EmelNeural")
+        )
+        form2.addRow("Turkish voice:", self._tts_voice_tr)
+
+        self._tts_voice_en = QComboBox()
+        self._tts_voice_en.addItems(voices)
+        self._tts_voice_en.setEditable(True)
+        self._tts_voice_en.setCurrentText(
+            config.get("tts", "voices", "en", default="en-US-JennyNeural")
+        )
+        form2.addRow("English voice:", self._tts_voice_en)
 
         tts_group.setLayout(form2)
         layout.addWidget(tts_group)
@@ -374,7 +400,7 @@ class SettingsWindow(QDialog):
         form.setSpacing(12)
 
         self._ollama_url = QLineEdit(
-            config.get("llm", "ollama", "base_url", default="http://localhost:11434")
+            config.get("llm", "ollama", "base_url", default="http://127.0.0.1:11434")
         )
         form.addRow("Base URL:", self._ollama_url)
 
@@ -641,6 +667,9 @@ class SettingsWindow(QDialog):
             config.set("tts", "engine", value=self._tts_engine_combo.currentText())
             config.set("tts", "voice", value=self._tts_voice.currentText())
             config.set("tts", "rate", value=self._tts_rate.text().strip())
+            config.set("tts", "auto_language", value=self._tts_auto_language.isChecked())
+            config.set("tts", "voices", "tr", value=self._tts_voice_tr.currentText())
+            config.set("tts", "voices", "en", value=self._tts_voice_en.currentText())
 
             # LLM
             config.set("llm", "ollama", "base_url", value=self._ollama_url.text().strip())

@@ -49,9 +49,17 @@ class TTSEngine(QObject):
         # seslendirebilmek icin kalici bir worker + kuyruk kullanilir.
         # `_generation` sayaci stop() cagrildiginda artar; kuyrukta
         # bekleyen eski parcalar boylece sessizce atilir.
-        self._queue: "queue.Queue[tuple[int, str, str]]" = queue.Queue()
+        self._queue: "queue.Queue[tuple[int, str, str, int]]" = queue.Queue()
         self._generation: int = 0
         self._gen_lock = threading.Lock()
+
+        # ─── Prefetch (chunk overlap) ────────────────────────────
+        # Bir cumle calarken bir sonraki cumlenin sentezi arka planda
+        # baslar, boylece cumleler arasi sessiz bosluk (network round-trip)
+        # kalmaz. `_seq_counter` her enqueue'da artar; cache seq -> mp3 yolu.
+        self._seq_counter: int = 0
+        self._prefetch_cache: dict[int, str] = {}
+        self._prefetch_lock = threading.Lock()
 
         # Initialize pygame mixer
         self._mixer_ready: bool = False
@@ -73,6 +81,16 @@ class TTSEngine(QObject):
         except Exception as e:
             logger.warning("Failed to initialize pygame.mixer: %s", e)
             self._mixer_ready = False
+
+    def set_voice(self, voice: str) -> None:
+        """
+        Runtime'da konusma sesini degistir (ör. algilanan dile gore).
+
+        `_engine_type`'in `_speak_one` icinde her cagrida tazelenmesiyle ayni
+        desen — bir sonraki sentezden itibaren gecerli olur, kuyrukta zaten
+        bekleyen parcalar (varsa) eski sesle sentezlenmis olabilir.
+        """
+        self._voice = voice
 
     def speak(self, text: str) -> None:
         """
@@ -104,10 +122,13 @@ class TTSEngine(QObject):
         """Mark the end of a streamed utterance — fires playback_finished."""
         self._enqueue("end", "")
 
-    def _enqueue(self, kind: str, text: str) -> None:
+    def _enqueue(self, kind: str, text: str) -> int:
         with self._gen_lock:
             generation = self._generation
-        self._queue.put((generation, kind, text))
+            seq = self._seq_counter
+            self._seq_counter += 1
+        self._queue.put((generation, kind, text, seq))
+        return seq
 
     def stop(self) -> None:
         """Cancel queued speech and stop any currently playing audio."""
@@ -129,14 +150,28 @@ class TTSEngine(QObject):
         except Exception:
             pass
 
+        self._clear_prefetch_cache()
+
     def _is_current(self, generation: int) -> bool:
         with self._gen_lock:
             return generation == self._generation
 
+    def _clear_prefetch_cache(self) -> None:
+        """Iptal edilen/kullanilmayan onceden-sentezlenmis ses dosyalarini sil."""
+        with self._prefetch_lock:
+            paths = list(self._prefetch_cache.values())
+            self._prefetch_cache.clear()
+        for p in paths:
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except OSError:
+                pass
+
     def _worker_loop(self) -> None:
         """Persistent worker: drains the speech queue in order."""
         while True:
-            generation, kind, text = self._queue.get()
+            generation, kind, text, seq = self._queue.get()
 
             # stop() sonrasi kuyrukta kalan eski parcalari atla
             if not self._is_current(generation):
@@ -147,11 +182,11 @@ class TTSEngine(QObject):
                 continue
 
             try:
-                self._speak_one(text, generation)
+                self._speak_one(text, generation, seq)
             except Exception as e:
                 logger.error("TTS failed: %s", e)
 
-    def _speak_one(self, text: str, generation: int) -> None:
+    def _speak_one(self, text: str, generation: int, seq: int) -> None:
         """Synthesize and play a single chunk (blocking, on the worker)."""
         # Refresh engine setting in case it was changed in GUI
         self._engine_type = config.get("tts", "engine", default="edge-tts")
@@ -160,12 +195,53 @@ class TTSEngine(QObject):
             self._speak_local(text)
             return
 
-        # Edge-TTS: Generate audio file and play
-        audio_path = self._generate_audio(text)
+        # Onceki cumle calarken arka planda hazirlanmis olabilir — varsa
+        # kullan, yoksa simdi senkron sentezle (ilk cumlede her zaman boyle).
+        audio_path = self._take_prefetched(seq)
+        if audio_path is None:
+            audio_path = self._generate_audio(text)
         if audio_path is None or not self._is_current(generation):
             return
 
+        # Bu parca calmaya baslamadan once, kuyruktaki bir sonraki parcanin
+        # sentezini arka planda baslat — boylece cumleler arasinda network
+        # round-trip'i beklenmez.
+        self._prefetch_next(generation)
+
         self._play_audio(audio_path)
+
+    def _take_prefetched(self, seq: int) -> str | None:
+        with self._prefetch_lock:
+            return self._prefetch_cache.pop(seq, None)
+
+    def _prefetch_next(self, current_generation: int) -> None:
+        """Kuyruktaki bir sonraki 'say' parcasini arka planda onceden sentezle."""
+        with self._queue.mutex:
+            peeked = self._queue.queue[0] if self._queue.queue else None
+        if peeked is None:
+            return
+
+        gen, kind, text, seq = peeked
+        if kind != "say" or gen != current_generation:
+            return
+        with self._prefetch_lock:
+            if seq in self._prefetch_cache:
+                return
+
+        def _run() -> None:
+            if not self._is_current(gen):
+                return
+            path = self._generate_audio(text)
+            if path is None:
+                return
+            if not self._is_current(gen):
+                # Bu arada iptal edildi (stop()) — dosyayi tut, bir sonraki
+                # cleanup()/stop() genel temizlikte silinir.
+                return
+            with self._prefetch_lock:
+                self._prefetch_cache[seq] = path
+
+        threading.Thread(target=_run, daemon=True, name="TTSPrefetch").start()
 
     def _generate_audio(self, text: str) -> str | None:
         """Generate TTS audio using edge-tts (async). Returns path to MP3 file."""
@@ -208,17 +284,18 @@ class TTSEngine(QObject):
         """Speak text using offline pyttsx3."""
         try:
             import pyttsx3
-            
+
             self._playing = True
             self.playback_started.emit()
-            
+
             engine = pyttsx3.init()
             # If pyttsx3 is already in a loop in another thread this can fail,
-            # but since we run this in a new worker thread each time, 
+            # but since we run this in a new worker thread each time,
             # initializing per-call is usually safe on Windows.
+            self._apply_local_voice(engine)
             engine.say(text)
             engine.runAndWait()
-            
+
             logger.debug("Local TTS playback finished")
         except ImportError:
             logger.error("pyttsx3 not installed. Run: pip install pyttsx3")
@@ -226,6 +303,35 @@ class TTSEngine(QObject):
             logger.error("Local TTS failed: %s", e)
         finally:
             self._playing = False
+
+    def _apply_local_voice(self, engine) -> None:
+        """
+        pyttsx3 (Windows SAPI5) edge-tts ses adlarini ("tr-TR-EmelNeural" gibi)
+        taniyamaz — bunun yerine sistemde KURULU SAPI seslerinden birini secmek
+        gerekir. `_voice`'in bastaki locale onekini ("tr-TR", "en-US") kurulu
+        seslerin id/name alaninda arayip eslesen ilkini seciyoruz. Eslesme
+        yoksa (ör. Turkce SAPI sesi kurulu degilse) sistem varsayilani kalir.
+        """
+        locale_prefix = "-".join(self._voice.split("-")[:2]).lower()
+        if not locale_prefix:
+            return
+        try:
+            voices = engine.getProperty("voices") or []
+        except Exception:
+            return
+
+        for v in voices:
+            haystack = f"{getattr(v, 'id', '')} {getattr(v, 'name', '')}".lower().replace("_", "-")
+            if locale_prefix in haystack:
+                engine.setProperty("voice", v.id)
+                return
+
+        logger.debug(
+            "No installed local (SAPI) voice matches '%s' — using system default. "
+            "Install the language's Windows speech pack, or switch tts.engine to "
+            "'edge-tts' for full bilingual voice support.",
+            locale_prefix,
+        )
 
     async def _async_generate(self, text: str, output_path: str) -> None:
         """Async edge-tts generation."""

@@ -1,7 +1,9 @@
 # SAM — Long-Term Memory Interface
-# Uzun vadeli kullanici hafizasi icin arayuz ve minimal implementasyon.
-# Su an devre disi (NullMemory) — gelecekte JsonMemory veya embedding-tabanli
-# bir implementasyon aktif edilebilir.
+# Uzun vadeli kullanici hafizasi icin arayuz ve implementasyonlar.
+# Varsayilan backend JsonMemory (llm.memory.enabled=true) — kullanici
+# konustukca ogrenilen bilgiler (isim, meslek, okul vb.) kalici olarak
+# saklanir ve her turn'un system prompt'una kisa bir ozet olarak eklenir.
+# llm.memory.enabled=false ise NullMemory (no-op) kullanilir.
 
 import json
 import logging
@@ -43,17 +45,25 @@ class NullMemory(MemoryStore):
         return None
 
 
+# Prompt'a eklenecek ozette en fazla kac fact yer alsin — hepsini eklemek
+# her turn'un system prompt'unu gereksiz sisirir.
+_MAX_SUMMARY_FACTS = 12
+
+
 class JsonMemory(MemoryStore):
     """
     Minimal JSON tabanli hafiza.
 
-    %LOCALAPPDATA%/SAM/memory.json'da saklar.
+    user_data_dir()/memory.json'da saklar (tek gercek kaynak — okuma buradan
+    yapilir). Ayrica ayni klasore, kullanicinin gorup duzenleyebilecegi bir
+    memory.md aynasi da yazilir (bkz. _export_markdown).
     Basit keyword eslestirme — semantik arama yok.
     Gelecekte embedding-tabanli arama ile degistirilebilir.
     """
 
     def __init__(self) -> None:
         self._path = os.path.join(paths.user_data_dir(), "memory.json")
+        self._md_path = os.path.join(paths.user_data_dir(), "memory.md")
         self._data: dict[str, dict[str, dict]] = self._load()
 
     def _load(self) -> dict:
@@ -72,6 +82,29 @@ class JsonMemory(MemoryStore):
                 json.dump(self._data, f, ensure_ascii=False, indent=2)
         except OSError as e:
             logger.error("Failed to save memory: %s", e)
+        self._export_markdown()
+
+    def _export_markdown(self) -> None:
+        """
+        Kullanicinin okuyup duzenleyebilecegi insan-okunur bir kopya yaz.
+        JSON tek gercek kaynak kalir — bu sadece bir gorunum/aynadir,
+        knowledge/*.md dosyalarindaki konvansiyonu takip eder.
+        """
+        lines = ["# SAM — Kullanici Hafizasi\n"]
+        for category in sorted(self._data.keys()):
+            entries = self._data[category]
+            if not entries:
+                continue
+            lines.append(f"## {category}\n")
+            for key, entry in sorted(entries.items()):
+                lines.append(f"- **{key}**: {entry.get('value', '')}")
+            lines.append("")
+
+        try:
+            with open(self._md_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+        except OSError as e:
+            logger.error("Failed to export memory.md: %s", e)
 
     def store(self, key: str, value: str, category: str = "general") -> None:
         if category not in self._data:
@@ -96,8 +129,23 @@ class JsonMemory(MemoryStore):
         return results
 
     def get_context_summary(self) -> str | None:
-        # Gelecekte en son N fact'i ozet olarak dondur
-        return None
+        # En son N fact'i (timestamp'e gore) ozet olarak dondur.
+        flat: list[tuple[float, str, str, str]] = []
+        for category, entries in self._data.items():
+            for key, entry in entries.items():
+                flat.append((
+                    entry.get("timestamp", 0),
+                    category,
+                    key,
+                    entry.get("value", ""),
+                ))
+
+        if not flat:
+            return None
+
+        flat.sort(key=lambda t: t[0], reverse=True)
+        top = flat[:_MAX_SUMMARY_FACTS]
+        return "\n".join(f"- [{cat}] {key}: {value}" for _, cat, key, value in top)
 
 
 def create_memory_store() -> MemoryStore:

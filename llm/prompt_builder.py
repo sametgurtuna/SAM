@@ -25,6 +25,9 @@ _DEFAULT_PERSONA = (
     "You are SAM, a fast and helpful desktop voice assistant."
 )
 
+# Iki dilli TTS icin desteklenen dillerin insan-okunur isimleri.
+_LANGUAGE_NAMES = {"tr": "Turkish", "en": "English"}
+
 
 class PromptBuilder:
     """
@@ -34,8 +37,9 @@ class PromptBuilder:
       1. BASE PERSONA   — config'ten, ~100 kelime
       2. BEHAVIOR RULES  — sabit, her zaman
       3. MODE            — dinamik, sadece aktifse (ör. FENERBAHCE)
-      4. USER MEMORY     — gelecek, su an bos
-      5. RETRIEVED KNOWLEDGE — RAG sonucu, varsa
+      4. LANGUAGE        — algilanan dile gore cevap dili talimati, varsa
+      5. USER MEMORY     — kalici hafizadan ozet, varsa (bkz. llm/memory.py)
+      6. RETRIEVED KNOWLEDGE — RAG sonucu, varsa
 
     config.yaml'da "system_prompt" tanimliysa tum katmanlar atlanir
     ve o metin birebir kullanilir (geriye uyumluluk).
@@ -57,6 +61,7 @@ class PromptBuilder:
         mode: str | None = None,
         knowledge: str | None = None,
         memory: str | None = None,
+        language: str | None = None,
     ) -> str:
         """
         Bu turn icin tam system prompt'u olustur.
@@ -65,6 +70,8 @@ class PromptBuilder:
             mode: Aktif mod ismi ("FENERBAHCE", vb.) veya None.
             knowledge: RAG'den alinan bilgi metni veya None.
             memory: Uzun vadeli hafizadan alinan ozet veya None.
+            language: STT'nin algiladigi dil kodu ("tr"/"en") veya None —
+                verilirse LLM'e o dilde cevap vermesi soylenir (iki dilli TTS).
 
         Returns:
             Birlestirilmis system prompt.
@@ -75,6 +82,13 @@ class PromptBuilder:
 
         parts: list[str] = [self._persona, BEHAVIOR_RULES]
 
+        # Dil talimati — kullanici hangi dilde konustuysa o dilde cevap ver
+        lang_name = _LANGUAGE_NAMES.get(language) if language else None
+        if lang_name:
+            parts.append(
+                f"Respond in {lang_name} — the user just spoke to you in {lang_name}."
+            )
+
         # Mod talimatlari
         if mode and mode in MODES:
             parts.append(MODES[mode].instructions)
@@ -83,9 +97,19 @@ class PromptBuilder:
         if memory:
             parts.append(f"User context:\n{memory}")
 
-        # RAG bilgisi
+        # RAG bilgisi — sikilastirilmis grounding.
+        # Kucuk modeller (3B) yumusak "iste bilgi" ifadesini gormezden gelip
+        # kendi bildikleriyle karistiriyor. Acikca "SADECE bunu kullan, yoksa
+        # bilmiyorum de" demek halusinasyonu ciddi olcude azaltiyor.
         if knowledge:
-            parts.append(f"Relevant knowledge:\n{knowledge}")
+            parts.append(
+                "GROUNDED FACTS — the following is the ONLY source of truth for "
+                "this topic. Answer strictly from these facts. If the user's "
+                "question cannot be answered from them, say you don't know — do "
+                "NOT guess, do NOT fill gaps from memory, do NOT invent names, "
+                "dates, scores, or transfers.\n\n"
+                f"{knowledge}"
+            )
 
         prompt = "\n\n".join(parts)
         logger.debug(

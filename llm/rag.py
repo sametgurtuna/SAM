@@ -59,9 +59,24 @@ class RAGEngine:
         from sentence_transformers import SentenceTransformer
         import chromadb
 
-        logger.info("Initializing RAG engine (model: %s)...", self._embedding_model_name)
+        # Frozen build'de model onceden indirilip bundle edildi mi kontrol et.
+        # Onceden bundle edilmisse offline yuklenir (internet gerekmez, ~5s
+        # yerine ~1s). Yoksa HF cache'e dusup indirmeyi dener.
+        from core import paths
+        local_model_dir = paths.resource_path(
+            "assets", "models", "embedding", self._embedding_model_name
+        )
+        model_source = (
+            local_model_dir
+            if os.path.isdir(local_model_dir)
+            else self._embedding_model_name
+        )
 
-        self._model = SentenceTransformer(self._embedding_model_name)
+        logger.info("Initializing RAG engine (model: %s, source: %s)...",
+                    self._embedding_model_name,
+                    "bundled" if model_source == local_model_dir else "HF download")
+
+        self._model = SentenceTransformer(model_source)
 
         client = chromadb.Client()  # In-memory
         self._collection = client.get_or_create_collection(
@@ -213,6 +228,10 @@ class RAGEngine:
 
         # Chunk'lari birlestir, kaynak bilgisiyle
         return "\n\n---\n\n".join(documents)
+
+    def warm(self) -> None:
+        """Modeli ve indexi onceden yukle — ilk gercek sorguyu bekletmemek icin."""
+        self._ensure_initialized()
 
     @property
     def is_initialized(self) -> bool:

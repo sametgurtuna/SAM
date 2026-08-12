@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.4.2",
+        "version": "0.4.3",
     },
     "hotkey": {
         "trigger": "ctrl+space",
@@ -117,7 +117,10 @@ DEFAULTS: dict[str, Any] = {
         "channels": 1,
         "dtype": "int16",
         "silence_threshold": 300,
-        "silence_duration_ms": 1800,
+        # 900ms — konusma bitince cevabin baslamasi icin beklenen sure.
+        # Cok dusuk deger cumle ortasinda kesilmeye yol acabilir, gerekirse
+        # config.yaml'dan kullaniciya gore ayarlanabilir.
+        "silence_duration_ms": 900,
         "max_record_seconds": 30,
     },
     "wake_word": {
@@ -129,16 +132,27 @@ DEFAULTS: dict[str, Any] = {
     "stt": {
         "engine": "faster-whisper",
         "model": "small",
-        "language": "en",
+        # None = otomatik dil algilama (faster-whisper her transkripsiyonda
+        # konusulan dili tespit eder). Iki dilli TTS ozelligi bunu gerektirir.
+        "language": None,
         "beam_size": 1,
         "device": "cpu",
         "compute_type": "int8",
     },
     "tts": {
         "engine": "edge-tts",
+        # Sabit/manuel ses — auto_language kapaliysa veya algilanan dil
+        # desteklenmiyorsa bu kullanilir.
         "voice": "en-US-GuyNeural",
         "rate": "+0%",
         "volume": "+0%",
+        # Konusulan dile gore otomatik ses secimi (bkz. core/app.py
+        # _on_language_detected). False ise her zaman sabit "voice" kullanilir.
+        "auto_language": True,
+        "voices": {
+            "tr": "tr-TR-EmelNeural",
+            "en": "en-US-JennyNeural",
+        },
     },
     "llm": {
         "context_window": 8,
@@ -159,21 +173,27 @@ DEFAULTS: dict[str, Any] = {
         },
         "rag": {
             "enabled": True,
-            "embedding_model": "all-MiniLM-L6-v2",
+            # Multilingual model — kullanici Turkce soruyor, knowledge dosyalari
+            # cogunlukla Ingilizce. all-MiniLM (english-only) Turkce sorguyu
+            # dogru chunk'a eslestiremiyor. paraphrase-multilingual ayni boyda
+            # (~120MB) ama TR/EN cross-lingual retrieval yapabiliyor.
+            "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
             "knowledge_path": "",  # Bos = varsayilan (resource_root/knowledge)
             # Bilgi bolumleri (## basliklar) genelde 400-900 karakter —
             # chunk_size'in onlari bolmemesi icin yeterince buyuk olmali.
             # Kucuk chunk = parcali/kopuk bilgi = model bosluklari uydurur.
             "chunk_size": 800,
             "chunk_overlap": 80,
-            "top_k": 3,
+            # top_k=5 — kucuk KB (~30 chunk), fazla getirmenin maliyeti dusuk,
+            # dogru chunk'in top-3 disinda kalma riskini azaltiyor.
+            "top_k": 5,
         },
         "memory": {
-            "enabled": False,
+            "enabled": True,
             "backend": "json",  # "json" | "null"
         },
         "ollama": {
-            "base_url": "http://localhost:11434",
+            "base_url": "http://127.0.0.1:11434",
             "model": "qwen2.5:3b",
             "vision_model": "llava",
             "temperature": 0.7,
@@ -187,7 +207,10 @@ DEFAULTS: dict[str, Any] = {
             # Sunucu yasam dongusu — llm/ollama_service.py
             "autostart": True,
             "executable": "",
-            "startup_timeout_seconds": 20,
+            "startup_timeout_seconds": 45,
+            # Ollama'nin kendi autostart'i ayaga kalkarken bekle — bkz.
+            # llm/ollama_service.py, ikinci bir sunucu baslatmamak icin.
+            "existing_server_grace_seconds": 8,
             "stop_on_exit": False,
             "availability_ttl_seconds": 30,
         },

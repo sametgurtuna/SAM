@@ -21,10 +21,21 @@ from core.config import config
 
 logger = logging.getLogger(__name__)
 
-# Windows process creation flags — keep the server console completely hidden
-# and detached, so it neither flashes a window nor dies with SAM.
+# Windows process creation flags.
+#
+# DIKKAT: DETACHED_PROCESS KULLANILMAZ. CreateProcess dokumantasyonuna gore
+# DETACHED_PROCESS ve CREATE_NO_WINDOW birlikte gecersizdir; DETACHED kazanir ve
+# "ollama serve" HIC konsolsuz baslar. Sonra Ollama'nin kendi alt process'leri
+# (llama-server.exe, GPU probe'lari) miras alacak konsol bulamayip her biri KENDI
+# konsolunu acar — kullanicinin acilista gordugu "bir suru terminal penceresi"
+# tam olarak budur.
+#
+# CREATE_NO_WINDOW tek basina: sunucuya gorunmez bir konsol verilir, cocuklari da
+# onu miras alir, hicbir pencere cizilmez.
+# CREATE_NEW_PROCESS_GROUP: SAM'e giden Ctrl+C/Ctrl+Break sinyalleri sunucuya
+# yayilmasin diye — DETACHED_PROCESS'in sagladigi ayrilmanin gereken kismi.
 CREATE_NO_WINDOW = 0x08000000
-DETACHED_PROCESS = 0x00000008
+CREATE_NEW_PROCESS_GROUP = 0x00000200
 
 # Reasons emitted with the `unavailable` signal
 REASON_NOT_INSTALLED = "not-installed"
@@ -32,7 +43,10 @@ REASON_TIMEOUT = "timeout"
 REASON_SPAWN_FAILED = "spawn-failed"
 
 _POLL_INTERVAL_S = 0.5
-_PING_TIMEOUT_S = 1.0
+# 1.0 sn yetmiyordu: Ollama yalnizca 127.0.0.1'e bind ediyor, "localhost" ise
+# once ::1'e cozuluyor. IPv6 denemesi zaman asimina ugrayip IPv4'e dusene kadar
+# gecen sure tek basina 1 sn'yi asabiliyor ve calisan sunucu "yok" sayiliyordu.
+_PING_TIMEOUT_S = 3.0
 
 
 class OllamaService(QObject):
@@ -52,10 +66,13 @@ class OllamaService(QObject):
         super().__init__()
 
         self._base_url: str = config.get(
-            "llm", "ollama", "base_url", default="http://localhost:11434"
+            "llm", "ollama", "base_url", default="http://127.0.0.1:11434"
         ).rstrip("/")
         self._timeout: int = config.get(
-            "llm", "ollama", "startup_timeout_seconds", default=20
+            "llm", "ollama", "startup_timeout_seconds", default=45
+        )
+        self._existing_grace: int = config.get(
+            "llm", "ollama", "existing_server_grace_seconds", default=8
         )
 
         self._process: subprocess.Popen | None = None
@@ -99,6 +116,20 @@ class OllamaService(QObject):
                 return path
         return None
 
+    def find_desktop_app(self) -> str | None:
+        """
+        Locate "ollama app.exe" — Ollama'nin tray uygulamasi.
+
+        Bu bir GUI process; sunucuyu Ollama'nin kendi istedigi sekilde ayaga
+        kaldirir. Onu tercih ediyoruz cunku "ollama serve"i kendimiz spawn
+        ettigimizde alt process'ler (llama-server.exe) konsol penceresi acabiliyor.
+        """
+        executable = self.find_executable()
+        if executable is None:
+            return None
+        app = os.path.join(os.path.dirname(executable), "ollama app.exe")
+        return app if os.path.isfile(app) else None
+
     @property
     def is_installed(self) -> bool:
         return self.find_executable() is not None
@@ -118,7 +149,12 @@ class OllamaService(QObject):
 
     def _ensure_running_worker(self) -> None:
         # 1. Zaten calisiyor mu?
-        if self._ping():
+        #
+        # Windows acilisinda Ollama'nin kendi Startup kisayoli da sunucuyu
+        # kaldiriyor ama bu birkac saniye suruyor. Tek bir ping ile karar verirsek
+        # onunla yarisip IKINCI bir "ollama serve" baslatiyoruz; ikisi de ayni
+        # porta oynadigi icin baslangic yavasliyor. Once kisa bir sure bekle.
+        if self._wait_for_existing_server():
             logger.info("Ollama server already running — leaving it alone")
             self._we_started = False
             self.ready.emit()
@@ -135,10 +171,22 @@ class OllamaService(QObject):
             return
 
         # 3. Kurulu ama kapali — baslat.
-        logger.info("Starting Ollama server: %s serve", executable)
-        if not self._spawn(executable):
-            self.unavailable.emit(REASON_SPAWN_FAILED)
-            return
+        #
+        # Once Ollama'nin kendi tray uygulamasini dene: sunucuyu bizim spawn
+        # etmemizden farkli olarak Ollama'nin kendi surec agacinda kaldirir, yani
+        # alt process'ler (llama-server.exe) konsol penceresi flash'lamaz.
+        # Tray app yoksa (salt CLI kurulumu) "ollama serve"e dusuyoruz.
+        desktop_app = self.find_desktop_app()
+        if desktop_app is not None:
+            logger.info("Starting Ollama desktop app: %s", desktop_app)
+            if not self._launch_desktop_app(desktop_app):
+                self.unavailable.emit(REASON_SPAWN_FAILED)
+                return
+        else:
+            logger.info("Starting Ollama server: %s serve", executable)
+            if not self._spawn(executable):
+                self.unavailable.emit(REASON_SPAWN_FAILED)
+                return
 
         # 4. Hazir olana kadar yokla.
         deadline = time.time() + self._timeout
@@ -153,12 +201,41 @@ class OllamaService(QObject):
         logger.error("Ollama server did not become ready within %ds", self._timeout)
         self.unavailable.emit(REASON_TIMEOUT)
 
+    def _wait_for_existing_server(self) -> bool:
+        """
+        Ping for up to `_existing_grace` seconds, waiting for a server somebody
+        else (the Ollama desktop app's own autostart) is bringing up.
+        """
+        deadline = time.time() + self._existing_grace
+        while True:
+            if self._ping():
+                return True
+            if time.time() >= deadline:
+                return False
+            time.sleep(_POLL_INTERVAL_S)
+
+    def _launch_desktop_app(self, app_path: str) -> bool:
+        """
+        Start Ollama's tray app. Returns success.
+
+        os.startfile ile aciliyor — GUI process oldugu icin hicbir konsol
+        yaratmiyor. Surec bize ait olmadigindan `_we_started` False kalir:
+        kapanista Ollama'yi oldurmeyiz (kullanicinin baska istemcileri olabilir).
+        """
+        try:
+            os.startfile(app_path)
+            self._we_started = False
+            return True
+        except Exception as e:
+            logger.error("Failed to start the Ollama desktop app: %s", e)
+            return False
+
     def _spawn(self, executable: str) -> bool:
         """Launch `ollama serve` with no console window. Returns success."""
         creationflags = 0
         startupinfo = None
         if os.name == "nt":
-            creationflags = CREATE_NO_WINDOW | DETACHED_PROCESS
+            creationflags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
