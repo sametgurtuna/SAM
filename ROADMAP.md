@@ -2,7 +2,7 @@
 
 # 🗺️ SAM — Roadmap
 
-[![Current Version](https://img.shields.io/badge/Current-v0.4.5-22c55e?style=flat-square)](#v045--instant-responses--zero-llm-command-dispatch-current-release)
+[![Current Version](https://img.shields.io/badge/Current-v0.4.6-22c55e?style=flat-square)](#v046--editable-instant-responses--rebuilt-settings-current-release)
 
 </div>
 
@@ -28,7 +28,8 @@
 | v0.3.6 | ✅ Done | Custom "Hey Sam" wake word model, wake-word file browser |
 | v0.4.0 | ✅ Done | Always-on orb overlay, typed input, Ollama auto-start, installer |
 | v0.4.1 – v0.4.4 | ✅ Done | Intent classification, RAG, conversation modes, real-time live captioning |
-| **v0.4.5** | ✅ **Current** | Instant predefined responses, zero-LLM command dispatch, dedicated live-transcription model |
+| v0.4.5 | ✅ Done | Instant predefined responses, zero-LLM command dispatch, dedicated live-transcription model |
+| **v0.4.6** | ✅ **Current** | Editable instant responses (seeded to user data dir), rebuilt settings window |
 | v0.5.0 | 📅 Planned | Screen & clipboard awareness |
 | v0.6.0 | 📅 Planned | Productivity — reminders, scheduling |
 | v0.7.0 | 📅 Planned | Local knowledge base (RAG) |
@@ -37,7 +38,23 @@
 
 ---
 
-## v0.4.5 — Instant responses + zero-LLM command dispatch *(current release)*
+## v0.4.6 — Editable instant responses + rebuilt settings *(current release)*
+
+> The phrase list is now a file installed users own and can edit, and the settings window
+> was rebuilt around it. Full details in [CHANGELOG.md](CHANGELOG.md#046---2026-08-13).
+
+- [x] **Seeded, editable response file** — copied to the writable data dir on first launch
+  (`%APPDATA%\SAM\knowledge\`), read from there, survives updates
+- [x] **Responses settings page** — enable toggle, *Edit Responses…*, *Show Folder*, and
+  *Reload* (applies edits without restarting SAM)
+- [x] **Settings redesign** — resizable window, page titles/descriptions, card sections,
+  restyled controls, live-transcription options, a real About page
+- [x] **Stylesheet inheritance fix** — a selector-less viewport stylesheet was blanking the
+  background of every widget nested inside a settings page
+
+---
+
+## v0.4.5 — Instant responses + zero-LLM command dispatch
 
 > Predefined phrases now answer instantly from a dictionary lookup, recognized commands
 > skip the LLM/`THINKING` step entirely, and live captioning got its own lightweight model

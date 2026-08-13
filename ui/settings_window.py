@@ -3,155 +3,284 @@
 # duzenlemeyi ve kaydetmeyi saglar. Premium koyu tema tasarimi.
 
 import logging
+import os
+import subprocess
+
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QListWidget, QStackedWidget,
     QLabel, QLineEdit, QComboBox, QSlider, QSpinBox, QPushButton,
     QGroupBox, QDoubleSpinBox, QMessageBox, QWidget, QFileDialog, QCheckBox,
-    QScrollArea
+    QScrollArea, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 from core.config import config
 
 logger = logging.getLogger(__name__)
 
-# ─── Premium Koyu Tema Stylesheet ─────────────────────────────────
-SETTINGS_STYLESHEET = """
-QDialog {
-    background-color: #0b0b10;
-    color: #e8e8e8;
-}
+# ─── Tema ─────────────────────────────────────────────────────────
+# Renkler orb/overlay ile ayni paletten: koyu zemin + tek vurgu (teal).
+ACCENT = "#00D4AA"
+ACCENT_SOFT = "rgba(0, 212, 170, 0.14)"
+BG = "#0a0a0f"
+SURFACE = "#101018"
+SURFACE_HI = "#16161f"
+FIELD = "#1a1a24"
+BORDER = "rgba(255, 255, 255, 0.07)"
+TEXT = "#e9e9ee"
+TEXT_DIM = "#8b8b97"
 
-/* Sidebar List */
-QListWidget {
-    background-color: #12121a;
-    border: 1px solid rgba(0, 212, 170, 0.1);
-    border-radius: 8px;
+SETTINGS_STYLESHEET = f"""
+QDialog {{
+    background-color: {BG};
+    color: {TEXT};
+}}
+QWidget {{
+    font-family: "Segoe UI";
+}}
+
+/* ─── Sidebar ─────────────────────────────────────────────── */
+QListWidget#sidebar {{
+    background-color: {SURFACE};
+    border: 1px solid {BORDER};
+    border-radius: 12px;
     outline: none;
-    padding: 8px;
+    padding: 8px 6px;
     font-size: 13px;
-    font-weight: 500;
-}
-QListWidget::item {
-    color: #a0a0a0;
-    padding: 10px 14px;
-    border-radius: 6px;
-    margin-bottom: 4px;
-}
-QListWidget::item:hover {
-    background-color: #18182a;
-    color: #00D4AA;
-}
-QListWidget::item:selected {
-    background-color: rgba(0, 212, 170, 0.1);
-    color: #00D4AA;
-    border-left: 3px solid #00D4AA;
-    padding-left: 11px;
-}
-
-/* Content Area */
-QStackedWidget {
-    background-color: #0b0b10;
-}
-
-/* Group Boxes */
-QGroupBox {
-    font-size: 13px;
-    font-weight: bold;
-    color: #00D4AA;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+}}
+QListWidget#sidebar::item {{
+    color: {TEXT_DIM};
+    padding: 11px 14px;
     border-radius: 8px;
-    margin-top: 14px;
-    padding-top: 24px;
-    background-color: #12121a;
-}
-QGroupBox::title {
+    margin: 2px 0;
+}}
+QListWidget#sidebar::item:hover {{
+    background-color: {SURFACE_HI};
+    color: {TEXT};
+}}
+QListWidget#sidebar::item:selected {{
+    background-color: {ACCENT_SOFT};
+    color: {ACCENT};
+    font-weight: 600;
+}}
+
+/* ─── Basliklar ───────────────────────────────────────────── */
+QLabel#appTitle {{
+    color: {TEXT};
+    font-size: 19px;
+    font-weight: 700;
+}}
+QLabel#appSubtitle {{
+    color: {TEXT_DIM};
+    font-size: 12px;
+}}
+QLabel#versionPill {{
+    color: {ACCENT};
+    background-color: {ACCENT_SOFT};
+    border: 1px solid rgba(0, 212, 170, 0.25);
+    border-radius: 10px;
+    padding: 3px 12px;
+    font-size: 11px;
+    font-weight: 600;
+}}
+QLabel#pageTitle {{
+    color: {TEXT};
+    font-size: 16px;
+    font-weight: 600;
+}}
+QLabel#pageDesc {{
+    color: {TEXT_DIM};
+    font-size: 12px;
+}}
+QLabel#hint {{
+    color: {TEXT_DIM};
+    font-size: 11px;
+}}
+QWidget#page, QWidget#pageViewport {{
+    background: transparent;
+}}
+QFrame#divider {{
+    background-color: {BORDER};
+    max-height: 1px;
+    border: none;
+}}
+
+/* ─── Kartlar (QGroupBox) ─────────────────────────────────── */
+QGroupBox {{
+    font-size: 12px;
+    font-weight: 600;
+    color: {ACCENT};
+    border: 1px solid {BORDER};
+    border-radius: 12px;
+    margin-top: 12px;
+    padding: 30px 16px 16px 16px;
+    background-color: {SURFACE};
+}}
+QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 12px;
-    top: 6px;
-}
+    left: 16px;
+    top: 4px;
+    padding: 0 2px;
+}}
 
-/* Inputs */
-QLabel {
-    color: #c8c8c8;
+/* ─── Girdiler ────────────────────────────────────────────── */
+QLabel {{
+    color: #c3c3cd;
     font-size: 12px;
-}
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-    background-color: #1a1a24;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    color: #e8e8e8;
-    padding: 6px 10px;
+}}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+    background-color: {FIELD};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    color: {TEXT};
+    padding: 7px 11px;
     font-size: 12px;
     min-height: 20px;
-}
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-    border: 1px solid #00D4AA;
-    background-color: #1c1c28;
-}
-QComboBox::drop-down {
+    selection-background-color: {ACCENT};
+    selection-color: {BG};
+}}
+QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
+    border-color: rgba(255, 255, 255, 0.16);
+}}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+    border-color: {ACCENT};
+    background-color: {SURFACE_HI};
+}}
+QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
+    color: #55555f;
+    background-color: #14141c;
+}}
+QComboBox::drop-down {{
     border: none;
-    padding-right: 8px;
-}
-QComboBox QAbstractItemView {
-    background-color: #1a1a24;
-    color: #e8e8e8;
-    selection-background-color: #00D4AA;
-    selection-color: #0a0a0f;
-    border: 1px solid rgba(0, 212, 170, 0.3);
-}
+    width: 22px;
+}}
+/* down-arrow'a dokunmuyoruz: Qt'nin yerel oku CSS ucgen hilesinden daha
+   duzgun ciziliyor, "image: none" verilince kare bir kutuya donusuyor. */
+QComboBox QAbstractItemView {{
+    background-color: {FIELD};
+    color: {TEXT};
+    selection-background-color: {ACCENT_SOFT};
+    selection-color: {ACCENT};
+    border: 1px solid rgba(0, 212, 170, 0.25);
+    border-radius: 8px;
+    padding: 4px;
+    outline: none;
+}}
 
-/* Sliders */
-QSlider::groove:horizontal {
-    height: 6px;
-    background: #242436;
+/* ─── Onay kutulari ───────────────────────────────────────── */
+QCheckBox {{
+    color: #c3c3cd;
+    font-size: 12px;
+    spacing: 9px;
+}}
+QCheckBox::indicator {{
+    width: 17px;
+    height: 17px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background-color: {FIELD};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {ACCENT};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {ACCENT};
+    border-color: {ACCENT};
+}}
+
+/* ─── Kaydiriciler ────────────────────────────────────────── */
+QSlider::groove:horizontal {{
+    height: 5px;
+    background: #23232f;
     border-radius: 3px;
-}
-QSlider::handle:horizontal {
-    background: #00D4AA;
-    width: 14px;
-    height: 14px;
-    margin: -4px 0;
-    border-radius: 7px;
-}
-QSlider::handle:horizontal:hover {
-    background: #00ffcc;
-    width: 16px;
-    height: 16px;
+}}
+QSlider::handle:horizontal {{
+    background: {ACCENT};
+    width: 15px;
+    height: 15px;
     margin: -5px 0;
     border-radius: 8px;
-}
-QSlider::sub-page:horizontal {
-    background: rgba(0, 212, 170, 0.6);
+}}
+QSlider::handle:horizontal:hover {{
+    background: #00ffcc;
+}}
+QSlider::sub-page:horizontal {{
+    background: rgba(0, 212, 170, 0.55);
     border-radius: 3px;
-}
+}}
 
-/* Buttons */
-QPushButton {
-    background-color: #1a1a24;
-    color: #e8e8e8;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    padding: 8px 20px;
+/* ─── Butonlar ────────────────────────────────────────────── */
+QPushButton {{
+    background-color: {FIELD};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    padding: 8px 18px;
     font-size: 12px;
     font-weight: 500;
-    min-width: 90px;
-}
-QPushButton:hover {
-    background-color: #242436;
-    border-color: rgba(255, 255, 255, 0.2);
-}
-QPushButton#saveButton {
-    background-color: #00D4AA;
-    color: #0b0b10;
+    min-width: 88px;
+}}
+QPushButton:hover {{
+    background-color: #23232f;
+    border-color: rgba(255, 255, 255, 0.18);
+}}
+QPushButton:pressed {{
+    background-color: #1c1c26;
+}}
+QPushButton#primary {{
+    background-color: {ACCENT};
+    color: {BG};
     border: none;
-    font-weight: bold;
-}
-QPushButton#saveButton:hover {
-    background-color: #00ffcc;
-}
+    font-weight: 700;
+}}
+QPushButton#primary:hover {{
+    background-color: #16f5ce;
+}}
+QPushButton#linkButton {{
+    background: transparent;
+    border: none;
+    color: {ACCENT};
+    text-align: left;
+    padding: 2px 0;
+    min-width: 0;
+    font-size: 12px;
+}}
+QPushButton#linkButton:hover {{
+    color: #16f5ce;
+    text-decoration: underline;
+}}
+
+/* ─── Kaydirma cubugu ─────────────────────────────────────── */
+QScrollBar:vertical {{
+    background: transparent;
+    width: 10px;
+    margin: 2px;
+}}
+QScrollBar::handle:vertical {{
+    background: #2a2a38;
+    border-radius: 5px;
+    min-height: 30px;
+}}
+QScrollBar::handle:vertical:hover {{
+    background: #3a3a4c;
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+    height: 0;
+}}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+    background: none;
+}}
+
+QToolTip {{
+    background-color: {SURFACE_HI};
+    color: {TEXT};
+    border: 1px solid rgba(0, 212, 170, 0.3);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 11px;
+}}
 """
 
 class SettingsWindow(QDialog):
@@ -167,52 +296,80 @@ class SettingsWindow(QDialog):
         super().__init__(parent)
         self._controller = controller
         self.setWindowTitle("SAM — Settings")
-        self.setFixedSize(720, 560)
+        # Sabit boyut yerine makul bir varsayilan + alt sinir: kullanici
+        # pencereyi buyutebilsin, kucuk ekranlarda da sigsin.
+        self.resize(880, 660)
+        self.setMinimumSize(760, 560)
         self.setStyleSheet(SETTINGS_STYLESHEET)
 
-        # Ana layout
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(16)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(22, 20, 22, 18)
 
-        # Baslik
-        header_layout = QHBoxLayout()
-        title = QLabel("⚙️ SAM Settings")
-        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        title.setStyleSheet("color: #00D4AA;")
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        main_layout.addLayout(header_layout)
+        main_layout.addLayout(self._build_header())
+        main_layout.addWidget(self._divider())
 
         # Icerik alani (Sidebar + Stack)
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(20)
+        content_layout.setSpacing(18)
 
-        # Sidebar
         self.sidebar = QListWidget()
-        self.sidebar.setFixedWidth(180)
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setFixedWidth(186)
         self.sidebar.currentRowChanged.connect(self._change_page)
         content_layout.addWidget(self.sidebar)
 
-        # Stacked Widget (Sayfalar)
         self.stack = QStackedWidget()
         content_layout.addWidget(self.stack, 1)
 
-        main_layout.addLayout(content_layout)
+        main_layout.addLayout(content_layout, 1)
 
-        # Sayfalari ekle
-        self._add_page("⚡ General", self._build_general_tab())
-        self._add_page("🎙️ Speech", self._build_speech_tab())
-        self._add_page("🧠 LLM", self._build_llm_tab())
-        self._add_page("🎨 UI", self._build_ui_tab())
-        self._add_page("🎵 Integrations", self._build_integrations_tab())
-        self._add_page("ℹ️ About", self._build_about_tab())
+        # Sayfalar
+        self._add_page(
+            "⚡  General", "General",
+            "How SAM wakes up and starts listening.",
+            self._build_general_tab(),
+        )
+        self._add_page(
+            "🎙  Speech", "Speech",
+            "Transcription accuracy vs. speed, and the voice SAM answers in.",
+            self._build_speech_tab(),
+        )
+        self._add_page(
+            "💬  Responses", "Instant Responses",
+            "Phrases SAM answers immediately — these never reach the LLM.",
+            self._build_responses_tab(),
+        )
+        self._add_page(
+            "🧠  LLM", "Language Model",
+            "The local Ollama engine used for everything else.",
+            self._build_llm_tab(),
+        )
+        self._add_page(
+            "🎨  Appearance", "Appearance",
+            "The orb overlay — size, placement and idle cost.",
+            self._build_ui_tab(),
+        )
+        self._add_page(
+            "🎵  Integrations", "Integrations",
+            "External services SAM can control on your behalf.",
+            self._build_integrations_tab(),
+        )
+        self._add_page(
+            "ℹ  About", "About",
+            "Version and project information.",
+            self._build_about_tab(),
+        )
 
-        # Ilk sayfayi sec
         self.sidebar.setCurrentRow(0)
 
-        # Alt butonlar
+        main_layout.addWidget(self._divider())
+
+        # Alt bar
         footer_layout = QHBoxLayout()
+        hint = QLabel("Appearance and auto-hide apply instantly — other changes need a restart.")
+        hint.setObjectName("hint")
+        footer_layout.addWidget(hint)
         footer_layout.addStretch()
 
         cancel_btn = QPushButton("Cancel")
@@ -220,25 +377,84 @@ class SettingsWindow(QDialog):
         footer_layout.addWidget(cancel_btn)
 
         save_btn = QPushButton("Save Changes")
-        save_btn.setObjectName("saveButton")
+        save_btn.setObjectName("primary")
+        save_btn.setDefault(True)
         save_btn.clicked.connect(self._save_settings)
         footer_layout.addWidget(save_btn)
 
         main_layout.addLayout(footer_layout)
 
-    def _add_page(self, name: str, widget: QWidget):
-        # Sayfalar kaydirilabilir: yeni ayar eklendiginde (orn. Orb sayfasi)
-        # icerik sabit yukseklikli pencereden tasip kirpilmasin.
+    # ─── Iskelet yardimcilari ─────────────────────────────────────
+
+    def _build_header(self) -> QHBoxLayout:
+        version = config.get("app", "version", default="0.4.6")
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(1)
+        title = QLabel("SAM Settings")
+        title.setObjectName("appTitle")
+        subtitle = QLabel("Smart Assistant Module")
+        subtitle.setObjectName("appSubtitle")
+        text_col.addWidget(title)
+        text_col.addWidget(subtitle)
+
+        pill = QLabel(f"v{version}")
+        pill.setObjectName("versionPill")
+
+        header = QHBoxLayout()
+        header.addLayout(text_col)
+        header.addStretch()
+        header.addWidget(pill, 0, Qt.AlignmentFlag.AlignVCenter)
+        return header
+
+    @staticmethod
+    def _divider() -> QFrame:
+        line = QFrame()
+        line.setObjectName("divider")
+        line.setFixedHeight(1)
+        return line
+
+    def _add_page(self, nav_label: str, title: str, description: str, widget: QWidget):
+        """Sayfayi baslik + aciklama ile sarip sidebar'a kaydet."""
+        page = QWidget()
+        page.setObjectName("page")
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(2)
+
+        heading = QLabel(title)
+        heading.setObjectName("pageTitle")
+        desc = QLabel(description)
+        desc.setObjectName("pageDesc")
+        desc.setWordWrap(True)
+        page_layout.addWidget(heading)
+        page_layout.addWidget(desc)
+        page_layout.addSpacing(6)
+        page_layout.addWidget(widget, 1)
+
+        # Sayfalar kaydirilabilir: yeni ayar eklendiginde icerik pencereden
+        # tasip kirpilmasin.
         scroll = QScrollArea()
-        scroll.setWidget(widget)
+        scroll.setWidget(page)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        scroll.viewport().setStyleSheet("background: transparent;")
+        # Selector'suz bir stylesheet ("background: transparent;") viewport'un
+        # TUM alt widget'larina miras kalir ve butonlarin kendi arka planini
+        # eziyordu (Reload butonu gorunmez oluyordu). Sadece viewport'u hedefle.
+        scroll.viewport().setObjectName("pageViewport")
 
-        self.sidebar.addItem(name)
+        self.sidebar.addItem(nav_label)
         self.stack.addWidget(scroll)
+
+    @staticmethod
+    def _note(text: str) -> QLabel:
+        """Bir kart icindeki aciklama satiri."""
+        label = QLabel(text)
+        label.setObjectName("pageDesc")
+        label.setWordWrap(True)
+        return label
 
     def _change_page(self, index: int):
         self.stack.setCurrentIndex(index)
@@ -320,6 +536,11 @@ class SettingsWindow(QDialog):
         self._stt_language.setPlaceholderText("en, tr, de, fr... (empty = auto)")
         form.addRow("Language:", self._stt_language)
 
+        self._stt_model_combo.setToolTip(
+            "Bigger is more accurate but slower. This model runs once, after you "
+            "stop speaking."
+        )
+
         self._stt_device_combo = QComboBox()
         self._stt_device_combo.addItems(["cpu", "cuda"])
         current_device = config.get("stt", "device", default="cpu")
@@ -330,6 +551,46 @@ class SettingsWindow(QDialog):
 
         stt_group.setLayout(form)
         layout.addWidget(stt_group)
+
+        # ─── Canli transkripsiyon ─────────────────────────────────
+        live_group = QGroupBox("Live Transcription")
+        form_live = QFormLayout()
+        form_live.setSpacing(12)
+        form_live.addRow(self._note(
+            "A second, smaller model transcribes while you are still speaking, so "
+            "you see words appear in real time. Known commands are also dispatched "
+            "from it — they never wait for the main model."
+        ))
+
+        self._stt_partial_model = QComboBox()
+        for label, value in (
+            ("tiny — fastest", "tiny"),
+            ("base — recommended", "base"),
+            ("small — most accurate", "small"),
+            ("same as main model", ""),
+            ("off — no live text", "off"),
+        ):
+            self._stt_partial_model.addItem(label, value)
+        current_partial = config.get("stt", "partial_model", default="base")
+        idx = self._stt_partial_model.findData(current_partial)
+        self._stt_partial_model.setCurrentIndex(idx if idx >= 0 else 1)
+        form_live.addRow("Live Model:", self._stt_partial_model)
+
+        self._stt_partial_interval = QSpinBox()
+        self._stt_partial_interval.setRange(150, 2000)
+        self._stt_partial_interval.setSingleStep(50)
+        self._stt_partial_interval.setSuffix(" ms")
+        self._stt_partial_interval.setValue(
+            config.get("stt", "partial_interval_ms", default=400)
+        )
+        self._stt_partial_interval.setToolTip(
+            "Minimum gap between two live decodes. Lower feels snappier but uses "
+            "more CPU."
+        )
+        form_live.addRow("Refresh Every:", self._stt_partial_interval)
+
+        live_group.setLayout(form_live)
+        layout.addWidget(live_group)
 
         tts_group = QGroupBox("Text-to-Speech")
         form2 = QFormLayout()
@@ -387,6 +648,138 @@ class SettingsWindow(QDialog):
         layout.addWidget(tts_group)
         layout.addStretch()
         return tab
+
+    # ─── Instant Responses Tab ────────────────────────────────────
+
+    def _build_responses_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        group = QGroupBox("Phrase List")
+        form = QVBoxLayout()
+        form.setSpacing(12)
+
+        form.addWidget(self._note(
+            "SAM keeps a list of phrases it answers straight away — greetings, "
+            "thanks, the time, questions about itself. A match is spoken in "
+            "milliseconds and never reaches the language model."
+        ))
+
+        self._instant_enabled = QCheckBox("Answer predefined phrases instantly")
+        self._instant_enabled.setChecked(config.get("instant", "enabled", default=True))
+        form.addWidget(self._instant_enabled)
+
+        # Dosya yolu — kullanicinin duzenleyecegi kopya
+        self._instant_path_label = QLabel()
+        self._instant_path_label.setObjectName("pageDesc")
+        self._instant_path_label.setWordWrap(True)
+        self._instant_path_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        form.addWidget(self._instant_path_label)
+
+        btn_row = QHBoxLayout()
+        edit_btn = QPushButton("Edit Responses…")
+        edit_btn.setToolTip("Opens the YAML file in your default text editor")
+        edit_btn.clicked.connect(self._open_instant_file)
+        btn_row.addWidget(edit_btn)
+
+        folder_btn = QPushButton("Show Folder")
+        folder_btn.clicked.connect(self._open_instant_folder)
+        btn_row.addWidget(folder_btn)
+
+        reload_btn = QPushButton("Reload")
+        reload_btn.setObjectName("primary")
+        reload_btn.setToolTip("Apply your edits without restarting SAM")
+        reload_btn.clicked.connect(self._reload_instant_file)
+        btn_row.addWidget(reload_btn)
+        btn_row.addStretch()
+        form.addLayout(btn_row)
+
+        form.addWidget(self._note(
+            "Format — each entry needs <b>patterns</b> (what you say) and "
+            "<b>response</b> (a line, or a list to pick from at random). "
+            "Optional: <b>lang: tr|en</b> for the voice and for the "
+            "{time} / {date} / {day} placeholders, and <b>match: contains</b> to "
+            "match anywhere in the sentence. Casing, punctuation and Turkish "
+            "accents are ignored. Hit Reload after saving."
+        ))
+
+        group.setLayout(form)
+        layout.addWidget(group)
+        layout.addStretch()
+
+        self._refresh_instant_status()
+        return tab
+
+    # ─── Instant response dosya islemleri ─────────────────────────
+
+    def _instant_responder(self):
+        """Calisan InstantResponder — controller yoksa None."""
+        return getattr(self._controller, "_instant", None)
+
+    def _instant_file_path(self) -> str:
+        responder = self._instant_responder()
+        if responder is not None:
+            return responder.path
+
+        # Instant kapaliyken de dosya yolunu gosterebilmek icin: ayni cozumleme.
+        from commands.instant import InstantResponder, DEFAULT_FILE
+        return InstantResponder._resolve_path(
+            config.get("instant", "file", default=None) or DEFAULT_FILE
+        )
+
+    def _refresh_instant_status(self) -> None:
+        path = self._instant_file_path()
+        responder = self._instant_responder()
+        count = responder.count if responder is not None else 0
+        loaded = f"{count} phrase{'s' if count != 1 else ''} loaded — " if count else ""
+        self._instant_path_label.setText(f"{loaded}{path}")
+
+    def _open_instant_file(self) -> None:
+        path = self._instant_file_path()
+        if not os.path.exists(path):
+            QMessageBox.warning(
+                self, "Instant Responses",
+                f"The responses file was not found:\n{path}"
+            )
+            return
+        # Varsayilan .yaml uygulamasi olmayabilir — startfile basarisiz olursa
+        # Not Defteri'ne dus.
+        try:
+            os.startfile(path)  # type: ignore[attr-defined]
+        except OSError:
+            try:
+                subprocess.Popen(["notepad.exe", path])
+            except Exception as e:
+                QMessageBox.warning(self, "Instant Responses",
+                                    f"Could not open the file:\n{e}")
+
+    def _open_instant_folder(self) -> None:
+        folder = os.path.dirname(self._instant_file_path())
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+    def _reload_instant_file(self) -> None:
+        responder = self._instant_responder()
+        if responder is None:
+            QMessageBox.information(
+                self, "Instant Responses",
+                "Instant responses are disabled. Enable them, save, and restart "
+                "SAM to load the file."
+            )
+            return
+        try:
+            responder.reload()
+        except Exception as e:
+            QMessageBox.critical(self, "Instant Responses", f"Reload failed:\n{e}")
+            return
+        self._refresh_instant_status()
+        QMessageBox.information(
+            self, "Instant Responses",
+            f"Reloaded — {responder.count} phrases are now active."
+        )
 
     # ─── LLM Tab ──────────────────────────────────────────────────
 
@@ -625,27 +1018,59 @@ class SettingsWindow(QDialog):
     def _build_about_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
-        version = config.get("app", "version", default="0.4.5")
+        version = config.get("app", "version", default="0.4.6")
 
-        about_text = QLabel(
-            f"<div style='text-align:center; padding: 20px;'>"
-            f"<h2 style='color:#00D4AA; margin-bottom:4px;'>SAM</h2>"
-            f"<p style='color:#888; font-size:13px;'>Smart Assistant Module</p>"
-            f"<p style='color:#c8c8c8; font-size:14px;'>v{version}</p>"
-            f"<br><br>"
-            f"<p style='color:#888; font-size:12px;'>Privacy-first, offline-capable<br>"
-            f"AI desktop voice assistant.</p>"
-            f"<br><br>"
-            f"<p style='color:#555; font-size:11px;'>"
-            f"Developer: The SAM Team<br>"
-            f"Powered by PyQt6, Ollama, Whisper</p>"
-            f"</div>"
-        )
-        about_text.setWordWrap(True)
-        about_text.setTextFormat(Qt.TextFormat.RichText)
-        layout.addWidget(about_text)
+        card = QGroupBox("SAM")
+        card_layout = QVBoxLayout()
+        card_layout.setSpacing(8)
+
+        card_layout.addWidget(self._note(
+            f"<span style='color:#e9e9ee; font-size:14px;'>Smart Assistant Module "
+            f"<b>v{version}</b></span><br>"
+            "A privacy-first desktop voice assistant. Speech recognition and the "
+            "language model both run on your own machine — nothing is sent to the "
+            "cloud unless you configure it to."
+        ))
+
+        card_layout.addWidget(self._note(
+            "Built by <b>Samet Gürtuna</b><br>"
+            "Powered by PyQt6 · faster-whisper · Ollama · edge-tts"
+        ))
+
+        repo_btn = QPushButton("View the project on GitHub  ↗")
+        repo_btn.setObjectName("linkButton")
+        repo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        repo_btn.clicked.connect(lambda: QDesktopServices.openUrl(
+            QUrl("https://github.com/sametgurtuna/SAM")
+        ))
+        card_layout.addWidget(repo_btn, 0, Qt.AlignmentFlag.AlignLeft)
+
+        card.setLayout(card_layout)
+        layout.addWidget(card)
+
+        files_card = QGroupBox("Files")
+        files_layout = QVBoxLayout()
+        files_layout.setSpacing(8)
+
+        from core import paths
+        files_layout.addWidget(self._note(
+            f"Configuration: {paths.config_path()}<br>"
+            f"Logs: {paths.logs_dir()}<br>"
+            f"Models: {paths.models_dir()}"
+        ))
+
+        folder_btn = QPushButton("Open Data Folder")
+        folder_btn.clicked.connect(lambda: QDesktopServices.openUrl(
+            QUrl.fromLocalFile(paths.user_data_dir())
+        ))
+        files_layout.addWidget(folder_btn, 0, Qt.AlignmentFlag.AlignLeft)
+
+        files_card.setLayout(files_layout)
+        layout.addWidget(files_card)
+        layout.addStretch()
         return tab
 
     # ─── Save Logic ───────────────────────────────────────────────
@@ -664,6 +1089,14 @@ class SettingsWindow(QDialog):
             lang_val = self._stt_language.text().strip()
             config.set("stt", "language", value=lang_val if lang_val else None)
             config.set("stt", "device", value=self._stt_device_combo.currentText())
+            config.set("stt", "partial_model",
+                       value=self._stt_partial_model.currentData())
+            config.set("stt", "partial_interval_ms",
+                       value=self._stt_partial_interval.value())
+
+            # Instant responses
+            config.set("instant", "enabled", value=self._instant_enabled.isChecked())
+
             config.set("tts", "engine", value=self._tts_engine_combo.currentText())
             config.set("tts", "voice", value=self._tts_voice.currentText())
             config.set("tts", "rate", value=self._tts_rate.text().strip())

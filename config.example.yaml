@@ -1,6 +1,6 @@
 app:
   name: SAM
-  version: 0.4.5
+  version: 0.4.6
 hotkey:
   trigger: ctrl+space          # hold to speak
   text_input: ctrl+shift+space # open the typed-input box

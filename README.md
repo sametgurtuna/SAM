@@ -42,14 +42,25 @@ call is to `localhost:11434` (your own Ollama server); a cloud fallback (Claude)
 
 ---
 
-## ✨ What's new in v0.4.5
+## ✨ What's new in v0.4.6
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
+**✏️ Instant responses you can edit**
+On first launch the phrase list is copied to your writable data folder
+(`%APPDATA%\SAM\knowledge\` in an installed build), just like `config.yaml` — so you
+can add your own without a new build. **Settings → Responses** opens it in your editor
+and reloads it into the running app.
+
+**🎛️ Rebuilt settings window**
+Resizable, with per-page titles and descriptions, card-style sections, a new
+**Responses** page, live-transcription controls, and an **About** page that points at
+your config, logs and models on disk.
+
 **⚡ Zero-LLM command dispatch**
-Recognized commands and predefined phrases now answer straight from `LISTENING` →
+Recognized commands and predefined phrases answer straight from `LISTENING` →
 `SPEAKING`, skipping `THINKING` entirely — no LLM round-trip involved.
 
 **💬 Instant responses**
@@ -214,10 +225,15 @@ else falls through to the local LLM.
 ## ⚙️ Configuration
 
 Every key in `config.yaml` has a default in `core/config.py`, so a missing or partial file
-never breaks the app. Edit it via **Settings** in the tray menu (Orb-tab cosmetics —
+never breaks the app. Edit it via **Settings** in the tray menu (Appearance-page cosmetics —
 size, opacity, fps, click-through, layer, auto-hide delay — apply live; everything else
 needs a restart), or directly — the full annotated template is
 [`config.example.yaml`](config.example.yaml).
+
+Instant responses live in their own file. In an installed build SAM seeds a writable copy
+at `%APPDATA%\SAM\knowledge\instant_responses.yaml` on first launch and reads that one,
+so your edits survive updates. **Settings → Responses** has *Edit Responses…*, *Show
+Folder* and *Reload* (applies your changes without restarting SAM).
 
 ```yaml
 hotkey:

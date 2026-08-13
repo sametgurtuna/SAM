@@ -42,7 +42,8 @@ another engine directly. This is the file to read first when tracing a feature e
 end.
 
 **Pipeline:** wake word / hotkey → `Recorder` (VAD-based mic capture) → `STTEngine`
-(faster-whisper) → `CommandRouter` (regex intent match) → if unmatched, `LLMRouter`
+(faster-whisper) → `InstantResponder` (dictionary lookup) → `CommandRouter` (regex intent
+match) → if still unmatched, `LLMRouter`
 (intent classify → mode select → RAG retrieve → engine route → streaming) →
 `TTSEngine` (edge-tts or pyttsx3) → auto-hide timer → back to idle.
 
@@ -63,6 +64,14 @@ persistent worker thread — `playback_finished` fires exactly once per utteranc
 still queued from a cancelled turn is discarded rather than spoken late. If a ```` ``` ````
 fence appears in the stream, streaming speech stops for that turn (code must not be read
 aloud; `core/code_parser.py` writes it to the Desktop instead).
+
+**Fast path:** `AppController._dispatch(text, allow_llm=...)` is the single entry point
+for both spoken and typed input. It tries the instant responder, then the command router,
+and only then the LLM — the first two go straight to `SPEAKING` and never enter
+`THINKING`. `_on_recording_done()` calls it with `allow_llm=False` against the *live
+partial* transcript first: if that already covers ≥90% of the recording and matches, the
+final Whisper decode is skipped entirely. `STTEngine` runs partials on a separate small
+model (`stt.partial_model`) so live captioning doesn't starve the final decode.
 
 State machine (`AppState` in `core/app.py`): `IDLE → LISTENING → THINKING → SPEAKING →
 IDLE`. `AppController._set_state()` is the only place state should change; UI updates
@@ -87,6 +96,11 @@ always go back through a signal.
   Spotify via `spotipy`), `vision.py` (screen capture → base64 for vision LLM calls).
   Add new voice commands here: a regex pattern in `router.py` + a handler function in
   `system.py` (or a new module) that returns the spoken confirmation string.
+  `instant.py` (`InstantResponder`) answers predefined phrases from
+  `knowledge/instant_responses.yaml` with a normalized dictionary lookup — no LLM, no
+  regex scan. That YAML is seeded into `paths.user_data_dir()` on first launch (like
+  `config.yaml`) and read from there, so installed users can edit it; Settings →
+  Responses opens and reloads it.
 - `llm/` — `base.py` (abstract `LLMEngine`), `ollama_engine.py`, `claude_engine.py`,
   `router.py` (`LLMRouter` — intent-based dual-engine routing, rolling conversation
   `deque`), `intent.py` (keyword/regex intent classifier: NORMAL/FENERBAHCE/COMPLEX),

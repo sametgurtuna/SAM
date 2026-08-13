@@ -9,6 +9,7 @@ import logging
 import os
 import random
 import re
+import shutil
 from datetime import datetime
 from typing import Any
 
@@ -73,8 +74,52 @@ class InstantResponder:
     def __init__(self, file_path: str | None = None) -> None:
         self._exact: dict[str, dict[str, Any]] = {}
         self._contains: list[tuple[str, dict[str, Any]]] = []
-        self._path = paths.resolve_asset(file_path or DEFAULT_FILE)
+        self._path = self._resolve_path(file_path or DEFAULT_FILE)
         self._load()
+
+    # ─── Dosya konumu ─────────────────────────────────────────────
+
+    @staticmethod
+    def _resolve_path(rel: str) -> str:
+        """
+        Kullanicinin duzenleyebilecegi kopyanin yolunu dondur.
+
+        Kurulu (frozen) surumde paketteki kopya Program Files altinda ve salt
+        okunur — bu yuzden config.yaml'da oldugu gibi, ilk acilista yazilabilir
+        veri klasorune (%APPDATA%\\SAM) kopyalanir. Kullanici oradaki dosyayi
+        duzenler; paketteki kopya yalnizca sablon olarak kalir.
+        """
+        if os.path.isabs(rel):
+            return rel
+
+        user_copy = os.path.join(paths.user_data_dir(), rel)
+        if os.path.exists(user_copy):
+            return user_copy
+
+        bundled = paths.resource_path(rel)
+        if not os.path.exists(bundled):
+            return user_copy  # ikisi de yok — _load uyarip bos gececek
+
+        # Kaynak ile hedef ayni dosyaysa (kaynaktan calisirken oyle)
+        # kopyalanacak bir sey yok.
+        if os.path.normcase(os.path.abspath(bundled)) == os.path.normcase(
+            os.path.abspath(user_copy)
+        ):
+            return bundled
+
+        try:
+            os.makedirs(os.path.dirname(user_copy), exist_ok=True)
+            shutil.copyfile(bundled, user_copy)
+            logger.info("Seeded editable instant responses at %s", user_copy)
+            return user_copy
+        except Exception as e:
+            logger.warning("Could not seed instant responses at %s: %s", user_copy, e)
+            return bundled
+
+    @property
+    def path(self) -> str:
+        """Okunan (ve kullanicinin duzenleyebilecegi) dosyanin tam yolu."""
+        return self._path
 
     # ─── Yukleme ──────────────────────────────────────────────────
 

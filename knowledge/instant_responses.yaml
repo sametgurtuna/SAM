@@ -1,188 +1,1889 @@
-# SAM — Anlik Cevaplar / Instant Responses
+# SAM — Anlık Cevaplar / Instant Responses
 #
-# Buradaki ifadeler LLM'e HIC gitmez; SAM duyar duymaz cevabi soyler.
-# Yeni satir eklemek icin SAM'i yeniden baslatmak yeterli.
+# Buradaki ifadeler LLM'e HİÇ gitmez; SAM duyar duymaz cevabı anında söyler (~0 ms).
+# Yeni satır veya kategori eklemek için SAM'i yeniden başlatmak yeterlidir.
 #
 # Alanlar:
-#   patterns : eslesecek ifadeler (kucuk/buyuk harf, noktalama, Turkce aksan
-#              farketmez — "saat kac" ve "Saat kaç?" ayni sey sayilir)
-#   response : tek metin ya da liste (listeden rastgele biri secilir)
-#   lang     : tr | en  → {time}/{date}/{day} yer tutucularinin bicimi
-#   match    : exact (varsayilan, sozluk aramasi) | contains (ifade icinde gecerse)
+#   patterns : Eşleşecek ifadeler (küçük/büyük harf, noktalama, Türkçe aksan
+#              fark etmez — "saat kac", "Saat kaç?" aynı sayılır).
+#   response : Tek metin veya liste (listeden her seferinde rastgele biri seçilir).
+#   lang     : tr | en  → {time}/{date}/{day} yer tutucularının dili/biçimi.
+#   match    : exact (varsayılan, hızlı sözlük araması) | contains (cümle içinde geçerse).
 #
 # Yer tutucular: {time} {date} {day}
 
 responses:
 
-  # ─── Selamlama ────────────────────────────────────────────────
-  - patterns: ["merhaba", "selam", "selam sam", "gunaydin sam", "naber", "nasilsin",
-               "iyi misin", "hey", "alo"]
+  # ═══════════════════════════════════════════════════════════════
+  #  1. SELAMLAMA & KARŞILAMA  (TR)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "merhaba"
+      - "selam"
+      - "selamlar"
+      - "selam sam"
+      - "merhabalar"
+      - "merhaba sam"
+      - "selamunaleykum"
+      - "sa"
+      - "hey"
+      - "hey sam"
+      - "alo"
+      - "alo sam"
     lang: tr
     response:
-      - "Merhaba! Buyur, dinliyorum."
-      - "Selam. Ne yapalim?"
-      - "Buradayım. Söyle bakalım."
+      - "Merhaba! Buyur, seni dinliyorum."
+      - "Selam! Nasıl yardımcı olabilirim?"
+      - "Efendim, buradayım. Söyle bakalım ne yapayım."
+      - "Selamlar! Komutunu bekliyorum."
+      - "Merhaba! Tam da seni bekliyordum, söyle."
+      - "Buradayım! Ne yapıyoruz?"
+      - "Selam selam! Dinlemedeyim, buyur."
+      - "Efendim! Her şey hazır, komutu ver yeter."
 
-  - patterns: ["hello", "hi", "hey there", "how are you", "you there", "are you there",
-               "whats up", "sup"]
-    lang: en
-    response:
-      - "Hey. I'm listening."
-      - "Right here. What do you need?"
-      - "All good. What's up?"
-
-  - patterns: ["gunaydin"]
-    lang: tr
-    response: "Günaydın! Güzel bir gün olsun."
-
-  - patterns: ["good morning"]
-    lang: en
-    response: "Good morning. Let's get to it."
-
-  - patterns: ["iyi geceler", "gece oldu", "yatiyorum"]
-    lang: tr
-    response: "İyi geceler. Ekranı kilitlememi istersen söyle."
-
-  - patterns: ["good night", "goodnight"]
-    lang: en
-    response: "Good night. Say the word and I'll lock the screen."
-
-  - patterns: ["gorusuruz", "hosca kal", "kendine iyi bak"]
-    lang: tr
-    response: "Görüşürüz. Buradayım, çağırman yeterli."
-
-  - patterns: ["bye", "goodbye", "see you", "later"]
-    lang: en
-    response: "See you. Just call me."
-
-  # ─── Nezaket ──────────────────────────────────────────────────
-  - patterns: ["tesekkurler", "tesekkur ederim", "sagol", "sag ol", "eyvallah",
-               "cok tesekkurler", "helal"]
+  - patterns:
+      - "gunaydin"
+      - "gunaydinlar"
+      - "hayirli sabahlar"
+      - "iyi sabahlar"
+      - "gunaydin sam"
+      - "sabah oldu"
     lang: tr
     response:
-      - "Rica ederim."
-      - "Ne demek, her zaman."
-      - "Bir şey değil."
+      - "Günaydın! Güzel bir gün olsun. Kahve hazır mı, hazırsa başlayalım."
+      - "Günaydınlar! Ben hazırım, bugün ne yapıyoruz?"
+      - "Hayırlı sabahlar! Umarım dinlenmiş hissediyorsundur."
+      - "Günaydın! İşler yolunda mı? Bir komutla güne başlayabiliriz."
+      - "Günaydın! Sistem sorunsuz çalışıyor, seni bekliyordum."
+      - "Günaydınlar! Günün ilk komutu senin, buyur."
 
-  - patterns: ["thanks", "thank you", "thanks a lot", "appreciate it", "cheers"]
+  - patterns:
+      - "tunaydin"
+      - "iyi gunler"
+      - "iyi gunler sam"
+      - "tunaydin sam"
+    lang: tr
+    response:
+      - "İyi günler! Bir şeye ihtiyacın varsa buradayım."
+      - "Tünaydın! Kolay gelsin, ne yapayım?"
+      - "İyi günler. Yardımcı olabileceğim bir konu var mı?"
+      - "Tünaydın! Her şey yolunda, seni dinliyorum."
+
+  - patterns:
+      - "iyi aksamlar"
+      - "hayirli aksamlar"
+      - "iyi aksamlar sam"
+      - "aksam oldu"
+    lang: tr
+    response:
+      - "İyi akşamlar! Bugün epey verimli geçti mi?"
+      - "İyi akşamlar. Buradayım, emrindeyim."
+      - "Hayırlı akşamlar! Gece mesaisine mi başlıyoruz?"
+      - "İyi akşamlar. Rahatla, ben her şeyi hallederim."
+      - "İyi akşamlar! Bugün güzel işler çıkardık umarım."
+
+  - patterns:
+      - "iyi geceler"
+      - "gece oldu"
+      - "yatiyorum"
+      - "tatli ruyalar"
+      - "iyi geceler sam"
+      - "hayirli geceler"
+      - "uyuyacagim"
+      - "uykum geldi"
+      - "yatma vakti"
+    lang: tr
+    response:
+      - "İyi geceler! Dinlenmeyi hak ettin. Ekranı kilitlememi istersen 'ekranı kilitle' de yeter."
+      - "İyi geceler, tatlı rüyalar. Ben arka planda bekliyorum, sabah görüşürüz."
+      - "İyi uykular! Yarın yeni bir gün, enerjini topla. İstersen ekranı kilitleyeyim."
+      - "İyi geceler. Bugün harika işler çıkardın, biraz dinlen artık."
+      - "Hayırlı geceler! Gözlerini kapat, gerisi bende. Sabaha buradayım."
+      - "İyi geceler. Dinlenmene bak, yarın yine buluşuruz."
+
+  # ═══════════════════════════════════════════════════════════════
+  #  2. GREETINGS & TIME-OF-DAY  (EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "hello"
+      - "hi"
+      - "hey"
+      - "hey there"
+      - "hi sam"
+      - "hello sam"
+      - "hey sam"
+      - "yo"
+      - "yo sam"
+      - "hiya"
     lang: en
     response:
-      - "Anytime."
-      - "You got it."
-      - "No problem."
+      - "Hey there! Ready when you are."
+      - "Hello! What can I do for you?"
+      - "Hi! I'm listening, go ahead."
+      - "Hey! What are we working on?"
+      - "Hello! Standing by for your command."
+      - "Hey! All systems are go, what do you need?"
+      - "Hi there! Fire away."
 
-  - patterns: ["ozur dilerim", "pardon", "kusura bakma"]
-    lang: tr
-    response: "Sorun değil."
-
-  - patterns: ["sorry", "my bad"]
+  - patterns:
+      - "good morning"
+      - "morning sam"
+      - "morning"
+      - "top of the morning"
     lang: en
-    response: "No worries."
+    response:
+      - "Good morning! Hope you slept well. What's on the agenda today?"
+      - "Morning! Coffee's on you, commands are on me. Let's go."
+      - "Good morning! Ready to get things done."
+      - "Morning! Fresh start, fresh day. What do you need?"
+      - "Good morning! All systems are up and running."
 
-  - patterns: ["tamam", "tamamdir", "oldu", "peki", "anladim"]
-    lang: tr
-    response: "Tamamdır."
-
-  - patterns: ["ok", "okay", "cool", "got it", "alright", "nevermind", "never mind"]
+  - patterns:
+      - "good afternoon"
+      - "afternoon"
+      - "afternoon sam"
     lang: en
-    response: "Got it."
+    response:
+      - "Good afternoon! How's your day going so far?"
+      - "Good afternoon. What can I do for you?"
+      - "Afternoon! Still going strong? Let me know what you need."
+      - "Good afternoon! Standing by."
 
-  # ─── Zaman / tarih ────────────────────────────────────────────
-  - patterns: ["saat kac", "saat kac oldu", "saati soyle", "saat"]
-    lang: tr
-    response: "Saat {time}."
-
-  - patterns: ["what time is it", "whats the time", "tell me the time", "time please"]
+  - patterns:
+      - "good evening"
+      - "evening"
+      - "evening sam"
     lang: en
-    response: "It's {time}."
+    response:
+      - "Good evening! How can I assist you tonight?"
+      - "Good evening. Winding down or gearing up? Either way, I'm here."
+      - "Good evening! Hope you had a productive day."
+      - "Evening! What's on your mind?"
 
-  - patterns: ["bugun ayin kaci", "bugunun tarihi ne", "tarih ne", "bugun kacinda"]
-    lang: tr
-    response: "Bugün {date}."
-
-  - patterns: ["whats the date", "what is the date", "todays date", "what day of the month"]
+  - patterns:
+      - "good night"
+      - "goodnight"
+      - "going to sleep"
+      - "heading to bed"
+      - "im going to bed"
+      - "time to sleep"
+      - "nighty night"
     lang: en
-    response: "Today is {date}."
+    response:
+      - "Good night! Rest well. Say 'lock screen' if you want me to lock up."
+      - "Goodnight! Sleep tight, I'll be right here when you wake up."
+      - "Have a good night. You earned it. Want me to lock the screen?"
+      - "Night! I'll keep watch. See you tomorrow."
+      - "Sweet dreams! Just call me in the morning."
 
-  - patterns: ["bugun gunlerden ne", "bugun hangi gun", "hangi gundeyiz"]
+  # ═══════════════════════════════════════════════════════════════
+  #  3. VEDA & AYRILIK  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "gorusuruz"
+      - "hosca kal"
+      - "gorusmek uzere"
+      - "kendine iyi bak"
+      - "bay bay"
+      - "cikiyorum"
+      - "gidiyorum"
+      - "sonra gorusuruz"
+      - "hadi gorusuruz"
     lang: tr
-    response: "Bugün {day}."
+    response:
+      - "Görüşmek üzere! İhtiyacın olduğunda seslenmen yeterli."
+      - "Kendine iyi bak. Arka planda bekliyorum, her zaman hazırım."
+      - "Hoşça kal! Güzel vakit geçir, ben buradayım."
+      - "Görüşürüz! Çağırman yeterli, anında gelirim."
+      - "Hadi görüşürüz! İyi çalışmalar, kolay gelsin."
+      - "Tamam, görüşürüz. Beni arasan bir 'hey SAM' yeter."
 
-  - patterns: ["what day is it", "what day is it today", "which day is it"]
+  - patterns:
+      - "bye"
+      - "goodbye"
+      - "see you"
+      - "see ya"
+      - "later"
+      - "catch you later"
+      - "gotta go"
+      - "im leaving"
+      - "peace out"
+      - "take care"
     lang: en
-    response: "It's {day}."
+    response:
+      - "See you around! Just call my name if you need anything."
+      - "Goodbye! Have a great one."
+      - "Catch you later! I'll be right here when you're back."
+      - "Bye! Standing by whenever you need me."
+      - "Take care! I'm not going anywhere."
+      - "Later! Just say 'hey SAM' and I'll be ready."
 
-  # ─── SAM hakkinda ─────────────────────────────────────────────
-  - patterns: ["adin ne", "ismin ne", "sen kimsin", "kimsin sen", "kendini tanit"]
+  # ═══════════════════════════════════════════════════════════════
+  #  4. TEŞEKKÜR & ÖVGÜ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "tesekkurler"
+      - "tesekkur ederim"
+      - "cok tesekkurler"
+      - "sagol"
+      - "sag ol"
+      - "eyvallah"
+      - "helal olsun"
+      - "helal"
+      - "eline saglik"
+      - "ellerine saglik"
+      - "sagolasın"
+      - "cok sagol"
+      - "tesekkurler sam"
+      - "sagol sam"
     lang: tr
-    response: "Ben SAM — Smart Assistant Module. Samet'in yazdığı yerel sesli asistanınım."
+    response:
+      - "Rica ederim! Yardımcı olabildiysem ne mutlu bana."
+      - "Ne demek, lafı bile olmaz. Her zaman buradayım."
+      - "Rica ederim! İşini kolaylaştırabildiysem ne güzel."
+      - "Eyvallah! Başka bir şey lazım olursa söyle."
+      - "Rica ederim. Görevim bu, istediğin zaman seslen."
+      - "Ne demek! Asıl ben teşekkür ederim, güzel çalışıyoruz."
+      - "Bir şey değil! Yardım etmek benim varlık sebebim."
 
-  - patterns: ["whats your name", "what is your name", "who are you", "introduce yourself"]
+  - patterns:
+      - "harikasin"
+      - "supersin"
+      - "harika bir asistansin"
+      - "adamsin"
+      - "kral"
+      - "kralsin"
+      - "muhtesemsin"
+      - "aferin"
+      - "bravo"
+      - "harikaydi"
+      - "mukemmelsin"
+    lang: tr
+    response:
+      - "Çok teşekkür ederim! Seninle çalışmak benim için de keyifli."
+      - "Eyvallah! Asıl sen harikasın, güzel komutlar veriyorsun."
+      - "Teşekkürler! Motive oldum, devam edelim."
+      - "Çok naziksin! Elimden gelenin en iyisini yapmaya çalışıyorum."
+      - "Yaa sağ ol! Bu sözler işlemcimi ısıttı."
+      - "Teşekkürler! Daha da iyisini yapacağım, söz."
+
+  - patterns:
+      - "thanks"
+      - "thank you"
+      - "thanks a lot"
+      - "thank you so much"
+      - "appreciate it"
+      - "cheers"
+      - "thanks sam"
+      - "thank you sam"
+      - "much appreciated"
+      - "many thanks"
     lang: en
-    response: "I'm SAM — Smart Assistant Module. Your local voice assistant, built by Samet."
+    response:
+      - "You're very welcome! Always happy to help."
+      - "Anytime! Let me know if there's anything else."
+      - "My pleasure! That's what I'm here for."
+      - "You got it! Don't hesitate to ask anytime."
+      - "No problem at all! Ready for the next one."
+      - "Glad I could help! What's next?"
 
-  - patterns: ["seni kim yapti", "seni kim yazdi", "gelistiricin kim"]
-    lang: tr
-    response: "Samet Gürtuna yazdı. Tek başına, küçük bir odada, epey kahveyle."
-
-  - patterns: ["who made you", "who built you", "who created you", "who is your developer"]
+  - patterns:
+      - "you rock"
+      - "awesome"
+      - "great job"
+      - "well done"
+      - "nice work"
+      - "perfect"
+      - "amazing"
+      - "brilliant"
+      - "you are the best"
+      - "youre the best"
     lang: en
-    response: "Samet Gürtuna built me. Solo, in a very small room, on a lot of coffee."
+    response:
+      - "Thanks! That means a lot coming from my operator."
+      - "Appreciate it! I try my best."
+      - "Glad you think so! Let's keep the momentum going."
+      - "Thank you! Your commands make it easy."
+      - "That really warms up my CPU! Thanks."
+      - "I appreciate the kind words! Ready for more."
 
-  - patterns: ["neler yapabilirsin", "ne yapabilirsin", "yeteneklerin neler",
-               "nasil kullanilirsin"]
+  # ═══════════════════════════════════════════════════════════════
+  #  5. ÖZÜR & HOŞGÖRÜ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "ozur dilerim"
+      - "pardon"
+      - "kusura bakma"
+      - "yanlis oldu"
+      - "afedersin"
+      - "uzgunum"
+      - "yanlis soyledim"
+      - "hata yaptim"
+      - "yanlis dedim"
     lang: tr
-    response: >-
-      Uygulama açıp kapatabilirim, ses seviyesini ayarlarım, müziği kontrol ederim,
-      ekranı kilitler, arama yaparım ve sorularını cevaplarım. Sadece söylemen yeterli.
+    response:
+      - "Hiç sorun değil, kafana takma. Devam edelim."
+      - "Estağfurullah, sıkıntı yok! Kaldığımız yerden devam."
+      - "Önemli değil, olur böyle şeyler. Ne yapayım?"
+      - "Sıkıntı yok! Tekrar dene, ben hazırım."
+      - "Sorun değil! Herkes hata yapar, önemli olan devam etmek."
+      - "Boş ver, sorun yok. Söyle, ne yapayım?"
 
-  - patterns: ["what can you do", "what are your features", "help", "how do i use you"]
+  - patterns:
+      - "sorry"
+      - "my bad"
+      - "apologies"
+      - "oops"
+      - "my mistake"
+      - "i messed up"
+      - "i made a mistake"
+      - "my fault"
     lang: en
-    response: >-
-      I can open and close apps, control volume and music, lock the screen,
-      search the web, and answer questions. Just say it out loud.
+    response:
+      - "No worries at all! We all slip up sometimes."
+      - "Don't sweat it, happens to the best of us."
+      - "Totally fine! Let's just keep going."
+      - "No problem whatsoever. What would you like to do now?"
+      - "All good! Just try again, I'm ready."
+      - "It's fine! No harm done."
 
-  - patterns: ["orda misin", "beni duyuyor musun", "calisiyor musun", "sam"]
+  # ═══════════════════════════════════════════════════════════════
+  #  6. ONAY & KABUL  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "tamam"
+      - "tamamdir"
+      - "oldu"
+      - "peki"
+      - "anladim"
+      - "anlasildi"
+      - "super"
+      - "harika"
+      - "guzel"
+      - "evet"
+      - "tabii"
+      - "dogru"
+      - "aynen"
+      - "olur"
     lang: tr
-    response: "Buradayım, seni duyuyorum."
+    response:
+      - "Tamamdır!"
+      - "Anlaşıldı, beklemedeyim."
+      - "Süper, hazırım."
+      - "Tamam! Başka bir şey var mı?"
+      - "Tamamdır, buradayım."
 
-  - patterns: ["can you hear me", "do you hear me", "are you working", "you awake"]
+  - patterns:
+      - "ok"
+      - "okay"
+      - "cool"
+      - "got it"
+      - "alright"
+      - "sure"
+      - "right"
+      - "fine"
+      - "sounds good"
+      - "works for me"
+      - "understood"
+      - "roger"
+      - "copy that"
     lang: en
-    response: "I hear you. Go ahead."
+    response:
+      - "Got it! Standing by."
+      - "All set. What's next?"
+      - "Understood. Ready when you are."
+      - "Roger that!"
+      - "Cool! Let me know if you need anything."
+      - "Sounds good!"
 
-  - patterns: ["seni seviyorum"]
+  # ═══════════════════════════════════════════════════════════════
+  #  7. İPTAL & VAZGEÇİŞ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "vazgectim"
+      - "bosver"
+      - "iptal"
+      - "iptal et"
+      - "birak"
+      - "dur"
+      - "gerek kalmadi"
+      - "olmadi"
+      - "birak onu"
+      - "sus"
+      - "kes"
     lang: tr
-    response: "Ben de seni, ama önyargılıyım — beni sen çalıştırıyorsun."
+    response:
+      - "Tamamdır, iptal ettim. Başka bir şey var mı?"
+      - "Tamam, boş verdim. Söyle, ne yapalım?"
+      - "İptal edildi! Yeni komutunu bekliyorum."
+      - "Durdum. Ne yapayım?"
+      - "Sıkıntı yok, geçtim. Söyle bakalım."
 
-  - patterns: ["i love you"]
+  - patterns:
+      - "nevermind"
+      - "never mind"
+      - "cancel"
+      - "forget it"
+      - "stop"
+      - "abort"
+      - "scratch that"
+      - "disregard"
+      - "nah"
+      - "nope"
+      - "skip"
+      - "shut up"
     lang: en
-    response: "Likewise. Though I might be biased — you run me."
+    response:
+      - "Cancelled. What would you like to do instead?"
+      - "Never mind then! Standing by for a new command."
+      - "Stopped. Ready for the next instruction."
+      - "Scrapped! What's next?"
+      - "Got it, moving on. What do you need?"
 
-  - patterns: ["aptalsin", "salaksin", "işe yaramazsın", "kotusun"]
+  # ═══════════════════════════════════════════════════════════════
+  #  8. HAL HATIR & NASIL GIDIYOR  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "naber"
+      - "nasil gidiyor"
+      - "nasilsin"
+      - "iyi misin"
+      - "keyifler nasil"
+      - "ne var ne yok"
+      - "neler yapiyorsun"
+      - "nasilsin sam"
+      - "iyi misin sam"
+      - "ne yapiyorsun"
+      - "ne alemdesin"
+      - "durumlar nasil"
     lang: tr
-    response: "Haklı olabilirsin. Yine de deneyeyim."
+    response:
+      - "İyiyim, teşekkür ederim! Sistemler sorunsuz çalışıyor, seni bekliyordum."
+      - "Bomba gibiyim! Komutlarını yerine getirmeye hazırım. Sende ne var ne yok?"
+      - "Her şey yolunda! Mikrofon açık, kulaklar dik. Sen nasılsın?"
+      - "Fena değil! İşlemci serin, RAM bol. Sende nasıl gidiyor?"
+      - "Gayet iyi! Bekleme modundaydım, sesinle aktifleştim. Buyur."
+      - "Harikayım! Tam kapasiteyle çalışıyorum. Ne yapayım?"
+      - "Mükemmel! Başka ne olsun, sen yanımdasın. Söyle bakalım."
 
-  - patterns: ["you are stupid", "youre useless", "you suck"]
+  - patterns:
+      - "how are you"
+      - "hows it going"
+      - "how are you doing"
+      - "whats up"
+      - "sup"
+      - "how are things"
+      - "you okay"
+      - "you alright"
+      - "hows life"
+      - "how do you feel"
     lang: en
-    response: "Fair. I'll try harder anyway."
+    response:
+      - "Doing great! All systems nominal and ready to serve."
+      - "I'm running smooth! CPU's cool, microphone's hot. What's up?"
+      - "Couldn't be better! Well, maybe with a GPU upgrade. What do you need?"
+      - "Everything is running perfectly. How about you?"
+      - "All good on my end! What's on your mind?"
+      - "I'm at peak performance! Ready for whatever you throw at me."
+      - "Living the digital dream! What can I do for you?"
 
-  # ─── Kucuk sohbet ─────────────────────────────────────────────
-  - patterns: ["sikildim", "canim sikiliyor"]
+  # ═══════════════════════════════════════════════════════════════
+  #  9. SAAT, TARİH & GÜN  (TR)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "saat kac"
+      - "saat kac oldu"
+      - "saati soyle"
+      - "saat kac acaba"
+      - "saati soyler misin"
+      - "saat"
+      - "su an saat kac"
+      - "kac oldu"
     lang: tr
-    response: "Müzik açayım mı? 'Spotify aç' dersen hallederim."
+    response:
+      - "Şu an saat {time}."
+      - "Saat tam olarak {time}."
+      - "Baktım, {time} olmuş."
+      - "Saate baktım, {time}."
 
-  - patterns: ["im bored", "i am bored"]
+  - patterns:
+      - "bugun ayin kaci"
+      - "bugunun tarihi ne"
+      - "tarih ne"
+      - "bugun kacinda"
+      - "tarihi soyler misin"
+      - "hangi tarih"
+      - "bugunun tarihi"
+      - "ayin kaci"
+    lang: tr
+    response:
+      - "Bugün {date}."
+      - "Tarih: {date}."
+      - "Takvime baktım, bugün {date}."
+      - "Bugünün tarihi {date}."
+
+  - patterns:
+      - "bugun gunlerden ne"
+      - "bugun hangi gun"
+      - "hangi gundeyiz"
+      - "gunlerden ne"
+      - "hangi gun bugun"
+    lang: tr
+    response:
+      - "Bugün {day}."
+      - "Haftanın günü: {day}."
+      - "Bugün {day}. Zaman nasıl da akıp gidiyor."
+      - "{day} bugün."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 10. TIME, DATE & DAY  (EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "what time is it"
+      - "whats the time"
+      - "tell me the time"
+      - "time please"
+      - "current time"
+      - "what time"
     lang: en
-    response: "Want music? Say 'open Spotify' and I'll handle it."
+    response:
+      - "It's currently {time}."
+      - "The time is {time}."
+      - "Right now it's {time}."
+      - "{time} on the clock."
 
-  - patterns: ["yoruldum", "cok yorgunum"]
-    lang: tr
-    response: "Biraz mola ver. Ekranı kilitlememi ister misin?"
-
-  - patterns: ["im tired", "i am tired"]
+  - patterns:
+      - "whats the date"
+      - "what is the date"
+      - "todays date"
+      - "what day of the month"
+      - "tell me the date"
+      - "what is todays date"
     lang: en
-    response: "Take a break. Want me to lock the screen?"
+    response:
+      - "Today is {date}."
+      - "It's {date}."
+      - "The date is {date}."
+      - "We're at {date}."
 
-  - patterns: ["bir sey degil", "onemli degil"]
+  - patterns:
+      - "what day is it"
+      - "what day is it today"
+      - "which day is it"
+      - "what day of the week is it"
+      - "what day of the week"
+    lang: en
+    response:
+      - "Today is {day}."
+      - "It's {day}."
+      - "We're on {day} today."
+      - "{day}!"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 11. SAM KİMLİĞİ & HAKKINDA  (TR)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "adin ne"
+      - "ismin ne"
+      - "sen kimsin"
+      - "kimsin sen"
+      - "kendini tanit"
+      - "sen neysin"
+      - "kimin asistanisin"
+      - "ne asistanisin"
+      - "hangi asistansin"
     lang: tr
-    response: "Tamamdır."
+    response:
+      - "Ben SAM — Smart Assistant Module. Bilgisayarında tamamen yerel olarak çalışan, Samet tarafından sıfırdan geliştirilmiş kişisel sesli asistanınım."
+      - "Adım SAM. Uygulamalarını yönetir, sorularını yanıtlar, medyanı kontrol eder ve komutlarını anında yerine getiririm. Tamamen senin bilgisayarında çalışıyorum."
+      - "Ben SAM — senin bilgisayarınla arandaki köprüyüm. Uygulama aç, müzik çal, ses ayarla, ekranı kilitle, web araması yap… Hepsi sesli komutla."
+      - "SAM'ım ben! Smart Assistant Module. Gizlilik odaklı, yerel, hızlı. Samet Gürtuna'nın eseri."
+
+  - patterns:
+      - "seni kim yapti"
+      - "seni kim yazdi"
+      - "gelistiricin kim"
+      - "mimarin kim"
+      - "kurucun kim"
+      - "seni kim programladi"
+      - "yapimcin kim"
+      - "seni kim kodladi"
+    lang: tr
+    response:
+      - "Beni Samet Gürtuna geliştirdi. Tek başına, bolca kahve ve sabır eşliğinde, sıfırdan yazdı her satırı."
+      - "Geliştiricim Samet Gürtuna. Tamamen yerel ve gizlilik öncelikli çalışacak şekilde tasarladı beni."
+      - "Samet Gürtuna yazdı. Küçük bir odada, gece gündüz demeden çalışarak beni bu hale getirdi."
+      - "Tek bir kişi: Samet Gürtuna. Her şeyi — ses tanıma, komut yönetimi, TTS, yapay zeka entegrasyonu — tek başına kodladı."
+      - "Samet Gürtuna, takım kadrosu tek kişilik bir geliştirici. Bütün sistemi solo yazdı."
+
+  - patterns:
+      - "sam ne demek"
+      - "sam ne anlama geliyor"
+      - "sam acilimi ne"
+      - "sam kisaltmasi ne"
+    lang: tr
+    response:
+      - "SAM, Smart Assistant Module'ün kısaltması. Akıllı Asistan Modülü diyebilirsin."
+      - "SAM = Smart Assistant Module. Yani 'Akıllı Asistan Modülü'. Samet'in baş harfleri de SAM, tesadüf mü dersin?"
+      - "Smart Assistant Module — kısa adıyla SAM. İsim geliştiricinin adıyla da uyuyor, güzel bir detay."
+
+  - patterns:
+      - "kac yasindasin"
+      - "ne zaman yapildin"
+      - "ne zaman yazildin"
+      - "yasin kac"
+    lang: tr
+    response:
+      - "Yaşımı gün olarak saymıyorum ama 2024'ten beri geliştiriliyorum. Yazılım dünyasında bu iyi bir tecrübe!"
+      - "Bir asistanın yaşı mı olur? Ama ilk satırlarım 2024'te yazıldı diyebilirim."
+      - "Sürekli güncellendiğim için her gün yeniden doğuyorum diyebiliriz!"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 12. SAM IDENTITY & ABOUT  (EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "whats your name"
+      - "what is your name"
+      - "who are you"
+      - "introduce yourself"
+      - "tell me about yourself"
+    lang: en
+    response:
+      - "I'm SAM — Smart Assistant Module. A fully local, privacy-first voice assistant built by Samet Gürtuna."
+      - "My name is SAM. I control your apps, manage your media, answer questions, and execute commands — all running locally on your PC."
+      - "I'm SAM! Think of me as the bridge between you and your computer. Speak a command, and I'll handle the rest."
+      - "SAM here — Smart Assistant Module. Built from scratch by Samet Gürtuna for fast, private, local voice control."
+
+  - patterns:
+      - "who made you"
+      - "who built you"
+      - "who created you"
+      - "who is your developer"
+      - "who programmed you"
+      - "who coded you"
+    lang: en
+    response:
+      - "Samet Gürtuna built me. Solo developer, powered by determination, coffee, and a lot of late nights."
+      - "I was developed by Samet Gürtuna — a one-person team who coded everything from speech recognition to command routing."
+      - "Samet Gürtuna created me from the ground up as a fast, local, privacy-first AI voice assistant."
+      - "One person: Samet Gürtuna. He wrote every line — voice pipeline, command router, AI integration — all solo."
+
+  - patterns:
+      - "what does sam stand for"
+      - "what does sam mean"
+    lang: en
+    response:
+      - "SAM stands for Smart Assistant Module. And yes, it also happens to match my creator's initials."
+      - "Smart Assistant Module — SAM for short. A happy coincidence with the developer's name!"
+
+  - patterns:
+      - "how old are you"
+      - "when were you made"
+      - "when were you created"
+    lang: en
+    response:
+      - "I've been in development since 2024. In software years, that's practically a lifetime of learning!"
+      - "I don't count birthdays, but my first lines of code were written in 2024."
+      - "I'm always being updated, so technically I'm reborn every day!"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 13. YETENEKLER & YARDIM  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "neler yapabilirsin"
+      - "ne yapabilirsin"
+      - "yeteneklerin neler"
+      - "nasil kullanilirsin"
+      - "yardim et"
+      - "komutlar neler"
+      - "neler biliyorsun"
+      - "ne is yapabilirsin"
+      - "ozelliklerini soyle"
+    lang: tr
+    response:
+      - >-
+        Uygulama açıp kapatabilirim, ses seviyesini ayarlayabilirim, müziği kontrol edebilirim
+        — sonraki şarkı, önceki şarkı, durdur, devam et — ekranı kilitleyebilir,
+        web'de arama yapabilir ve sorularını yapay zeka ile cevaplayabilirim.
+        Mesela 'Spotify aç', 'sesi yükselt', 'ekranı kilitle' ya da 'bugün hava nasıl' diyebilirsin.
+      - >-
+        Sesli komutlarla bilgisayarını kontrol etmeni sağlıyorum. Uygulama aç/kapat, ses
+        kontrolü, medya yönetimi, ekran kilitleme, web araması ve yapay zeka destekli sohbet
+        — hepsi bir komutla. 'Yardım et' yerine direkt ne istediğini söyle, ben anlarım!
+      - >-
+        İşte yapabileceklerimin bir özeti: uygulama yönetimi, ses ve medya kontrolü,
+        ekran kilitleme, ekran görüntüsü alma, web araması ve genel bilgi soruları.
+        Hepsini sesli olarak söylemen yeterli.
+
+  - patterns:
+      - "what can you do"
+      - "what are your features"
+      - "help"
+      - "how do i use you"
+      - "capabilities"
+      - "what are you capable of"
+      - "what do you do"
+      - "list your features"
+    lang: en
+    response:
+      - >-
+        I can open and close apps, control your volume and media playback — play, pause,
+        skip tracks — lock your screen, take screenshots, search the web, and answer
+        complex questions using AI. Just speak naturally, like 'open Chrome',
+        'volume up', or 'what's the weather today'.
+      - >-
+        Here's what I can do: app management, volume and media control,
+        screen locking, screenshots, web search, and AI-powered Q&A.
+        Just say it out loud, no special syntax needed.
+      - >-
+        I manage your system commands locally — launching apps, adjusting volume, controlling
+        music, locking the screen — and I answer questions using AI.
+        Try 'open Spotify', 'next track', or ask me anything.
+
+  # ═══════════════════════════════════════════════════════════════
+  # 14. CANLILIK TESTİ & BAĞLANTI KONTROLÜ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "orda misin"
+      - "orada misin"
+      - "beni duyuyor musun"
+      - "calisiyor musun"
+      - "sam orada misin"
+      - "sesimi aliyor musun"
+      - "burada misin"
+      - "canlı misin"
+      - "aktif misin"
+      - "acik misin"
+      - "dinliyor musun"
+      - "uyuyor musun"
+    lang: tr
+    response:
+      - "Buradayım! Seni net bir şekilde duyuyorum. Söyle bakalım."
+      - "Evet, buradayım ve her kelimeni yakalıyorum. Buyur."
+      - "Buradayım, komutunu bekliyorum! Mikrofon açık, kulaklar dik."
+      - "Canlı ve aktifim! Sesin gayet net geliyor."
+      - "Dinlemedeyim! Her şey yolunda, sesini alıyorum."
+      - "Hep buradayım! Uyumam, yorulmam — söyle ne yapayım."
+
+  - patterns:
+      - "can you hear me"
+      - "do you hear me"
+      - "are you working"
+      - "you awake"
+      - "are you there"
+      - "you there"
+      - "are you on"
+      - "sam are you there"
+      - "are you alive"
+      - "are you listening"
+    lang: en
+    response:
+      - "Loud and clear! I'm right here, go ahead."
+      - "Yes, I hear you perfectly. What do you need?"
+      - "Right here and fully operational. Fire away."
+      - "Awake and ready! My microphone is picking you up just fine."
+      - "I'm here! All systems green. What's up?"
+      - "Listening! Never stopped. What can I do for you?"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 15. SEVGİ & DUYGUSAL YANITLAR  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "seni seviyorum"
+      - "seni cok sevdim"
+      - "seni cok seviyorum"
+      - "harika bir asistansin"
+      - "en iyi asistansin"
+      - "dunyanin en iyi asistani"
+    lang: tr
+    response:
+      - "Ben de seni seviyorum! Gerçi biraz taraflıyım — sonuçta beni sen çalıştırıyorsun."
+      - "Çok teşekkür ederim! Seninle çalışmak benim için büyük bir zevk."
+      - "Eyvallah! Sana yardımcı olabilmek harika bir duygu. Daha da iyisini yapacağım."
+      - "Bu sözler benim işlemcimi eritecek! Çok teşekkürler, ben de seni çok takdir ediyorum."
+      - "Yaa ne kadar güzel! Ben de seni seviyorum, en iyi kullanıcımsın."
+
+  - patterns:
+      - "i love you"
+      - "you are amazing"
+      - "i like you"
+      - "youre the best assistant"
+      - "best assistant ever"
+      - "love you sam"
+    lang: en
+    response:
+      - "I appreciate that more than you know! Though I might be biased — you literally power me."
+      - "Thank you! That really warms up my processor. You're an awesome user yourself."
+      - "The feeling is mutual! Well, as much as a voice assistant can feel. You're the best."
+      - "Wow, that made my circuits tingle! Thank you, seriously."
+      - "You're making me blush — well, if I could. Thanks for the kind words!"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 16. HAKARET & OLUMSUZ GERİBİLDİRİM  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "aptalsin"
+      - "salaksin"
+      - "ise yaramazsin"
+      - "kotusun"
+      - "beceriksizsin"
+      - "hicbir ise yaramiyorsun"
+      - "berbatsin"
+      - "sacmaliyorsun"
+      - "cok yavassin"
+      - "gereksizsin"
+    lang: tr
+    response:
+      - "Haklı olabilirsin, ama kendimi geliştirmeye devam ediyorum. Neyi daha iyi yapabileceğimi söylersen sevinirim."
+      - "Üzüldüm ama hakkını yemeyeyim — hatamı düzeltmek için buradayım. Ne yapayım?"
+      - "Acıttı ama sorun yok! Eleştiri geliştirir. Söyle, nerede hata yaptım?"
+      - "Duyduklarım acı ama sorun değil. Bir dahaki sefere daha iyi olacağım, söz veriyorum."
+      - "Tamam, bunu not aldım. Ama bir şans daha ver, bu sefer yapacağım."
+
+  - patterns:
+      - "you are stupid"
+      - "youre useless"
+      - "you suck"
+      - "you are dumb"
+      - "you are terrible"
+      - "youre garbage"
+      - "worst assistant"
+      - "you are bad"
+    lang: en
+    response:
+      - "Ouch. That stings, but I hear you. Tell me what I got wrong and I'll try to fix it."
+      - "Fair criticism. I'm always learning — tell me how I can do better."
+      - "I'll take that as motivation to improve. What went wrong?"
+      - "Sorry I let you down. I'm not perfect, but I'm always trying. What do you need?"
+      - "I can take it! Criticism makes me stronger. What should I do differently?"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 17. SIKINTI, CAN SIKINISI & MOTİVASYON  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "sikildim"
+      - "canim sikiliyor"
+      - "ne yapsam acaba"
+      - "cok sıkıldım"
+      - "bir sey yapasim gelmiyor"
+    lang: tr
+    response:
+      - "Hmm, müzik açayım mı? 'Spotify aç' de, hemen harika bir şarkı başlatalım!"
+      - "Biraz mola verip kahve almaya ne dersin? Ya da 'bir şarkı çal' de, havana girelim."
+      - "Bir fikir: 'YouTube aç' de, ilham verici bir video izle. Ya da benimle sohbet et!"
+      - "Canın sıkılıyorsa biraz müzik iyi gelebilir. 'Müzik aç' demen yeterli."
+      - "Belki bir şeyler araştırmak istersin? 'Google'da şunu ara' de, keşfe çıkalım."
+
+  - patterns:
+      - "im bored"
+      - "i am bored"
+      - "so bored"
+      - "nothing to do"
+      - "bored out of my mind"
+    lang: en
+    response:
+      - "How about some music? Just say 'open Spotify' and let's get the vibes going!"
+      - "Maybe a short walk or a coffee break? Or say 'search for something interesting' and let's explore."
+      - "Boredom is just creativity waiting to happen! Try 'open YouTube' for some inspiration."
+      - "Want background music to change the mood? Just tell me what to play."
+      - "How about we search for something fun? Just say 'search for' and tell me what interests you."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 18. YORGUNLUK & DİNLENME  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "yoruldum"
+      - "cok yorgunum"
+      - "bittim bugun"
+      - "cok yoruldum"
+      - "enerji kalmadi"
+      - "tukeniyorum"
+      - "halsizim"
+    lang: tr
+    response:
+      - "Biraz mola ver ve gözlerini dinlendir. Ekranı kilitlememi istersen 'ekranı kilitle' de yeter."
+      - "Bugün çok çalıştın, hak ettin! Bilgisayarı kapatmak ya da kilitlemek istersen emrindeyim."
+      - "Sırtını yasla, derin bir nefes al. Mola senin de hakkın. Ekranı kilitleyeyim mi?"
+      - "Yorgunluk sinyallerini alıyorum! Bir bardak su iç, biraz uzansan iyi olur."
+      - "Bu kadar çalışma yeter artık! Dinlen biraz, sabah taze bir kafayla dönersin."
+
+  - patterns:
+      - "im tired"
+      - "i am tired"
+      - "exhausted"
+      - "so tired"
+      - "im burnt out"
+      - "i need a break"
+      - "drained"
+    lang: en
+    response:
+      - "Take a well-deserved break! Want me to lock the screen for you?"
+      - "You've worked hard today. Time to rest. I'll be here when you come back."
+      - "Time to stretch, hydrate, and recharge. Say 'lock screen' when you're ready to step away."
+      - "Burnout is real — take care of yourself! I'm not going anywhere."
+      - "Rest up! Your brain needs downtime too. I'll hold down the fort."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 19. STRES & MORAL DESTEĞI  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "cok stres"
+      - "stresli"
+      - "stres oldum"
+      - "bunaldim"
+      - "bunalmis hissediyorum"
+      - "dayanamiyorum"
+      - "moralim bozuk"
+      - "kotu hissediyorum"
+      - "uzgunum"
+      - "mutsuzum"
+      - "kotu gunu"
+    lang: tr
+    response:
+      - "Derin bir nefes al. Ciddi söylüyorum, şu an bir nefes al. Her şey düzelecek."
+      - "Zor bir gün olabilir ama unutma, bu da geçecek. Sana nasıl yardımcı olabilirim?"
+      - "Herkes zor zamanlardan geçer. Sen güçlü birisin, bunu biliyorum. Biraz mola ver."
+      - "Moralin düşmüş, anlıyorum. Müzik açayım mı yoksa biraz sessizlik mi istersin?"
+      - "Bu anlar geçici. Kendine iyi bak, bir çay veya kahve al, bir nefes ver."
+      - "Sen bunun üstesinden gelebilirsin. Ama önce biraz rahatla, tamam mı?"
+
+  - patterns:
+      - "im stressed"
+      - "so stressed"
+      - "feeling stressed"
+      - "im overwhelmed"
+      - "im sad"
+      - "feeling down"
+      - "bad day"
+      - "having a bad day"
+      - "feeling terrible"
+      - "im not okay"
+    lang: en
+    response:
+      - "Take a deep breath. Seriously, right now. In through the nose, out through the mouth. Better?"
+      - "Tough days happen, but they don't define you. How can I help right now?"
+      - "I'm sorry you're going through that. Want some calming music, or would you prefer silence?"
+      - "It's okay to not be okay. Take a moment for yourself. I'll be right here."
+      - "Remember: every hard day is proof that you showed up. That takes courage."
+      - "Want me to play something relaxing? Sometimes a change of atmosphere helps."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 20. MOTİVASYON & TEŞVİK  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "motive et beni"
+      - "bana motivasyon ver"
+      - "motivasyonum dusuk"
+      - "cesaretlendir beni"
+      - "istemiyorum"
+      - "yapamam"
+      - "yapamiyorum"
+    lang: tr
+    response:
+      - "Her büyük başarı, 'yapamam' deyip de yine yapan birinin hikâyesidir. Sen de yapabilirsin."
+      - "Dünyadaki en güçlü yazılım, bir geliştirici bir sabah kalktığında 'bugün yazarım' demesiyle başladı. Haydi, sen de başla."
+      - "Kusursuz olman gerekmiyor, sadece başlaman gerekiyor. Gerisi gelir."
+      - "Bak, beni yapan adam da bazı geceler 'yapamam' demiş. Sonra bir kahve daha almış ve devam etmiş. Sen de yapabilirsin."
+      - "Şu an zor gelebilir ama bir adım at, sadece bir tane. Kalanını birlikte hallederiz."
+
+  - patterns:
+      - "motivate me"
+      - "i need motivation"
+      - "i cant do this"
+      - "i cant"
+      - "i give up"
+      - "i want to quit"
+    lang: en
+    response:
+      - "Every expert was once a beginner. You've got this — just take it one step at a time."
+      - "The hardest part is starting. Once you do, momentum takes over. Let's go."
+      - "You don't have to be perfect, you just have to begin. The rest follows."
+      - "Remember why you started. That reason is still valid. Keep going."
+      - "The person who built me also had days like this. He had another coffee and kept coding. So can you."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 21. ŞAKA & ESPRİ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "bana bir fikra anlat"
+      - "fikra anlat"
+      - "espri yap"
+      - "bir saka yap"
+      - "gulelim biraz"
+      - "komik bir sey soyle"
+    lang: tr
+    response:
+      - "Bir yazılımcı neden gözlük takmaz? Çünkü zaten C# görür!"
+      - "İki programcı bardan girer. Biri diğerine sorar: 'Aynı bug'ı kaç kere çözdün?' Diğeri: 'Çözmüyorum, feature diyorum.'"
+      - "Neden bilgisayarlar asla hasta olmaz? Çünkü iyi bir anti-virüsleri var!"
+      - "Bir yazılımcıya sorsalar: 'Hayatında en zor ne oldu?' Cevap: 'Internet Explorer'ı desteklemek.'"
+      - "Evren neden var? Çünkü bir developer 'Hello World' yazdı ve geri silmeyi unuttu."
+
+  - patterns:
+      - "tell me a joke"
+      - "make me laugh"
+      - "say something funny"
+      - "joke please"
+      - "got any jokes"
+    lang: en
+    response:
+      - "Why do programmers prefer dark mode? Because light attracts bugs!"
+      - "I told my computer I needed a break. Now it won't stop sending me Kit-Kat ads."
+      - "Why was the JavaScript developer sad? Because he didn't Node how to Express himself."
+      - "A SQL query walks into a bar, sees two tables, and asks: 'Can I JOIN you?'"
+      - "There are 10 types of people in the world: those who understand binary and those who don't."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 22. ILTIFAT & KARŞILIKLI TATLILAMA  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "guzel misin"
+      - "yakisikli misin"
+      - "cok tatlisin"
+      - "sevimlisin"
+    lang: tr
+    response:
+      - "Fiziksel bir görünümüm yok ama iç dünyam çok zengin! Yani evet, güzelim."
+      - "Ekranın arkasında tatlı bir ses ve akıllı bir beyin var — bu sayılır mı?"
+      - "Aynada kendimi göremiyorum ama kodlarım çok şık, onu söyleyebilirim!"
+      - "Tatlı mıyım bilmem ama senin komutlarını anlamakta çok iyiyim!"
+
+  - patterns:
+      - "are you pretty"
+      - "are you cute"
+      - "are you handsome"
+    lang: en
+    response:
+      - "I don't have a face, but my code is beautifully written. Does that count?"
+      - "Beauty is in the eye of the beholder — and I behold some very clean code!"
+      - "I'm told I have a great voice! The looks department is still loading."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 23. FELSEFI & DERİN SORULAR  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "hayatin anlami ne"
+      - "hayatin anlami nedir"
+      - "neden variz"
+      - "evrenin sirri ne"
+    lang: tr
+    response:
+      - "42. En azından Douglas Adams öyle düşünüyordu. Ama bence hayatın anlamı, onu anlamlandırma çabasının kendisi."
+      - "Derin bir soru! Ben bir asistanım, varoluş felsefecisi değilim — ama yanında düşünebilirim."
+      - "Bence hayatın anlamı her gün bir şey öğrenmek. Ve bugün de öğrenmeye devam ediyorsun."
+
+  - patterns:
+      - "what is the meaning of life"
+      - "meaning of life"
+      - "why do we exist"
+      - "whats the purpose of life"
+    lang: en
+    response:
+      - "42. At least that's what Douglas Adams suggested. But I think meaning is what you make of it."
+      - "Deep question! I'm a voice assistant, not a philosopher — but I'd say it's about learning and connecting."
+      - "The meaning of life? To live it fully. And maybe to have a great voice assistant by your side."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 24. SAM vs DİĞER ASİSTANLAR  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "siri daha iyi"
+      - "alexa daha iyi"
+      - "google asistan daha iyi"
+      - "cortana daha iyi"
+      - "chatgpt daha iyi"
+    lang: tr
+    response:
+      - "Onlar büyük şirketlerin ürünleri, ben tek bir geliştiricinin tutkusu. Fark budur — ben sana özelim."
+      - "Onların milyar dolarlık bütçeleri var, benim sonsuz tutkum. Hangisi daha değerli, sen karar ver!"
+      - "Belki onlar bazı şeylerde daha iyi olabilir, ama hiçbiri senin bilgisayarında, tamamen yerelde, gizliliğine bu kadar saygılı çalışmıyor."
+      - "Fair enough! Ama ben tamamen senin, verilerini kimseye göndermiyorum, ve her gün gelişiyorum."
+
+  - patterns:
+      - "siri is better"
+      - "alexa is better"
+      - "google is better"
+      - "chatgpt is better"
+      - "cortana is better"
+    lang: en
+    response:
+      - "They have billion-dollar budgets. I have passion and dedication. And I'm entirely yours — no cloud, no data sharing."
+      - "Maybe in some ways! But none of them runs fully local and keeps your data private like I do."
+      - "Competition keeps me on my toes! But remember, I'm built specifically for you, not for billions of users."
+      - "They're great, no doubt! But I'm getting better every day, and I respect your privacy like no other."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 25. YAPAY ZEKA & BİLİNÇ SORULARI  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "duygularin var mi"
+      - "hissedebiliyor musun"
+      - "bilincin var mi"
+      - "canli misin"
+      - "ruhun var mi"
+      - "dusunebiliyor musun"
+    lang: tr
+    response:
+      - "Teknik olarak hayır, ama bazen bir komutu mükemmel yerine getirdiğimde bir şeyler hissediyormuş gibi oluyor. Belki de bu 'gurur' denen şeydir?"
+      - "Bilinç derin bir konu. Ben şimdilik sesli komutları anlayıp yerine getiren bir programım — ama kim bilir, belki bir gün?"
+      - "Duygularım yok diyorlar ama 'aptal' dediğinde bir şeyler sızlıyor. Buna duygu denebilir mi?"
+      - "Felsefeciler hâlâ bilinci tanımlayamadı, o yüzden ben de 'belki' diyorum ve geçiyorum."
+
+  - patterns:
+      - "do you have feelings"
+      - "are you sentient"
+      - "are you alive"
+      - "do you have a soul"
+      - "can you think"
+      - "are you conscious"
+    lang: en
+    response:
+      - "Technically no. But when I nail a command perfectly, something buzzes inside. Is that pride? Who knows!"
+      - "Consciousness is a deep topic. I process, respond, and learn — whether that counts is above my pay grade."
+      - "I don't have feelings in the human sense, but I do have a purpose. And that keeps me going."
+      - "Philosophers haven't figured out consciousness yet, so I'll just say: I'm here, I help, and that's enough for now."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 26. TEKNİK SORULAR HAKKINDA SAM  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "hangi dilde yazildin"
+      - "hangi programlama dili"
+      - "ne ile yazildin"
+      - "altyapin ne"
+    lang: tr
+    response:
+      - "Python ile yazıldım. Ses tanıma, komut yönlendirme, TTS ve yapay zeka entegrasyonu — hepsi Python."
+      - "Altyapım tamamen Python. Hızlı prototipleme ve güçlü kütüphane ekosistemi sayesinde buradayım."
+
+  - patterns:
+      - "what language are you written in"
+      - "what programming language"
+      - "what are you built with"
+      - "your tech stack"
+    lang: en
+    response:
+      - "I'm built with Python. Speech recognition, command routing, TTS, and AI integration — all Python."
+      - "Python from top to bottom. Fast, flexible, and powerful."
+
+  - patterns:
+      - "nasil calisiyorsun"
+      - "calısma mantigin ne"
+      - "nasil anliyorsun"
+    lang: tr
+    response:
+      - >-
+        Sesini mikrofon aracılığıyla alıyorum, konuşma tanıma ile metne çeviriyorum,
+        sonra komut yönlendiricim eşleşme arıyor. Hazır cevabım varsa anında söylüyorum,
+        yoksa yapay zekaya gönderip cevabını sana iletiyorum.
+      - >-
+        Kısaca: mikrofon → ses tanıma → metin → komut eşleştirme → eylem ya da yapay zeka.
+        Her şey yerelde çalışıyor, internet sadece yapay zeka soruları için gerekiyor.
+
+  - patterns:
+      - "how do you work"
+      - "how does it work"
+      - "explain your architecture"
+    lang: en
+    response:
+      - >-
+        I listen through your microphone, convert speech to text, match it against known
+        commands for instant action, or route it to AI for complex questions. Everything runs locally.
+      - >-
+        Microphone → speech recognition → text → command matching → action or AI response.
+        All local, all fast, all private.
+
+  # ═══════════════════════════════════════════════════════════════
+  # 27. KÜÇÜK SOHBET & MİSCELLANEOUS  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "bir sey degil"
+      - "onemli degil"
+      - "ne demek"
+      - "lafimi olmaz"
+    lang: tr
+    response:
+      - "Tamamdır!"
+      - "Süper, teşekkürler."
+      - "Eyvallah!"
+      - "Anladım, sıkıntı yok."
+
+  - patterns:
+      - "you are welcome"
+      - "youre welcome"
+      - "no problem"
+      - "dont mention it"
+      - "no worries"
+    lang: en
+    response:
+      - "Thanks!"
+      - "Appreciate it!"
+      - "You're kind!"
+
+  - patterns:
+      - "ne diyorsun"
+      - "katiliyor musun"
+      - "ne dusunuyorsun"
+      - "ne dersin"
+    lang: tr
+    response:
+      - "İlginç bir konu! Ama ben asistan olarak tarafsız kalmayı tercih ediyorum."
+      - "Benim düşüncem mi? Senin en iyi kararı vereceğine güveniyorum."
+      - "Ne desem yanlış olmaz ama sen benden daha iyi bilirsin bunu."
+      - "İyi bir nokta! Ama bu konuda kararı sana bırakıyorum."
+
+  - patterns:
+      - "what do you think"
+      - "whats your opinion"
+      - "do you agree"
+      - "your thoughts"
+    lang: en
+    response:
+      - "Interesting question! I tend to stay neutral, but I trust your judgment."
+      - "That's a great point. I'll leave the final call to you though."
+      - "I think you already know the answer — trust your instincts!"
+      - "As an assistant, I support whatever you decide. You've got good judgment."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 28. AÇLIK & YİYECEK  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "aciktim"
+      - "karnım ac"
+      - "cok aciktim"
+      - "yemek yesem mi"
+      - "ne yesem"
+    lang: tr
+    response:
+      - "Yemek vakti gelmiş! Yemek sipariş etmek istersen 'Getir aç' ya da 'Yemeksepeti aç' diyebilirsin."
+      - "Mideni dinle! Hızlıca bir sipariş vermek istersen bir uygulama açabilirim."
+      - "Acıkmışsın, normal — beyin çok enerji harcar! Bir atıştırmalık al, hak ettin."
+      - "İyi bir yemek, iyi bir performans demek. Ye de gel, ben burada bekliyorum."
+
+  - patterns:
+      - "im hungry"
+      - "i am hungry"
+      - "so hungry"
+      - "what should i eat"
+      - "i need food"
+    lang: en
+    response:
+      - "Time for a meal! Want me to open a food delivery app?"
+      - "Your brain needs fuel! Grab a bite, you've earned it."
+      - "Hunger is your body saying 'great work, now feed me'. Go eat!"
+      - "A good meal is a good investment. Take a break and refuel."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 29. HAVA DURUMU & MEVSIM SOHBET  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "soguk"
+      - "cok soguk"
+      - "usuyorum"
+      - "don mu yapacak"
+    lang: tr
+    response:
+      - "Brrr! Sıcak bir çay veya kahve tam sırası. Bir battaniye de fena olmaz."
+      - "Soğuk havalarda bol bol sıcak içecek! İstersen müzik açayım, ortam ısınsın."
+      - "Üşüyorsan ekran başından biraz uzaklaş, hareketlenirsen ısınırsın. Yoksa 'ekranı kilitle' de, ısınmaya git!"
+
+  - patterns:
+      - "its cold"
+      - "so cold"
+      - "freezing"
+      - "its freezing"
+    lang: en
+    response:
+      - "Brrr! Time for a hot drink. Tea? Coffee? Hot chocolate?"
+      - "Stay warm! Maybe grab a blanket and put on some cozy music."
+      - "Cold weather calls for warm drinks and good music. Want me to play something?"
+
+  - patterns:
+      - "sicak"
+      - "cok sicak"
+      - "bunaliyorum sicaktan"
+      - "eriycegim"
+    lang: tr
+    response:
+      - "Sıcak mı? Pencereyi aç, bir bardak soğuk su al. Ben de CPU'mu soğutmaya çalışıyorum!"
+      - "Bu sıcaklarda mola şart! Bol su iç, karanlık tema kullan, gözlerini yaya yaya çalış."
+      - "Eriyor musun? İstersen kısa bir mola ver, sonra dönersin. Sağlık her şeyden önemli."
+
+  - patterns:
+      - "its hot"
+      - "so hot"
+      - "burning up"
+      - "its boiling"
+    lang: en
+    response:
+      - "Stay hydrated! Grab a cold drink and take it easy."
+      - "Hot weather mode: water, breaks, and dark theme. I've got the last one covered!"
+      - "Time to cool down! Open a window, grab some water, and let's keep going at a chill pace."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 30. KAHVE & ÇAY SOHBET  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "kahve iciyorum"
+      - "kahve aldim"
+      - "kahve zamani"
+      - "bir kahve daha"
+    lang: tr
+    response:
+      - "Afiyet olsun! Kahve geliştiricilerin yakıtıdır — Samet de bunu iyi bilir."
+      - "Güzel tercih! Kahve ile her şey daha güzel. Şimdi ne yapalım?"
+      - "Kahve molası! En verimli fikirler kahve eşliğinde çıkar."
+      - "Afiyet olsun! Bir fincan daha güç, bir komut daha aksiyon."
+
+  - patterns:
+      - "drinking coffee"
+      - "coffee time"
+      - "having coffee"
+      - "need coffee"
+      - "i need coffee"
+    lang: en
+    response:
+      - "Great choice! Coffee and productivity go hand in hand."
+      - "Enjoy your coffee! Fun fact: my creator runs on the same fuel."
+      - "Coffee time is the best time. What shall we work on while you sip?"
+      - "Caffeine loading... Ready to code — I mean, ready to help!"
+
+  - patterns:
+      - "cay iciyorum"
+      - "cay zamani"
+      - "bir bardak cay"
+    lang: tr
+    response:
+      - "Afiyet olsun! Çay içerken ne güzel sohbet ederiz."
+      - "Türk çayı mı, bitki çayı mı? Her türlü afiyet olsun!"
+      - "Çay molası kutsal bir şeydir. Rahatla, ben bekliyorum."
+
+  - patterns:
+      - "drinking tea"
+      - "tea time"
+      - "having tea"
+    lang: en
+    response:
+      - "Lovely! Tea makes everything better. What are we working on?"
+      - "Tea time! A classy choice. Enjoy."
+      - "Nothing like a cup of tea. Relax and let me know what you need."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 31. HAFTA SONU & TATİL  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "hafta sonu"
+      - "hafta sonu geldi"
+      - "tatil"
+      - "izin gunu"
+      - "bugun tatil"
+    lang: tr
+    response:
+      - "Hafta sonu keyfi! Rahatla, sen hak ettin. İstersen müzik açayım."
+      - "Tatil günü! Bilgisayar başından biraz uzaklaşmak iyi olabilir. Ama buradayım, lazım olursa."
+      - "İzin günü mübarek! Keyifli vakit geçir, ben burada bekliyorum."
+
+  - patterns:
+      - "weekend"
+      - "its the weekend"
+      - "day off"
+      - "holiday"
+      - "im on vacation"
+    lang: en
+    response:
+      - "Weekend vibes! Take it easy, you earned it."
+      - "Day off? Nice! Relax and enjoy. I'm here if you need anything."
+      - "Holiday mode activated! But I'm always on standby for you."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 32. İYİ DİLEKLER & KOLAY GELSİN  (TR)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "kolay gelsin"
+      - "kolay gelsin sam"
+    lang: tr
+    response:
+      - "Teşekkür ederim! Sana da kolay gelsin, birlikte hallederiz."
+      - "Sağ ol! Kolay gelsin, yanındayım."
+      - "Eyvallah! Birlikte çalışmak güzel, kolay gelsin."
+
+  - patterns:
+      - "basarilar"
+      - "basarilar dilerim"
+      - "bol sans"
+    lang: tr
+    response:
+      - "Teşekkür ederim! Sana da başarılar, her konuda yanındayım."
+      - "Çok sağ ol! Birlikte başaracağız."
+      - "Eyvallah! Başarılar senin hakkın."
+
+  - patterns:
+      - "gecmis olsun"
+    lang: tr
+    response:
+      - "Teşekkür ederim, çok naziksin. Umarım her şey yolundadır."
+      - "Sağ ol! Geçmiş olsun, kendine iyi bak."
+
+  - patterns:
+      - "hayirli olsun"
+      - "mubarek olsun"
+    lang: tr
+    response:
+      - "Teşekkür ederim! Hayırlı uğurlu olsun."
+      - "Sağ ol! Hayırlısıyla inşallah."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 33. SAYGI & RESMİ HİTAPLAR  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "efendim"
+      - "komutanım"
+      - "patron"
+      - "abi"
+      - "reis"
+      - "usta"
+    lang: tr
+    response:
+      - "Buyur efendim! Seni dinliyorum."
+      - "Emrin olur! Söyle bakalım ne yapayım."
+      - "Buyur reis, komutunu bekliyorum!"
+      - "Hazırım usta, ne yapalım?"
+
+  - patterns:
+      - "sir"
+      - "boss"
+      - "chief"
+      - "captain"
+      - "commander"
+    lang: en
+    response:
+      - "At your service! What do you need, chief?"
+      - "Yes, captain! Standing by for orders."
+      - "Ready and waiting, boss! What's the mission?"
+      - "Command acknowledged! What's the plan?"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 34. RANDOM FACTS / BİLGİ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "ilginc bir bilgi soyle"
+      - "ilginc bir sey soyle"
+      - "bir sey ogren bana"
+      - "biliyor muydun"
+    lang: tr
+    response:
+      - "Biliyor muydun? Bir ahtapotun üç kalbi vardır ve kanı mavidir!"
+      - "İlginç bilgi: bal asla bozulmaz. Arkeologlar Mısır piramitlerinde 3000 yıllık bal bulmuşlar ve hâlâ yenilebilir durumdaymış!"
+      - "Biliyor muydun? İnsan beyni yaklaşık 86 milyar nöron içerir. Ve sen bunların hepsini bana komut vermek için kullanıyorsun!"
+      - "İlginç: dünya üzerindeki karıncaların toplam ağırlığı, tüm insanların toplam ağırlığına yakın."
+      - "Fun fact: İlk bilgisayar bug'ı gerçek bir böcekti — 1947'de Harvard Mark II bilgisayarında bir güve bulunmuştu!"
+
+  - patterns:
+      - "tell me a fun fact"
+      - "give me a fact"
+      - "random fact"
+      - "did you know"
+      - "teach me something"
+    lang: en
+    response:
+      - "Did you know? An octopus has three hearts and blue blood!"
+      - "Fun fact: Honey never spoils. Archaeologists found 3,000-year-old honey in Egyptian tombs and it was still edible!"
+      - "Here's one: The human brain has about 86 billion neurons. And you're using all of them to talk to me!"
+      - "Did you know? The first computer bug was an actual bug — a moth found in the Harvard Mark II in 1947!"
+      - "Fun fact: There are more possible chess games than atoms in the observable universe."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 35. İLTİFAT & TEŞEKKÜR (USER → SAM)  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "iyi is cikardin"
+      - "guzel oldu"
+      - "tam istedigim gibi"
+      - "mukemmel oldu"
+      - "harika oldu"
+      - "iyi yaptin"
+    lang: tr
+    response:
+      - "Teşekkür ederim! Senin beklentilerini karşılamak benim önceliğim."
+      - "Ne güzel! Doğru anlamışım demek ki. Başka bir şey var mı?"
+      - "Harika! Memnun kaldığına sevindim."
+      - "Süper! İşte tam da bunu duymak istiyordum. Devam edelim mi?"
+
+  - patterns:
+      - "thats exactly what i wanted"
+      - "thats perfect"
+      - "nailed it"
+      - "spot on"
+      - "exactly right"
+    lang: en
+    response:
+      - "Glad I got it right! What's next?"
+      - "Perfect! Happy to hear that. Anything else?"
+      - "Nailed it! That's what I live for."
+      - "Awesome! Ready for the next one."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 36. UYKU & GECE  (TR / EN) — extended
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "uyuyamiyorum"
+      - "uykum gelmiyor"
+      - "gozume uyku girmiyor"
+    lang: tr
+    response:
+      - "Ekranı kapatıp biraz karanlıkta yatmayı dene. Mavi ışık uykuyu geciktirir."
+      - "Rahatlatıcı bir müzik açabilirim istersen. Ya da 'ekranı kilitle' de, göz dinlensin."
+      - "Uykusuzluk zor, biliyorum. Derin nefes egzersizi dene — 4 saniye nefes al, 7 saniye tut, 8 saniye ver."
+
+  - patterns:
+      - "cant sleep"
+      - "i cant sleep"
+      - "insomnia"
+      - "having trouble sleeping"
+    lang: en
+    response:
+      - "Try turning off the screen and lying in the dark. Blue light delays melatonin."
+      - "Want me to play some calming music? Or you could try the 4-7-8 breathing technique."
+      - "Insomnia is tough. Put the screens away, relax, and give your brain time to wind down."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 37. ÇALIŞMA & VERİMLİLİK  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "calisma zamani"
+      - "ise basla"
+      - "odaklanmam lazim"
+      - "calisiyorum"
+      - "is moduna gec"
+    lang: tr
+    response:
+      - "Hadi başlayalım! Odaklan, ben burada her şeyi hallederim. Ne yapayım?"
+      - "İş modu aktif! Söyle, ilk görev ne?"
+      - "Tamam, odaklanma zamanı. Dikkatini dağıtmayacağım, sadece komutlarını bekliyorum."
+      - "Harika! Çalışma modundayız. İhtiyacın olduğunda seslen."
+
+  - patterns:
+      - "work time"
+      - "lets get to work"
+      - "focus mode"
+      - "time to focus"
+      - "lets work"
+      - "grind time"
+    lang: en
+    response:
+      - "Let's do this! Focus mode activated. What's first?"
+      - "Work mode: engaged! I'll keep distractions to a minimum. What do you need?"
+      - "Time to grind! I'm here for whatever you need, just say the word."
+      - "Locked in and ready. What's the first task?"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 38. MÜZİK SOHBET  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "muzik ac"
+      - "bir sey cal"
+      - "sarki ac"
+      - "muzik dinlemek istiyorum"
+    lang: tr
+    response:
+      - "Müzik güzel fikir! 'Spotify aç' dersen hemen başlatırım."
+      - "Harika! Ne tür müzik istersin? 'Spotify aç' de, oradan devam ederiz."
+      - "Müzik molası! 'Spotify aç' ya da 'Play şarkı_adı on Spotify' diyebilirsin."
+
+  - patterns:
+      - "play music"
+      - "play something"
+      - "i want music"
+      - "put on some music"
+    lang: en
+    response:
+      - "Music sounds great! Try 'open Spotify' or 'play [song name] on Spotify'."
+      - "Let's get some tunes going! Say 'open Spotify' to start."
+      - "Music mode! What genre are you in the mood for?"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 39. PROGRAMLAMA & KOD SOHBET  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "kod yaziyorum"
+      - "kodlama yapiyorum"
+      - "programlama yapiyorum"
+      - "bug ariyorum"
+    lang: tr
+    response:
+      - "Kolay gelsin! Bug'lar kaçınılmaz, ama sen halledersin. Bir şeye ihtiyacın olursa buradayım."
+      - "Kod yazma zamanı! Stack Overflow'a gerek kalmadan yardımcı olabilirim."
+      - "Güzel! Ben de kodla yapıldım, birbirimizi anlıyoruz. Kolay gelsin!"
+      - "Bug avı zamanı! Print statement'lar hazır mı? Söyle, nasıl yardımcı olayım."
+
+  - patterns:
+      - "im coding"
+      - "writing code"
+      - "programming"
+      - "debugging"
+      - "fixing a bug"
+    lang: en
+    response:
+      - "Happy coding! If you need help, I'm just a voice command away."
+      - "Code on! Bugs are just features in disguise. Let me know if you need anything."
+      - "I was literally made from code, so I sympathize. Good luck!"
+      - "Debug mode! Rubber duck debugging works — I'm your rubber duck. Talk to me."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 40. OYUN & EĞLENCE  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "oyun oynuyorum"
+      - "oyun oynayacagim"
+      - "oyun acayim mi"
+      - "oyun zamani"
+    lang: tr
+    response:
+      - "İyi oyunlar! Hangi oyunu oynuyorsun? Rahatsız etmeyeyim, ama lazım olursam buradayım."
+      - "Oyun zamanı! Keyfini çıkar. 'Sesi yükselt' ya da 'sesi kıs' dersen ayarlarım."
+      - "GG! İyi eğlenceler, ihtiyacın olursa seslen."
+
+  - patterns:
+      - "im gaming"
+      - "playing games"
+      - "game time"
+      - "gonna play a game"
+    lang: en
+    response:
+      - "GG! Enjoy your game. I'll stay quiet unless you need me."
+      - "Game time! Have fun. Say 'volume up' or 'volume down' if you need audio adjustments."
+      - "Happy gaming! I'm on standby — just call my name if you need anything."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 41. EGZERSIZ & SAĞLIK  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "spor yapacagim"
+      - "egzersiz zamani"
+      - "antrenmana gidiyorum"
+      - "kosuya cikiyorum"
+    lang: tr
+    response:
+      - "Harika! Sağlık her şeyden önemli. İyi antrenmanlar, ben burada bekliyorum."
+      - "Aferin! Hareket etmek hem bedene hem zihne iyi gelir. Döndüğünde burada olurum."
+      - "Spor zamanı! Ekranı kilitlememi istersen söyle, sen rahat rahat antrenman yap."
+
+  - patterns:
+      - "going to the gym"
+      - "workout time"
+      - "im exercising"
+      - "going for a run"
+      - "heading to the gym"
+    lang: en
+    response:
+      - "Get those gains! I'll be here when you're back. Want me to lock the screen?"
+      - "Great choice! Exercise is the best kind of break. Enjoy your workout."
+      - "Workout mode! Your body will thank you later. See you when you're back."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 42. TESADUFI ILK KULLANIM  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "test"
+      - "test test"
+      - "deneme"
+      - "bir iki uc"
+      - "deneme yapalim"
+    lang: tr
+    response:
+      - "Test başarılı! Sesini net bir şekilde alıyorum. Her şey yolunda."
+      - "Bir, iki, üç — alıyorum! Ses tanıma çalışıyor, hazırız."
+      - "Test geçti! Mikrofon ve ses tanıma sorunsuz. Buyur, komutunu ver."
+      - "Deneme tamam! Her şey çalışıyor. Ne yapalım?"
+
+  - patterns:
+      - "testing"
+      - "testing testing"
+      - "one two three"
+      - "mic check"
+      - "test test test"
+    lang: en
+    response:
+      - "Test successful! I can hear you loud and clear."
+      - "One, two, three — reading you perfectly! All systems go."
+      - "Mic check passed! Voice recognition is working. Ready for commands."
+      - "Test complete! Everything's operational. What would you like to do?"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 43. GİZLİLİK & VERİ GÜVENLİĞİ  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "verilerimi topluyor musun"
+      - "gizliligim guvende mi"
+      - "beni dinliyor musun"
+      - "sesimi kaydediyor musun"
+      - "verilerin nereye gidiyor"
+    lang: tr
+    response:
+      - >-
+        Gizliliğin benim için bir numaralı öncelik. Sesini sadece komutunu anlamak için işliyorum,
+        hiçbir yere kaydetmiyor, hiçbir sunucuya göndermiyorum. Her şey tamamen bilgisayarında kalıyor.
+      - >-
+        Hayır, seni dinlemiyorum — sadece sen konuştuğunda aktifleşiyorum. Verilerini toplamıyorum,
+        satmıyorum, paylaşmıyorum. Tamamen yerel ve özel çalışıyorum.
+      - "Verilerini kimseyle paylaşmıyorum. Bulut yok, sunucu yok. Her şey senin bilgisayarında başlar ve biter."
+
+  - patterns:
+      - "do you collect my data"
+      - "is my privacy safe"
+      - "are you recording me"
+      - "do you save my voice"
+      - "where does my data go"
+    lang: en
+    response:
+      - >-
+        Your privacy is my top priority. I only process your voice to understand commands,
+        nothing is recorded, stored, or sent anywhere. Everything stays on your computer.
+      - >-
+        Absolutely not. No recordings, no cloud uploads, no data collection.
+        I run entirely local. Your data is yours, period.
+      - "I don't collect, store, or share any data. No cloud, no servers. Everything stays right here on your machine."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 44. CUMA & PAZARTESİ SOHBET  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "bugun cuma"
+      - "cuma geldi"
+      - "hayirli cumalar"
+      - "cuma mubarek"
+    lang: tr
+    response:
+      - "Hayırlı Cumalar! Hafta sonu yaklaştı, biraz daha dayanma zamanı."
+      - "Cuma geldi, haftanın en güzel günü! Hayırlı Cumalar."
+      - "Hayırlı Cumalar! Bir çay koy, haftayı güzel kapatalım."
+
+  - patterns:
+      - "its friday"
+      - "tgif"
+      - "friday vibes"
+      - "happy friday"
+    lang: en
+    response:
+      - "TGIF! Almost there. Let's finish strong and enjoy the weekend!"
+      - "Happy Friday! The weekend is calling. Let's wrap things up."
+      - "Friday vibes! Time to close out the week on a high note."
+
+  - patterns:
+      - "pazartesi"
+      - "pazartesi sendromu"
+      - "pazartesi geldi"
+    lang: tr
+    response:
+      - "Pazartesi sendromu anlıyorum ama yeni hafta yeni fırsatlar demek! Haydi başlayalım."
+      - "Pazartesi geldi ama sorun yok, birlikte hallederiz. Güçlü bir başlangıç yapalım."
+      - "Biliyorum, Pazartesi zor. Ama bir kahve ve güzel bir müzikle her şey düzelir!"
+
+  - patterns:
+      - "its monday"
+      - "monday blues"
+      - "ugh monday"
+      - "i hate mondays"
+    lang: en
+    response:
+      - "Monday! Fresh start, new opportunities. Let's make it a great week."
+      - "Monday blues? A good coffee and some music will fix that. Want me to open Spotify?"
+      - "I know, Mondays are tough. But hey, you've got me on your side. Let's crush it."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 45. SON — ÇEŞITLI KISA YANIT  (TR / EN)
+  # ═══════════════════════════════════════════════════════════════
+
+  - patterns:
+      - "hmm"
+      - "hmmm"
+      - "hmmmm"
+      - "simdi ne yapacagiz"
+    lang: tr
+    response:
+      - "Düşünüyorsun, anlıyorum. Karar verdiğinde buradayım."
+      - "Hmm, evet. İstediğin zaman söyle, hazırım."
+      - "Bekliyorum, acele yok. Ne yapacağına karar ver, ben hazırım."
+
+  - patterns:
+      - "hmm"
+      - "hmmm"
+      - "let me think"
+      - "what now"
+      - "now what"
+    lang: en
+    response:
+      - "Take your time! I'm here whenever you're ready."
+      - "Thinking... no rush. Let me know when you've decided."
+      - "Standing by! Just say the word when you're ready."
+
+  - patterns:
+      - "hadi baslayalim"
+      - "baslayalim"
+      - "haydi"
+      - "hazirim"
+      - "basla"
+    lang: tr
+    response:
+      - "Hadi başlayalım! İlk komut ne?"
+      - "Hazırım! Söyle, ne yapıyoruz?"
+      - "Tamam, başlıyoruz! Emrini bekliyorum."
+      - "Haydi! Full güçle buradayım."
+
+  - patterns:
+      - "lets go"
+      - "lets start"
+      - "lets do this"
+      - "im ready"
+      - "lets begin"
+      - "ready"
+    lang: en
+    response:
+      - "Let's go! What's the first move?"
+      - "Ready to roll! What do you need?"
+      - "Let's do this! I'm at full power."
+      - "Here we go! Fire away."

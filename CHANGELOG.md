@@ -6,7 +6,7 @@ All notable changes to **SAM** are documented in this file.
 
 <img src="https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-e05735?style=flat-square" alt="Keep a Changelog">
 <img src="https://img.shields.io/badge/SemVer-2.0.0-3776AB?style=flat-square" alt="Semantic Versioning">
-<img src="https://img.shields.io/badge/Current-v0.4.5-22c55e?style=flat-square" alt="Current version">
+<img src="https://img.shields.io/badge/Current-v0.4.6-22c55e?style=flat-square" alt="Current version">
 
 </div>
 
@@ -22,6 +22,7 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 | Version | Date | Highlight |
 |:---|:---|:---|
 | [Unreleased](#unreleased) | — | Screen/clipboard awareness, plugin system |
+| [0.4.6](#046---2026-08-13) | 2026-08-13 | ✏️ Editable instant responses & a rebuilt settings window |
 | [0.4.5](#045---2026-08-13) | 2026-08-13 | 🚀 Instant predefined responses & zero-LLM command dispatch |
 | [0.4.4](#044---2026-08-13) | 2026-08-13 | ⚡ Real-time speech transcription & bilingual command routing fixes |
 | [0.4.3](#043---2026-08-12) | 2026-08-12 | 🎯 Fenerbahçe RAG accuracy fixes (multilingual embeddings, strict grounding) |
@@ -38,6 +39,39 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 Tracked in [ROADMAP.md](ROADMAP.md) — screen/clipboard awareness, productivity
 features (reminders, scheduling), a plugin system, and a cross-platform command layer
 are next up.
+
+---
+
+## [0.4.6] - 2026-08-13
+
+> ✏️ **Instant responses you can actually edit, and a settings window that looks the part.**
+
+### Added
+- **Editable Instant Responses**: on first launch SAM now copies
+  `knowledge/instant_responses.yaml` into the writable data directory
+  (`%APPDATA%\SAM\knowledge\` in an installed build) and reads it from there — exactly
+  like `config.yaml`. Installed users can add or reword phrases without touching
+  Program Files and without waiting for a new build.
+- **Responses settings page**: a new sidebar page with an enable toggle, the resolved
+  file path, **Edit Responses…** (opens the YAML in your default editor), **Show
+  Folder**, and **Reload** — which re-reads the file into the running app, so edits
+  apply without restarting SAM.
+- **Live Transcription settings**: `stt.partial_model` and `stt.partial_interval_ms` are
+  now editable from the Speech page instead of `config.yaml` only.
+- **About page**: shows the real developer, a GitHub link, and the on-disk locations of
+  your config, logs and models, with an **Open Data Folder** button.
+
+### Changed
+- **Settings window redesign**: larger and resizable instead of fixed at 720×560, with a
+  header and version pill, per-page titles and descriptions, card-style sections,
+  restyled sidebar / checkboxes / scrollbars / tooltips, and a footer that states which
+  settings apply immediately. Tabs renamed for clarity (`UI` → `Appearance`).
+
+### Fixed
+- Buttons nested inside a settings page could render invisible: the scroll viewport was
+  given a selector-less stylesheet (`background: transparent;`), which Qt inherits down
+  to every child widget and which overrode their own backgrounds. The rule is now scoped
+  to the viewport itself.
 
 ---
 
@@ -263,7 +297,8 @@ are next up.
 
 </div>
 
-[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/sametgurtuna/SAM/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/sametgurtuna/SAM/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/sametgurtuna/SAM/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/sametgurtuna/SAM/compare/v0.4.2...v0.4.3
