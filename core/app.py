@@ -95,6 +95,7 @@ class AppController(QObject):
         # Recorder → STT pipeline
         self._recorder.recording_done.connect(self._on_recording_done)
         self._recorder.level_update.connect(self._on_audio_level)
+        self._recorder.partial_audio.connect(self._on_partial_audio)
 
         # STT → LLM pipeline
         self._stt.partial_transcript.connect(self._on_partial_transcript)
@@ -335,6 +336,11 @@ class AppController(QObject):
         """Receive live audio level from recorder and drive the waveform."""
         self._bar.set_level(level)
 
+    def _on_partial_audio(self, audio_data: object) -> None:
+        """Receive live audio buffer while recording and perform fast partial decoding."""
+        if self._state == AppState.LISTENING and audio_data is not None:
+            self._stt.transcribe_partial(audio_data)
+
     def _on_recording_done(self, audio_data: object) -> None:
         """Recording finished — send audio to STT."""
         if audio_data is None:
@@ -342,16 +348,15 @@ class AppController(QObject):
             self._cancel_and_reset()
             return
 
-        logger.info("Recording done — starting transcription")
+        logger.info("Recording done — starting final transcription")
         self._set_state(AppState.THINKING)
-        self._bar.set_transcript("Transcribing...")
 
         # Send to STT engine
         self._stt.transcribe(audio_data)
 
     def _on_partial_transcript(self, text: str) -> None:
-        """Live partial transcript from STT — update bar display."""
-        if self._state == AppState.THINKING:
+        """Live partial transcript from STT — update bar display in real time."""
+        if self._state in (AppState.LISTENING, AppState.THINKING):
             self._bar.set_transcript(text)
 
     # ─── Iki dilli TTS ────────────────────────────────────────────

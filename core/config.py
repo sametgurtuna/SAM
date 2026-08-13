@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.4.3",
+        "version": "0.4.4",
     },
     "hotkey": {
         "trigger": "ctrl+space",
@@ -117,10 +117,10 @@ DEFAULTS: dict[str, Any] = {
         "channels": 1,
         "dtype": "int16",
         "silence_threshold": 300,
-        # 900ms — konusma bitince cevabin baslamasi icin beklenen sure.
+        # 600ms — konusma bitince cevabin baslamasi icin beklenen sure.
         # Cok dusuk deger cumle ortasinda kesilmeye yol acabilir, gerekirse
         # config.yaml'dan kullaniciya gore ayarlanabilir.
-        "silence_duration_ms": 900,
+        "silence_duration_ms": 600,
         "max_record_seconds": 30,
     },
     "wake_word": {

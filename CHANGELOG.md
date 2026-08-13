@@ -6,7 +6,7 @@ All notable changes to **SAM** are documented in this file.
 
 <img src="https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-e05735?style=flat-square" alt="Keep a Changelog">
 <img src="https://img.shields.io/badge/SemVer-2.0.0-3776AB?style=flat-square" alt="Semantic Versioning">
-<img src="https://img.shields.io/badge/Current-v0.4.3-22c55e?style=flat-square" alt="Current version">
+<img src="https://img.shields.io/badge/Current-v0.4.4-22c55e?style=flat-square" alt="Current version">
 
 </div>
 
@@ -22,6 +22,7 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 | Version | Date | Highlight |
 |:---|:---|:---|
 | [Unreleased](#unreleased) | — | Screen/clipboard awareness, plugin system |
+| [0.4.4](#044---2026-08-13) | 2026-08-13 | ⚡ Real-time speech transcription & bilingual command routing fixes |
 | [0.4.3](#043---2026-08-12) | 2026-08-12 | 🎯 Fenerbahçe RAG accuracy fixes (multilingual embeddings, strict grounding) |
 | [0.4.2](#042---2026-08-11) | 2026-08-11 | 🧠 Intent classification, RAG, conversation modes |
 | [0.4.1](#041---2026-08-11) | 2026-08-11 | 🟢 The always-on orb, typed input, installer |
@@ -36,6 +37,20 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 Tracked in [ROADMAP.md](ROADMAP.md) — screen/clipboard awareness, productivity
 features (reminders, scheduling), a plugin system, and a cross-platform command layer
 are next up.
+
+---
+
+## [0.4.4] - 2026-08-13
+
+> ⚡ **Real-time live speech transcription & robust bilingual command routing.**
+
+### Added
+- **Live Partial Captioning**: Audio captured while speaking is decoded every ~300ms using fast greedy Whisper (`beam_size=1`) and streamed live to the UI overlay/orb in real-time.
+- **Turkish Command Support**: Complete Turkish intent coverage for media (`sonraki parça`, `şarkıyı geç`, `sıradaki`, `pas geç`), volume control (`sesi aç`, `sesi kıs`, `sessize al`), system actions (`ekranı kilitle`, `ekran görüntüsü al`), and application management (`chrome aç`, `spotify kapat`).
+
+### Fixed
+- **Command Router Matching**: Stripped conversational fluff (`hey sam`, `please`, `lütfen`) and flexible phrase matching to prevent system commands like `"next track please"` or `"sonraki parçaya geç"` from falling through to the LLM.
+- **Latency & Turnaround**: Tuned default silence detection duration from 900ms to 600ms for faster post-speech response.
 
 ---
 

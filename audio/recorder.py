@@ -31,6 +31,8 @@ class Recorder(QObject):
     recording_done = pyqtSignal(object)
     # Signal: live audio level for waveform (0.0–1.0 normalized)
     level_update = pyqtSignal(float)
+    # Signal: live partial audio chunk for real-time transcription (numpy array)
+    partial_audio = pyqtSignal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -38,7 +40,7 @@ class Recorder(QObject):
         self._sample_rate: int = config.get("audio", "sample_rate", default=16000)
         self._channels: int = config.get("audio", "channels", default=1)
         self._silence_threshold: int = config.get("audio", "silence_threshold", default=500)
-        self._silence_duration_ms: int = config.get("audio", "silence_duration_ms", default=800)
+        self._silence_duration_ms: int = config.get("audio", "silence_duration_ms", default=600)
         self._max_record_seconds: int = config.get("audio", "max_record_seconds", default=30)
 
         # Chunk size — 100ms of audio per read
@@ -115,6 +117,11 @@ class Recorder(QObject):
                     else:
                         silent_chunks = 0
                         has_speech = True
+
+                    # Emit live audio buffer every ~300ms during speech for instant live transcription
+                    if has_speech and total_chunks % 3 == 0 and len(audio_chunks) >= 3:
+                        partial_buffer = np.concatenate(audio_chunks, axis=0)
+                        self.partial_audio.emit(partial_buffer)
 
                     # End recording if we've heard speech and then silence
                     if has_speech and silent_chunks >= self._silence_chunks_needed:

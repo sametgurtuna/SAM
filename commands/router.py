@@ -127,9 +127,12 @@ class CommandRouter:
         return None
 
     def _clean_text(self, text: str) -> str:
-        """Gereksiz bosluk ve noktalama temizle."""
+        """Gereksiz bosluk, noktalama ve dolgu kelimeleri temizle."""
         # Noktalama kaldir
         text = re.sub(r'[.,!?;:\'"]+', '', text)
+        # Dolgu / nezaket kelimelerini ve samet/sam ses hitaplarini temizle
+        text = re.sub(r'^(?:hey\s+sam|sam|please|lütfen|lutfen|can\s+you|bana)\s+', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+(?:please|lütfen|lutfen)$', '', text, flags=re.IGNORECASE)
         # Coklu bosluk temizle
         text = re.sub(r'\s+', ' ', text).strip()
         return text
@@ -139,55 +142,7 @@ class CommandRouter:
         patterns = []
 
         # ═══════════════════════════════════════════════════════
-        # UYGULAMA ACMA
-        # ═══════════════════════════════════════════════════════
-
-        # "open spotify", "open google chrome"
-        patterns.append((
-            re.compile(r'\b(?:open|launch|start|run)\s+(.+)', re.IGNORECASE),
-            lambda m: system.open_app(m.group(1).strip())
-        ))
-
-        # ═══════════════════════════════════════════════════════
-        # UYGULAMA KAPATMA
-        # ═══════════════════════════════════════════════════════
-
-        # "close spotify", "quit chrome"
-        patterns.append((
-            re.compile(r'\b(?:close|quit|exit|kill)\s+(.+)', re.IGNORECASE),
-            lambda m: system.close_app(m.group(1).strip())
-        ))
-
-        # ═══════════════════════════════════════════════════════
-        # SES KONTROLU
-        # ═══════════════════════════════════════════════════════
-
-        # Volume up
-        patterns.append((
-            re.compile(r'\b(?:volume up|turn up|louder)(?:\s+%?(\d+))?\b', re.IGNORECASE),
-            lambda m: system.volume_up(int(m.group(1))) if m.group(1) else system.volume_up()
-        ))
-
-        # Volume down
-        patterns.append((
-            re.compile(r'\b(?:volume down|turn down|quieter)(?:\s+%?(\d+))?\b', re.IGNORECASE),
-            lambda m: system.volume_down(int(m.group(1))) if m.group(1) else system.volume_down()
-        ))
-
-        # Set absolute volume
-        patterns.append((
-            re.compile(r'\b(?:set volume|volume to)\s+(?:to\s+)?%?(\d+)%?\b', re.IGNORECASE),
-            lambda m: system.set_volume_absolute(int(m.group(1)))
-        ))
-
-        # Mute
-        patterns.append((
-            re.compile(r'\b(?:mute|unmute|toggle mute)\b', re.IGNORECASE),
-            lambda m: system.volume_mute()
-        ))
-
-        # ═══════════════════════════════════════════════════════
-        # MEDYA KONTROLU
+        # MEDYA KONTROLU (EN + TR)
         # ═══════════════════════════════════════════════════════
 
         # Play X on Spotify
@@ -196,90 +151,176 @@ class CommandRouter:
             lambda m: system.play_on_spotify(m.group(1).strip())
         ))
 
-        # Play/Pause — tam eslesme sart, yoksa "play some music for me"
-        # gibi LLM'e gitmesi gereken cumleler medya tusuna basiyor.
-        patterns.append((
-            re.compile(r'^(?:play|pause|resume)$', re.IGNORECASE),
-            lambda m: system.media_play_pause()
-        ))
-
         # Next track
         patterns.append((
-            re.compile(r'^(?:next|next track|next song|skip)$', re.IGNORECASE),
+            re.compile(
+                r'^(?:(?:play|go\s+to|skip\s+to|oynat|geç|gec)\s+)?'
+                r'(?:next|next\s+track|next\s+song|skip|skip\s+song|'
+                r'sonraki|sonraki\s+parça|sonraki\s+parca|sonraki\s+şarkı|sonraki\s+sarki|'
+                r'sıradaki|siradaki|sıradaki\s+parça|sıradaki\s+şarkı|şarkıyı\s+geç|sarkiyi\s+gec|'
+                r'geç|gec|pas\s+geç|pas\s+gec|bir\s+sonraki)'
+                r'(?:\s+(?:parçaya|parcaya|şarkıya|sarkiya|track|song|please|lütfen|lutfen))?'
+                r'(?:\s+(?:geç|gec))?$',
+                re.IGNORECASE
+            ),
             lambda m: system.media_next()
         ))
 
         # Previous track
         patterns.append((
-            re.compile(r'^(?:previous|prev|previous track|previous song|go back)$', re.IGNORECASE),
+            re.compile(
+                r'^(?:(?:play|go\s+to|oynat)\s+)?'
+                r'(?:previous|prev|previous\s+track|previous\s+song|go\s+back|'
+                r'önceki|onceki|önceki\s+parça|onceki\s+parca|önceki\s+şarkı|onceki\s+sarki|'
+                r'bir\s+önceki|öncekine\s+geç|oncekine\s+gec)'
+                r'(?:\s+(?:parçaya|parcaya|şarkıya|sarkiya|track|song))?'
+                r'(?:\s+(?:geç|gec))?$',
+                re.IGNORECASE
+            ),
             lambda m: system.media_prev()
         ))
 
-        # ═══════════════════════════════════════════════════════
-        # WEB ARAMA
-        # ═══════════════════════════════════════════════════════
-
-        # "search for X", "google X"
+        # Play/Pause
         patterns.append((
-            re.compile(r'\b(?:search|search for|google|look up)\s+(.+)', re.IGNORECASE),
-            lambda m: system.web_search(m.group(1).strip())
-        ))
-
-        # "go to youtube.com"
-        patterns.append((
-            re.compile(r'\b(?:go to|open|navigate to)\s+([\w.-]+\.(?:com|org|net|io|dev|co))\b', re.IGNORECASE),
-            lambda m: system.open_url(m.group(1).strip())
+            re.compile(
+                r'^(?:play|pause|resume|stop|oynat|durdur|duraklat|devam\s+et|müziği\s+durdur|muzigi\s+durdur|müziği\s+başlat|muzigi\s+baslat)$',
+                re.IGNORECASE
+            ),
+            lambda m: system.media_play_pause()
         ))
 
         # ═══════════════════════════════════════════════════════
-        # SISTEM KOMUTLARI
+        # SES KONTROLU (EN + TR)
         # ═══════════════════════════════════════════════════════
 
-        # Lock screen — sadece "lock" tek basina veya nesnesiyle birlikte.
-        # Yalin \block\b "unlock the door" gibi cumlelerde de eslesiyordu.
+        # Volume up
         patterns.append((
-            re.compile(r'^lock(?:\s+(?:the\s+)?(?:screen|computer|pc|workstation))?$', re.IGNORECASE),
+            re.compile(
+                r'\b(?:volume\s+up|turn\s+up|louder|increase\s+volume|sesi\s+aç|sesi\s+ac|sesi\s+yükselt|sesi\s+yukselt|sesi\s+artır|sesi\s+arttir)(?:\s+%?(\d+))?\b',
+                re.IGNORECASE
+            ),
+            lambda m: system.volume_up(int(m.group(1))) if m.group(1) else system.volume_up()
+        ))
+
+        # Volume down
+        patterns.append((
+            re.compile(
+                r'\b(?:volume\s+down|turn\s+down|quieter|decrease\s+volume|sesi\s+kıs|sesi\s+kis|sesi\s+azalt|sesi\s+düşür|sesi\s+dusur)(?:\s+%?(\d+))?\b',
+                re.IGNORECASE
+            ),
+            lambda m: system.volume_down(int(m.group(1))) if m.group(1) else system.volume_down()
+        ))
+
+        # Set absolute volume
+        patterns.append((
+            re.compile(r'\b(?:set\s+volume|volume\s+to|sesi\s+seviyesini)\s+(?:to\s+)?%?(\d+)%?\b', re.IGNORECASE),
+            lambda m: system.set_volume_absolute(int(m.group(1)))
+        ))
+
+        # Mute / Unmute
+        patterns.append((
+            re.compile(r'\b(?:mute|unmute|toggle\s+mute|sesi\s+kapat|sessiz|sessize\s+al)\b', re.IGNORECASE),
+            lambda m: system.volume_mute()
+        ))
+
+        # ═══════════════════════════════════════════════════════
+        # SISTEM KOMUTLARI (EN + TR)
+        # ═══════════════════════════════════════════════════════
+
+        # Lock screen
+        patterns.append((
+            re.compile(
+                r'^(?:lock(?:\s+(?:the\s+)?(?:screen|computer|pc|workstation))?|ekranı\s+kilitle|ekrani\s+kilitle|kilitle)$',
+                re.IGNORECASE
+            ),
             lambda m: system.lock_screen()
         ))
 
         # Screenshot
         patterns.append((
-            re.compile(r'^(?:take a |take )?(?:screenshot|screen shot)$', re.IGNORECASE),
+            re.compile(
+                r'^(?:take\s+a\s+|take\s+)?(?:screenshot|screen\s+shot)|ekran\s+görüntüsü\s+al|ekran\s+goruntusu\s+al|ekran\s+görüntüsü|ekran\s+goruntusu$',
+                re.IGNORECASE
+            ),
             lambda m: system.screenshot()
         ))
 
         # Minimize all
         patterns.append((
-            re.compile(r'\b(?:minimize all|show desktop)\b', re.IGNORECASE),
+            re.compile(r'\b(?:minimize\s+all|show\s+desktop|masaüstünü\s+göster|masaustunu\s+goster)\b', re.IGNORECASE),
             lambda m: system.minimize_all()
         ))
 
-        # Cancel shutdown — shutdown/restart desenlerinden ONCE gelmeli,
-        # aksi halde "cancel shutdown" once kapatma olarak eslesir.
+        # Cancel shutdown
         patterns.append((
-            re.compile(r'\b(?:cancel|abort|stop)\s+(?:the\s+)?(?:shutdown|shut down|restart|reboot)\b', re.IGNORECASE),
+            re.compile(r'\b(?:cancel|abort|stop|iptal\s+et)\s+(?:the\s+)?(?:shutdown|shut\s+down|restart|reboot|kapatma)\b', re.IGNORECASE),
             lambda m: system.cancel_shutdown()
         ))
 
         # Guc islemi onayi
         patterns.append((
-            re.compile(r'^(?:confirm|yes confirm|confirm it|do it)$', re.IGNORECASE),
+            re.compile(r'^(?:confirm|yes\s+confirm|confirm\s+it|do\s+it|onayla|evet\s+onayla)$', re.IGNORECASE),
             lambda m: system.confirm_power_action()
         ))
 
-        # Shutdown — nesne zorunlu ("shut down chrome" degil, PC kapatma)
+        # Shutdown
         patterns.append((
-            re.compile(r'^(?:shut ?down|power off|turn off)\s+(?:the\s+|my\s+)?(?:computer|pc|machine|system|laptop)$',
-                       re.IGNORECASE),
+            re.compile(
+                r'^(?:shut\s*down|power\s+off|turn\s+off)\s+(?:the\s+|my\s+)?(?:computer|pc|machine|system|laptop)$|^(?:bilgisayarı\s+kapat|sistemi\s+kapat)$',
+                re.IGNORECASE
+            ),
             lambda m: system.shutdown_pc()
         ))
 
-        # Restart — nesne zorunlu. Onceki yalin \brestart\b deseni
-        # "restart chrome" gibi ifadelerde bilgisayari kapatiyordu.
+        # Restart
         patterns.append((
-            re.compile(r'^(?:restart|reboot)\s+(?:the\s+|my\s+)?(?:computer|pc|machine|system|laptop)$',
-                       re.IGNORECASE),
+            re.compile(
+                r'^(?:restart|reboot)\s+(?:the\s+|my\s+)?(?:computer|pc|machine|system|laptop)$|^(?:bilgisayarı\s+yeniden\s+başlat|yeniden\s+başlat)$',
+                re.IGNORECASE
+            ),
             lambda m: system.restart_pc()
+        ))
+
+        # ═══════════════════════════════════════════════════════
+        # UYGULAMA ACMA / KAPATMA (EN + TR)
+        # ═══════════════════════════════════════════════════════
+
+        # "open spotify", "launch chrome", "aç spotify"
+        patterns.append((
+            re.compile(r'^(?:open|launch|start|run|aç|ac|başlat|baslat)\s+(.+)', re.IGNORECASE),
+            lambda m: system.open_app(m.group(1).strip())
+        ))
+        # "chrome aç", "spotify aç"
+        patterns.append((
+            re.compile(r'^(?!sesi|müziği|muzigi|ekranı|ekrani)(.+?)\s+(?:aç|ac|başlat|baslat)$', re.IGNORECASE),
+            lambda m: system.open_app(m.group(1).strip())
+        ))
+
+        # "close spotify", "quit chrome", "kapat spotify"
+        patterns.append((
+            re.compile(r'^(?:close|quit|exit|kill|kapat|durdur)\s+(.+)', re.IGNORECASE),
+            lambda m: system.close_app(m.group(1).strip())
+        ))
+        # "chrome kapat", "spotify kapat"
+        patterns.append((
+            re.compile(r'^(?!sesi|müziği|muzigi|ekranı|ekrani)(.+?)\s+(?:kapat|durdur)$', re.IGNORECASE),
+            lambda m: system.close_app(m.group(1).strip())
+        ))
+
+        # ═══════════════════════════════════════════════════════
+        # WEB ARAMA & URL
+        # ═══════════════════════════════════════════════════════
+
+        # "search for X", "google X", "X ara"
+        patterns.append((
+            re.compile(r'\b(?:search|search\s+for|google|look\s+up|ara)\s+(.+)', re.IGNORECASE),
+            lambda m: system.web_search(m.group(1).strip())
+        ))
+
+        # "go to youtube.com"
+        patterns.append((
+            re.compile(r'\b(?:go\s+to|open|navigate\s+to)\s+([\w.-]+\.(?:com|org|net|io|dev|co))\b', re.IGNORECASE),
+            lambda m: system.open_url(m.group(1).strip())
         ))
 
         return patterns

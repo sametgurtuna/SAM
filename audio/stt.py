@@ -42,17 +42,20 @@ class STTEngine(QObject):
         super().__init__()
 
         self._model_size: str = config.get("stt", "model", default="small")
-        self._language: str | None = config.get("stt", "language", default="en")
-        self._beam_size: int = config.get("stt", "beam_size", default=2)
+        self._language: str | None = config.get("stt", "language", default=None)
+        self._beam_size: int = config.get("stt", "beam_size", default=1)
         self._device: str = config.get("stt", "device", default="cpu")
         self._compute_type: str = config.get("stt", "compute_type", default="int8")
 
+        self._initial_prompt: str = (
+            "open spotify, mute, volume up, turn down, lock screen, shutdown, close chrome, "
+            "play, pause, next track, sonraki parça, sesi aç, sesi kıs, kapat, durdur, sıradaki şarkı."
+        )
+
         self._model = None
         self._model_loaded: bool = False
-        # Preload thread'i ile STT worker thread'i ayni anda load_model()
-        # cagirabilir; kilit olmadan model iki kez yuklenir (cift RAM,
-        # iki kat yavas ilk transkripsiyon).
         self._load_lock = threading.Lock()
+        self._partial_lock = threading.Lock()
 
     def load_model(self) -> None:
         """
@@ -93,11 +96,53 @@ class STTEngine(QObject):
             logger.info("Whisper model loaded in %.1fs", elapsed)
 
         except ImportError as e:
-            # Hangi modulun eksik oldugunu yaz — frozen build'de eksik olan
-            # genelde faster-whisper degil, gecisli bir bagimliligi oluyor.
             logger.error("faster-whisper unavailable (%s). Run: pip install faster-whisper", e)
         except Exception as e:
             logger.error("Failed to load Whisper model: %s", e)
+
+    def transcribe_partial(self, audio_data: np.ndarray) -> None:
+        """
+        Fast non-blocking partial transcription for live display while the user speaks.
+        """
+        if not self._model_loaded or self._model is None:
+            return
+
+        if self._partial_lock.locked():
+            return  # Skip if a partial transcription is already decoding
+
+        def _worker():
+            if not self._partial_lock.acquire(blocking=False):
+                return
+            try:
+                audio_float = audio_data.astype(np.float32).flatten() / 32768.0
+                if len(audio_float) < 1600:  # < 0.1s audio
+                    return
+
+                segments, _ = self._model.transcribe(
+                    audio_float,
+                    language=self._language,
+                    beam_size=1,  # Greedy for maximum speed
+                    initial_prompt=self._initial_prompt,
+                    vad_filter=True,
+                    vad_parameters=dict(
+                        min_silence_duration_ms=200,
+                        speech_pad_ms=100,
+                    ),
+                    condition_on_previous_text=False,
+                    without_timestamps=True,
+                )
+
+                text_parts = [seg.text.strip() for seg in segments if seg.text.strip()]
+                if text_parts:
+                    partial_text = " ".join(text_parts)
+                    self.partial_transcript.emit(partial_text)
+            except Exception as e:
+                logger.debug("Partial transcription failed: %s", e)
+            finally:
+                self._partial_lock.release()
+
+        thread = threading.Thread(target=_worker, daemon=True, name="STTPartialThread")
+        thread.start()
 
     def transcribe(self, audio_data: np.ndarray) -> None:
         """
@@ -120,8 +165,6 @@ class STTEngine(QObject):
         """Background worker for transcription."""
         # Ensure model is loaded
         if not self._model_loaded:
-            # Ilk yukleme (ozellikle buyuk modellerde) dakikalar surebilir —
-            # kullanici "Transcribing..." ekraninda takildik sanmasin.
             self.partial_transcript.emit("Loading speech model...")
             self.load_model()
 
@@ -142,17 +185,13 @@ class STTEngine(QObject):
                 audio_float,
                 language=self._language,
                 beam_size=self._beam_size,
-                initial_prompt="open spotify, mute, volume up, turn down, lock screen, shutdown, close chrome, play, pause, next track.",
+                initial_prompt=self._initial_prompt,
                 vad_filter=True,           # Filter out non-speech segments
                 vad_parameters=dict(
-                    min_silence_duration_ms=300,
-                    speech_pad_ms=200,  # Prevent clipping the start/end of words
+                    min_silence_duration_ms=250,
+                    speech_pad_ms=150,
                 ),
-                # Sesli komutlar kisa ve bagimsizdir; onceki metne
-                # kosullanmak hem yavaslatir hem de tekrar dongusune
-                # (hallucination loop) yol acabilir.
                 condition_on_previous_text=False,
-                # Zaman damgalari kullanilmiyor — uretmemek decode'u hizlandirir.
                 without_timestamps=True,
             )
 
