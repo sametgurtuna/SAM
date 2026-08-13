@@ -157,7 +157,7 @@ python main.py
 
 ```
   +--------------------------------------------+
-  |   SAM - AI Desktop Assistant  v0.4.0        |
+  |   SAM - AI Desktop Assistant  v0.4.5        |
   |                                              |
   |   Say 'Hey Sam' to activate (voice)          |
   |   Press CTRL+SPACE   to speak                |

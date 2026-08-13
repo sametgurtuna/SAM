@@ -42,46 +42,45 @@ call is to `localhost:11434` (your own Ollama server); a cloud fallback (Claude)
 
 ---
 
-## ✨ What's new in v0.4.0
+## ✨ What's new in v0.4.5
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**🟢 The orb**
-An always-on circle replaces the trigger-only floating bar. It breathes gently when idle
-and reacts to your voice while engaged.
+**⚡ Zero-LLM command dispatch**
+Recognized commands and predefined phrases now answer straight from `LISTENING` →
+`SPEAKING`, skipping `THINKING` entirely — no LLM round-trip involved.
 
-**⬇️ Out of your way, by default**
-Sits at the very bottom of the window stack — below your other windows, above only the
-wallpaper — until wake word, hotkey, or a click summons it to the front. Then sinks back
-down. Configurable via `ui.orb.layer`.
+**💬 Instant responses**
+~130 predefined TR/EN phrases (greetings, thanks, time/date, "who are you") answer the
+moment SAM hears them — a dictionary lookup, editable in
+[`knowledge/instant_responses.yaml`](knowledge/instant_responses.yaml).
 
-**🖱️ Click-through**
-Only the visible circle is clickable; everything else in its bounding box passes mouse
-clicks straight to your desktop. `Ctrl` + drag moves it; position is remembered.
+**🏎️ Fast-path transcription skip**
+If the live caption already covers the recording and matches a known command, SAM acts
+on it immediately — no waiting on the final Whisper decode.
 
 </td>
 <td width="50%" valign="top">
 
-**⌨️ Typed input**
-`Ctrl+Shift+Space`, or a click on the orb, opens a text box under it — same
-router → LLM → TTS pipeline as speech.
+**🎙️ Dedicated live-transcription model**
+Live captions now decode on their own small model (`stt.partial_model`) instead of the
+full-size one, so they no longer compete with — or slow down — the final transcription.
 
-**🦙 Ollama auto-start**
-SAM finds and starts the Ollama server itself, hidden, with no console flash. Never
-touches a server you already had running.
+**🇹🇷 Bilingual command routing fixes**
+Conversational fluff (`hey sam`, `lütfen`) is stripped before matching, and Turkish media
+(`sonraki parça`, `sesi kıs`) / system commands are covered end to end.
 
-**🛡️ A real safety fix**
-SAM can no longer be told, by voice *or* text, to open a shell — see
-[Security & Privacy](#-security--privacy).
-
-**📦 A real installer**
-`SAM-Setup-x.y.z.exe` — see the [Setup Guide](setup.md).
+**🟢 The always-on orb**
+A breathing circle that stays out of your way — bottom of the window stack until
+summoned by wake word, hotkey, or click. Click-through, `Ctrl`+drag to reposition.
 
 </td>
 </tr>
 </table>
+
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ---
 
@@ -93,17 +92,20 @@ flowchart LR
     HK["⌨️ Ctrl+Space"] --> ROUTE
     TX["⌨️ Typed input"] -.skips recording.-> STT
     ROUTE(( )) --> REC["Recorder — VAD"]
-    REC --> STT["STT — faster-whisper"]
-    STT --> CMD{"Matches a\ncommand pattern?"}
+    REC --> STT["STT — faster-whisper\n(live partial + final)"]
+    STT --> INSTANT{"Predefined\nphrase?"}
+    INSTANT -- yes --> TTS["🔊 edge-tts / pyttsx3"]
+    INSTANT -- no --> CMD{"Matches a\ncommand pattern?"}
     CMD -- yes --> SYS["OS action\n(no shell, ever)"]
     CMD -- no --> LLM["Ollama / Claude\n(streaming)"]
-    SYS --> TTS["🔊 edge-tts / pyttsx3"]
+    SYS --> TTS
     LLM --> TTS
     TTS --> IDLE["back to idle"]
 
     style SYS fill:#0d3b32,stroke:#00D4AA,color:#e8e8e8
     style LLM fill:#0d2a3b,stroke:#00BFFF,color:#e8e8e8
     style TTS fill:#1a1a24,stroke:#38F2D8,color:#e8e8e8
+    style INSTANT fill:#1a1a24,stroke:#00D4AA,color:#e8e8e8
 ```
 
 Everything is orchestrated by `AppController` (`core/app.py`) through PyQt signals — no
@@ -115,7 +117,8 @@ behind "out of your way until called."
 |:--|:--|
 | Wake word | `openwakeword` (ONNX), continuous, low CPU |
 | Recording | RMS-based voice activity detection |
-| Transcription | `faster-whisper` (CTranslate2, int8) |
+| Transcription | `faster-whisper` (CTranslate2, int8) — small model for live captions, full model for the final pass |
+| Instant responses | Dictionary lookup (`commands/instant.py`) — never touches the LLM |
 | Instant commands | Regex router → `os.startfile` / `ctypes` / list-form `subprocess` — never a shell |
 | Conversation | Local Ollama, or Claude if you configure it |
 | Speech out | `edge-tts` (online voices) or `pyttsx3` (fully offline) |

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.4.4",
+        "version": "0.4.5",
     },
     "hotkey": {
         "trigger": "ctrl+space",
@@ -138,6 +138,18 @@ DEFAULTS: dict[str, Any] = {
         "beam_size": 1,
         "device": "cpu",
         "compute_type": "int8",
+        # Canli (yazarken gorunen) transkripsiyon icin ayri, kucuk model.
+        # Ana model "medium"/"large" ise her 300 ms'de onu calistirmak CPU'yu
+        # doyurup nihai decode'u da yavaslatiyor. Bos birakilirsa ana model
+        # kullanilir; "off" ise canli transkripsiyon tamamen kapanir.
+        "partial_model": "base",
+        # Iki canli decode arasindaki en az sure (ms).
+        "partial_interval_ms": 400,
+    },
+    "instant": {
+        # Onceden tanimli anlik cevaplar — LLM'e hic gitmez.
+        "enabled": True,
+        "file": "knowledge/instant_responses.yaml",
     },
     "tts": {
         "engine": "edge-tts",

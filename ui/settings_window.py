@@ -627,7 +627,7 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(tab)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        version = config.get("app", "version", default="0.3.6")
+        version = config.get("app", "version", default="0.4.5")
 
         about_text = QLabel(
             f"<div style='text-align:center; padding: 20px;'>"

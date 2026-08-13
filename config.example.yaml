@@ -1,6 +1,6 @@
 app:
   name: SAM
-  version: 0.4.4
+  version: 0.4.5
 hotkey:
   trigger: ctrl+space          # hold to speak
   text_input: ctrl+shift+space # open the typed-input box
@@ -92,6 +92,13 @@ stt:
   beam_size: 1
   device: cpu
   compute_type: int8
+  partial_model: base           # small model used for live transcription while you speak ("" = same as `model`, "off" = disable)
+  partial_interval_ms: 400      # minimum gap between two live decodes
+
+instant:
+  enabled: true                 # answer predefined phrases instantly — never reaches the LLM
+  file: knowledge/instant_responses.yaml
+
 tts:
   engine: edge-tts
   voice: en-US-GuyNeural        # fallback voice — used when auto_language is off or the detected language isn't in `voices`

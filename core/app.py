@@ -17,6 +17,7 @@ from audio.sounds import play_activation_sound
 from llm.router import LLMRouter
 from llm.ollama_service import OllamaService
 from commands.router import CommandRouter
+from commands.instant import InstantResponder
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,14 @@ class AppController(QObject):
 
         # ─── Command Router ──────────────────────────────────────
         self._cmd_router = CommandRouter()
+
+        # ─── Instant responses ───────────────────────────────────
+        # Onceden tanimli ifadeler LLM'e hic ugramadan cevaplanir.
+        self._instant: InstantResponder | None = None
+        if config.get("instant", "enabled", default=True):
+            self._instant = InstantResponder(
+                config.get("instant", "file", default=None)
+            )
 
         # ─── Wire signals ─────────────────────────────────────────
 
@@ -328,6 +337,8 @@ class AppController(QObject):
         self._set_state(AppState.LISTENING)
         self._bar.clear_transcript()
         self._bar.activate()
+        # Yeni oturum — onceki turun canli transkripti hizli yolu yaniltmasin.
+        self._stt.reset_partial()
 
         # Start real microphone recording
         self._recorder.start(pre_audio)
@@ -341,12 +352,27 @@ class AppController(QObject):
         if self._state == AppState.LISTENING and audio_data is not None:
             self._stt.transcribe_partial(audio_data)
 
+    # Canli transkriptin hizli yolda kullanilabilmesi icin kaydin en az
+    # bu oranini kapsamasi gerekir — aksi halde son kelimeler eksik olabilir.
+    _FAST_PATH_COVERAGE = 0.9
+
     def _on_recording_done(self, audio_data: object) -> None:
-        """Recording finished — send audio to STT."""
+        """Recording finished — try the fast path, otherwise run final STT."""
         if audio_data is None:
             logger.warning("No speech captured — returning to idle")
             self._cancel_and_reset()
             return
+
+        # ─── Hizli yol ────────────────────────────────────────────
+        # Canli (partial) transkript sesin neredeyse tamamini kapsiyorsa ve
+        # bilinen bir anlik cevap / sistem komutuyla eslesiyorsa, nihai
+        # Whisper decode'unu hic beklemeden aninda cevap ver.
+        partial = self._stt.last_partial_text
+        covered = self._stt.last_partial_samples
+        if partial and covered >= len(audio_data) * self._FAST_PATH_COVERAGE:
+            if self._dispatch(partial, allow_llm=False):
+                logger.info("Fast path hit — skipped final transcription")
+                return
 
         logger.info("Recording done — starting final transcription")
         self._set_state(AppState.THINKING)
@@ -380,12 +406,20 @@ class AppController(QObject):
         if probability < self._LANG_CONFIDENCE_MIN or language not in self._SUPPORTED_TTS_LANGS:
             return
 
+        self._apply_tts_language(language)
+        logger.debug("Language detected: %s (%.2f)", language, probability)
+
+    def _apply_tts_language(self, language: str) -> None:
+        """Konusma dilini sabitle ve TTS sesini ona gore sec."""
+        if not config.get("tts", "auto_language", default=True):
+            return
+        if language not in self._SUPPORTED_TTS_LANGS:
+            return
+
         self._detected_language = language
         voices = config.get("tts", "voices", default={}) or {}
         voice = voices.get(language) or config.get("tts", "voice", default="en-US-GuyNeural")
         self._tts.set_voice(voice)
-        logger.debug("Language detected: %s (%.2f) — voice set to %s",
-                      language, probability, voice)
 
     def _on_transcript_ready(self, transcript: str) -> None:
         """Full transcription complete — send to LLM."""
@@ -395,30 +429,67 @@ class AppController(QObject):
             return
 
         logger.info("Transcript: '%s'", transcript)
+        self._dispatch(transcript, allow_llm=True)
+
+    def _dispatch(self, transcript: str, *, allow_llm: bool) -> bool:
+        """
+        Bir metni sirayla degerlendirir:
+            1. Anlik cevap (onceden tanimli ifade)  → aninda konus
+            2. Sistem komutu (regex)                → calistir, konus
+            3. Digerleri                            → LLM (allow_llm ise)
+
+        Ilk iki yol LLM'e hic dokunmaz ve THINKING durumuna hic girmez.
+        allow_llm=False iken (hizli yol) sadece 1 ve 2 denenir; eslesme
+        yoksa False doner ve cagiran nihai transkripsiyona devam eder.
+        """
         self._last_transcript = transcript
-        self._bar.set_transcript(transcript)
 
-        # Kullanicinin kendi cumlesinden kalici bilgi cikar (isim, meslek, vb.)
-        # — arka planda, yanit hizini hic etkilemeden.
-        self._extract_and_store_facts(transcript)
+        # 1. Anlik cevap — sozluk aramasi, olculebilir maliyeti yok.
+        if self._instant is not None:
+            hit = self._instant.match(transcript)
+            if hit:
+                reply, lang = hit
+                logger.info("Instant response: '%s' → '%s'", transcript, reply)
+                # Cevabin dili girdide belli — hizli yolda Whisper'in dil
+                # tahminini beklemedigimiz icin sesi burada seciyoruz.
+                self._apply_tts_language(lang)
+                self._speak_now(reply)
+                return True
 
-        # 1. Once system komutu mu diye kontrol et (LLM'e gitmeden)
-        cmd_result = self._cmd_router.try_handle(transcript)
+        # 2. Sistem komutu mu? (LLM'e gitmeden)
+        cmd_result = self._cmd_router.try_handle(transcript, vision=allow_llm)
         if cmd_result.handled:
             if cmd_result.response:
-                # Komut calisti, yaniti sesli oku
-                self._set_state(AppState.SPEAKING)
-                self._bar.set_transcript(cmd_result.response)
-                self._tts.speak(cmd_result.response)
+                self._speak_now(cmd_result.response)
             else:
                 # Yanit yoksa direkt kapat
                 self._cancel_and_reset()
-            return
+            return True
 
-        # 2. Sistem komutu degilse, LLM'e yonlendir.
+        if not allow_llm:
+            return False
+
+        # 3. Komut degil — LLM'e yonlendir.
+        self._bar.set_transcript(transcript)
+
+        # Kullanicinin kendi cumlesinden kalici bilgi cikar (isim, meslek, vb.)
+        # — arka planda, yanit hizini hic etkilemeden. Yalnizca sohbet
+        # yolunda calisir; komutlarda cikarilacak bilgi yok.
+        self._extract_and_store_facts(transcript)
+
+        if self._state != AppState.THINKING:
+            self._set_state(AppState.THINKING)
+
         # Onceden burada 400ms'lik yapay bir gecikme vardi — her sohbet
         # yanitina bedelsiz 400ms ekliyordu, kaldirildi.
         self._generate_response(cmd_result.image_b64)
+        return True
+
+    def _speak_now(self, text: str) -> None:
+        """Hazir bir metni dogrudan seslendir — LLM ve THINKING adimi yok."""
+        self._set_state(AppState.SPEAKING)
+        self._bar.set_transcript(text)
+        self._tts.speak(text)
 
     def _generate_response(self, image_b64: str | None = None) -> None:
         """Send transcript to LLM and stream the response."""

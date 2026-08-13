@@ -45,10 +45,13 @@ class CommandRouter:
         self._patterns: List[Tuple[re.Pattern, Callable[[re.Match], str]]] = self._build_patterns()
         self._vision_patterns: List[re.Pattern] = self._build_vision_patterns()
 
-    def try_handle(self, transcript: str) -> CommandResult:
+    def try_handle(self, transcript: str, *, vision: bool = True) -> CommandResult:
         """
         Transcript'i analiz et. Komutsa calistir, degilse handled=False don.
         Zincirleme komutlari (and/ve) destekler.
+
+        vision=False iken ekran yakalama atlanir — cagiran sonucu LLM'e
+        vermeyecekse (hizli yol) yakalanan goruntu bosa giderdi.
         """
         text = transcript.lower().strip()
         text = self._clean_text(text)
@@ -56,7 +59,7 @@ class CommandRouter:
         logger.debug("Command router input: '%s'", text)
 
         # Vision pattern kontrolu - eger eslesirse ekrani yakala ve LLM'e gonder
-        for v_pat in self._vision_patterns:
+        for v_pat in (self._vision_patterns if vision else ()):
             if v_pat.search(text):
                 from commands.vision import capture_screen_base64
                 logger.info("Vision intent matched: %s", text)

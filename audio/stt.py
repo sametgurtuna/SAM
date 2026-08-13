@@ -52,16 +52,57 @@ class STTEngine(QObject):
             "play, pause, next track, sonraki parça, sesi aç, sesi kıs, kapat, durdur, sıradaki şarkı."
         )
 
+        # Canli transkripsiyon icin ayri (kucuk) model. "" = ana modeli kullan,
+        # "off" = canli transkripsiyon kapali.
+        self._partial_model_size: str = config.get("stt", "partial_model", default="tiny")
+        self._partial_interval: float = config.get(
+            "stt", "partial_interval_ms", default=400
+        ) / 1000.0
+
         self._model = None
         self._model_loaded: bool = False
+        self._partial_model = None
         self._load_lock = threading.Lock()
+        self._partial_load_lock = threading.Lock()
         self._partial_lock = threading.Lock()
+        self._last_partial_at: float = 0.0
+
+        # En son canli transkript ve onu ureten ornek sayisi — AppController
+        # kayit bitiminde bunu kullanarak nihai decode'u beklemeden komut
+        # eslestirmesi yapabiliyor (bkz. core/app.py _on_recording_done).
+        self.last_partial_text: str = ""
+        self.last_partial_samples: int = 0
+
+    def _build_model(self, size: str, threads: int):
+        """Create a WhisperModel instance. Returns None on failure."""
+        from faster_whisper import WhisperModel
+
+        logger.info("Loading Whisper model '%s' (device=%s, compute=%s, threads=%d)...",
+                    size, self._device, self._compute_type, threads)
+        start = time.time()
+        model = WhisperModel(
+            size,
+            device=self._device,
+            compute_type=self._compute_type,
+            # CTranslate2 varsayilan olarak tek cekirdek kullanir.
+            # CPU modunda tum cekirdekleri vermek decode suresini
+            # belirgin sekilde kisaltir.
+            cpu_threads=threads,
+            # Sabit, yazilabilir bir konum — kurulum sihirbazi modeli
+            # onceden buraya indirir, ilk calistirmada bekleme olmaz.
+            download_root=os.path.join(paths.models_dir(), "whisper"),
+        )
+        logger.info("Whisper model '%s' loaded in %.1fs", size, time.time() - start)
+        return model
 
     def load_model(self) -> None:
         """
-        Pre-load the Whisper model. Call during startup for faster first transcription.
+        Pre-load the Whisper models. Call during startup for faster first transcription.
         Safe to call from any thread — concurrent calls block until the first finishes.
         """
+        # Once kucuk canli model — ilk saniyeden itibaren yazi aksin.
+        self.load_partial_model()
+
         if self._model_loaded:
             return
 
@@ -73,42 +114,55 @@ class STTEngine(QObject):
 
     def _load_model_locked(self) -> None:
         try:
-            from faster_whisper import WhisperModel
-
-            logger.info("Loading Whisper model '%s' (device=%s, compute=%s)...",
-                        self._model_size, self._device, self._compute_type)
-
-            start = time.time()
-            self._model = WhisperModel(
-                self._model_size,
-                device=self._device,
-                compute_type=self._compute_type,
-                # CTranslate2 varsayilan olarak tek cekirdek kullanir.
-                # CPU modunda tum cekirdekleri vermek decode suresini
-                # belirgin sekilde kisaltir.
-                cpu_threads=os.cpu_count() or 4,
-                # Sabit, yazilabilir bir konum — kurulum sihirbazi modeli
-                # onceden buraya indirir, ilk calistirmada bekleme olmaz.
-                download_root=os.path.join(paths.models_dir(), "whisper"),
-            )
-            elapsed = time.time() - start
+            self._model = self._build_model(self._model_size, os.cpu_count() or 4)
             self._model_loaded = True
-            logger.info("Whisper model loaded in %.1fs", elapsed)
-
         except ImportError as e:
             logger.error("faster-whisper unavailable (%s). Run: pip install faster-whisper", e)
         except Exception as e:
             logger.error("Failed to load Whisper model: %s", e)
 
+    def load_partial_model(self) -> None:
+        """Load the lightweight model used for live (partial) transcription."""
+        if self._partial_model_size == "off" or self._partial_model is not None:
+            return
+        if not self._partial_model_size or self._partial_model_size == self._model_size:
+            return  # Ana model kullanilacak
+
+        with self._partial_load_lock:
+            if self._partial_model is not None:
+                return
+            try:
+                # Yarim cekirdek: canli decode nihai decode'u ac birakmasin.
+                threads = max(1, (os.cpu_count() or 4) // 2)
+                self._partial_model = self._build_model(self._partial_model_size, threads)
+            except Exception as e:
+                logger.warning("Partial model unavailable (%s) — falling back to main model", e)
+                self._partial_model_size = ""
+
+    def _live_model(self):
+        """Model used for partial decodes — the small one if available."""
+        if self._partial_model is not None:
+            return self._partial_model
+        return self._model if self._model_loaded else None
+
     def transcribe_partial(self, audio_data: np.ndarray) -> None:
         """
         Fast non-blocking partial transcription for live display while the user speaks.
         """
-        if not self._model_loaded or self._model is None:
+        if self._partial_model_size == "off":
+            return
+
+        model = self._live_model()
+        if model is None:
             return
 
         if self._partial_lock.locked():
             return  # Skip if a partial transcription is already decoding
+
+        now = time.time()
+        if now - self._last_partial_at < self._partial_interval:
+            return
+        self._last_partial_at = now
 
         def _worker():
             if not self._partial_lock.acquire(blocking=False):
@@ -118,16 +172,14 @@ class STTEngine(QObject):
                 if len(audio_float) < 1600:  # < 0.1s audio
                     return
 
-                segments, _ = self._model.transcribe(
+                segments, _ = model.transcribe(
                     audio_float,
                     language=self._language,
                     beam_size=1,  # Greedy for maximum speed
                     initial_prompt=self._initial_prompt,
-                    vad_filter=True,
-                    vad_parameters=dict(
-                        min_silence_duration_ms=200,
-                        speech_pad_ms=100,
-                    ),
+                    # Canli akista VAD yalnizca gecikme ekliyor — tampon
+                    # zaten Recorder'in konusma tespitine gore doluyor.
+                    vad_filter=False,
                     condition_on_previous_text=False,
                     without_timestamps=True,
                 )
@@ -135,6 +187,8 @@ class STTEngine(QObject):
                 text_parts = [seg.text.strip() for seg in segments if seg.text.strip()]
                 if text_parts:
                     partial_text = " ".join(text_parts)
+                    self.last_partial_text = partial_text
+                    self.last_partial_samples = len(audio_float)
                     self.partial_transcript.emit(partial_text)
             except Exception as e:
                 logger.debug("Partial transcription failed: %s", e)
@@ -143,6 +197,12 @@ class STTEngine(QObject):
 
         thread = threading.Thread(target=_worker, daemon=True, name="STTPartialThread")
         thread.start()
+
+    def reset_partial(self) -> None:
+        """Clear live-transcript state at the start of a new listening session."""
+        self.last_partial_text = ""
+        self.last_partial_samples = 0
+        self._last_partial_at = 0.0
 
     def transcribe(self, audio_data: np.ndarray) -> None:
         """

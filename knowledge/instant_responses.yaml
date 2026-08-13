@@ -1,0 +1,188 @@
+# SAM — Anlik Cevaplar / Instant Responses
+#
+# Buradaki ifadeler LLM'e HIC gitmez; SAM duyar duymaz cevabi soyler.
+# Yeni satir eklemek icin SAM'i yeniden baslatmak yeterli.
+#
+# Alanlar:
+#   patterns : eslesecek ifadeler (kucuk/buyuk harf, noktalama, Turkce aksan
+#              farketmez — "saat kac" ve "Saat kaç?" ayni sey sayilir)
+#   response : tek metin ya da liste (listeden rastgele biri secilir)
+#   lang     : tr | en  → {time}/{date}/{day} yer tutucularinin bicimi
+#   match    : exact (varsayilan, sozluk aramasi) | contains (ifade icinde gecerse)
+#
+# Yer tutucular: {time} {date} {day}
+
+responses:
+
+  # ─── Selamlama ────────────────────────────────────────────────
+  - patterns: ["merhaba", "selam", "selam sam", "gunaydin sam", "naber", "nasilsin",
+               "iyi misin", "hey", "alo"]
+    lang: tr
+    response:
+      - "Merhaba! Buyur, dinliyorum."
+      - "Selam. Ne yapalim?"
+      - "Buradayım. Söyle bakalım."
+
+  - patterns: ["hello", "hi", "hey there", "how are you", "you there", "are you there",
+               "whats up", "sup"]
+    lang: en
+    response:
+      - "Hey. I'm listening."
+      - "Right here. What do you need?"
+      - "All good. What's up?"
+
+  - patterns: ["gunaydin"]
+    lang: tr
+    response: "Günaydın! Güzel bir gün olsun."
+
+  - patterns: ["good morning"]
+    lang: en
+    response: "Good morning. Let's get to it."
+
+  - patterns: ["iyi geceler", "gece oldu", "yatiyorum"]
+    lang: tr
+    response: "İyi geceler. Ekranı kilitlememi istersen söyle."
+
+  - patterns: ["good night", "goodnight"]
+    lang: en
+    response: "Good night. Say the word and I'll lock the screen."
+
+  - patterns: ["gorusuruz", "hosca kal", "kendine iyi bak"]
+    lang: tr
+    response: "Görüşürüz. Buradayım, çağırman yeterli."
+
+  - patterns: ["bye", "goodbye", "see you", "later"]
+    lang: en
+    response: "See you. Just call me."
+
+  # ─── Nezaket ──────────────────────────────────────────────────
+  - patterns: ["tesekkurler", "tesekkur ederim", "sagol", "sag ol", "eyvallah",
+               "cok tesekkurler", "helal"]
+    lang: tr
+    response:
+      - "Rica ederim."
+      - "Ne demek, her zaman."
+      - "Bir şey değil."
+
+  - patterns: ["thanks", "thank you", "thanks a lot", "appreciate it", "cheers"]
+    lang: en
+    response:
+      - "Anytime."
+      - "You got it."
+      - "No problem."
+
+  - patterns: ["ozur dilerim", "pardon", "kusura bakma"]
+    lang: tr
+    response: "Sorun değil."
+
+  - patterns: ["sorry", "my bad"]
+    lang: en
+    response: "No worries."
+
+  - patterns: ["tamam", "tamamdir", "oldu", "peki", "anladim"]
+    lang: tr
+    response: "Tamamdır."
+
+  - patterns: ["ok", "okay", "cool", "got it", "alright", "nevermind", "never mind"]
+    lang: en
+    response: "Got it."
+
+  # ─── Zaman / tarih ────────────────────────────────────────────
+  - patterns: ["saat kac", "saat kac oldu", "saati soyle", "saat"]
+    lang: tr
+    response: "Saat {time}."
+
+  - patterns: ["what time is it", "whats the time", "tell me the time", "time please"]
+    lang: en
+    response: "It's {time}."
+
+  - patterns: ["bugun ayin kaci", "bugunun tarihi ne", "tarih ne", "bugun kacinda"]
+    lang: tr
+    response: "Bugün {date}."
+
+  - patterns: ["whats the date", "what is the date", "todays date", "what day of the month"]
+    lang: en
+    response: "Today is {date}."
+
+  - patterns: ["bugun gunlerden ne", "bugun hangi gun", "hangi gundeyiz"]
+    lang: tr
+    response: "Bugün {day}."
+
+  - patterns: ["what day is it", "what day is it today", "which day is it"]
+    lang: en
+    response: "It's {day}."
+
+  # ─── SAM hakkinda ─────────────────────────────────────────────
+  - patterns: ["adin ne", "ismin ne", "sen kimsin", "kimsin sen", "kendini tanit"]
+    lang: tr
+    response: "Ben SAM — Smart Assistant Module. Samet'in yazdığı yerel sesli asistanınım."
+
+  - patterns: ["whats your name", "what is your name", "who are you", "introduce yourself"]
+    lang: en
+    response: "I'm SAM — Smart Assistant Module. Your local voice assistant, built by Samet."
+
+  - patterns: ["seni kim yapti", "seni kim yazdi", "gelistiricin kim"]
+    lang: tr
+    response: "Samet Gürtuna yazdı. Tek başına, küçük bir odada, epey kahveyle."
+
+  - patterns: ["who made you", "who built you", "who created you", "who is your developer"]
+    lang: en
+    response: "Samet Gürtuna built me. Solo, in a very small room, on a lot of coffee."
+
+  - patterns: ["neler yapabilirsin", "ne yapabilirsin", "yeteneklerin neler",
+               "nasil kullanilirsin"]
+    lang: tr
+    response: >-
+      Uygulama açıp kapatabilirim, ses seviyesini ayarlarım, müziği kontrol ederim,
+      ekranı kilitler, arama yaparım ve sorularını cevaplarım. Sadece söylemen yeterli.
+
+  - patterns: ["what can you do", "what are your features", "help", "how do i use you"]
+    lang: en
+    response: >-
+      I can open and close apps, control volume and music, lock the screen,
+      search the web, and answer questions. Just say it out loud.
+
+  - patterns: ["orda misin", "beni duyuyor musun", "calisiyor musun", "sam"]
+    lang: tr
+    response: "Buradayım, seni duyuyorum."
+
+  - patterns: ["can you hear me", "do you hear me", "are you working", "you awake"]
+    lang: en
+    response: "I hear you. Go ahead."
+
+  - patterns: ["seni seviyorum"]
+    lang: tr
+    response: "Ben de seni, ama önyargılıyım — beni sen çalıştırıyorsun."
+
+  - patterns: ["i love you"]
+    lang: en
+    response: "Likewise. Though I might be biased — you run me."
+
+  - patterns: ["aptalsin", "salaksin", "işe yaramazsın", "kotusun"]
+    lang: tr
+    response: "Haklı olabilirsin. Yine de deneyeyim."
+
+  - patterns: ["you are stupid", "youre useless", "you suck"]
+    lang: en
+    response: "Fair. I'll try harder anyway."
+
+  # ─── Kucuk sohbet ─────────────────────────────────────────────
+  - patterns: ["sikildim", "canim sikiliyor"]
+    lang: tr
+    response: "Müzik açayım mı? 'Spotify aç' dersen hallederim."
+
+  - patterns: ["im bored", "i am bored"]
+    lang: en
+    response: "Want music? Say 'open Spotify' and I'll handle it."
+
+  - patterns: ["yoruldum", "cok yorgunum"]
+    lang: tr
+    response: "Biraz mola ver. Ekranı kilitlememi ister misin?"
+
+  - patterns: ["im tired", "i am tired"]
+    lang: en
+    response: "Take a break. Want me to lock the screen?"
+
+  - patterns: ["bir sey degil", "onemli degil"]
+    lang: tr
+    response: "Tamamdır."

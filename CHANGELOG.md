@@ -6,7 +6,7 @@ All notable changes to **SAM** are documented in this file.
 
 <img src="https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-e05735?style=flat-square" alt="Keep a Changelog">
 <img src="https://img.shields.io/badge/SemVer-2.0.0-3776AB?style=flat-square" alt="Semantic Versioning">
-<img src="https://img.shields.io/badge/Current-v0.4.4-22c55e?style=flat-square" alt="Current version">
+<img src="https://img.shields.io/badge/Current-v0.4.5-22c55e?style=flat-square" alt="Current version">
 
 </div>
 
@@ -22,6 +22,7 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 | Version | Date | Highlight |
 |:---|:---|:---|
 | [Unreleased](#unreleased) | — | Screen/clipboard awareness, plugin system |
+| [0.4.5](#045---2026-08-13) | 2026-08-13 | 🚀 Instant predefined responses & zero-LLM command dispatch |
 | [0.4.4](#044---2026-08-13) | 2026-08-13 | ⚡ Real-time speech transcription & bilingual command routing fixes |
 | [0.4.3](#043---2026-08-12) | 2026-08-12 | 🎯 Fenerbahçe RAG accuracy fixes (multilingual embeddings, strict grounding) |
 | [0.4.2](#042---2026-08-11) | 2026-08-11 | 🧠 Intent classification, RAG, conversation modes |
@@ -37,6 +38,37 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 Tracked in [ROADMAP.md](ROADMAP.md) — screen/clipboard awareness, productivity
 features (reminders, scheduling), a plugin system, and a cross-platform command layer
 are next up.
+
+---
+
+## [0.4.5] - 2026-08-13
+
+> 🚀 **Instant responses & a command path that never touches the LLM.**
+
+### Added
+- **Instant Responses**: a new `knowledge/instant_responses.yaml` file with ~130 predefined
+  TR/EN phrases (greetings, thanks, time/date/day, "who are you", small talk). A match is a
+  dictionary lookup (`commands/instant.py`) — SAM answers the moment it hears the phrase,
+  with no LLM round-trip at all. Supports response lists (picked at random), `{time}` /
+  `{date}` / `{day}` placeholders, and a `match: contains` mode for loose phrases.
+- **Fast Command Path**: recognized system commands and instant responses now skip the
+  `THINKING` state entirely — `AppController._dispatch()` answers straight from
+  `LISTENING` → `SPEAKING`. Previously every utterance detoured through the LLM router
+  before falling back to the regex command matcher.
+- **Fast-Path Transcription Skip**: if the live partial transcript already covers ~90% of
+  the recorded audio and matches a known command or instant response, SAM acts on it
+  immediately and skips the final (slower) Whisper decode altogether.
+- **Dedicated Live-Transcription Model**: partial captioning now runs on its own small
+  model (`stt.partial_model`, default `base`, on half the CPU threads) instead of
+  re-running the full-size model every ~300ms, so live captions no longer compete with
+  (and slow down) the final transcription. Configurable per-model or fully disabled
+  (`"off"`).
+
+### Changed
+- `commands/router.CommandRouter.try_handle()` takes a `vision` flag so the fast command
+  path doesn't pay for a screen capture it won't use.
+- Live-decode cadence is now rate-limited (`stt.partial_interval_ms`, default 400ms)
+  instead of firing on every recorder chunk.
 
 ---
 
@@ -231,7 +263,9 @@ are next up.
 
 </div>
 
-[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/sametgurtuna/SAM/compare/v0.4.4...v0.4.5
+[0.4.4]: https://github.com/sametgurtuna/SAM/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/sametgurtuna/SAM/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/sametgurtuna/SAM/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/sametgurtuna/SAM/compare/v0.3.6...v0.4.1
