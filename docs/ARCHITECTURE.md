@@ -1,9 +1,8 @@
 <div align="center">
 
-# 🏗️ SAM — Architecture
+# SAM Architecture
 
-**Internal technical reference.** Trust this and the source over anything else if they
-disagree — this file is kept close to the code, but the code always wins.
+**Internal technical reference.** Trust this and the source over anything else if they disagree: this file is kept close to the code, but the code always wins.
 
 <p>
   <img src="https://img.shields.io/badge/state_machine-4_states-38F2D8?style=flat-square">
@@ -23,7 +22,7 @@ disagree — this file is kept close to the code, but the code always wins.
 4. [Threading](#4-threading)
 5. [The overlay](#5-the-overlay)
 6. [Ollama lifecycle](#6-ollama-lifecycle)
-7. [Paths — dev vs. frozen exe](#7-paths--dev-vs-frozen-exe)
+7. [Paths: dev vs. frozen exe](#7-paths-dev-vs-frozen-exe)
 8. [Single-instance guard](#8-single-instance-guard)
 9. [Packaging](#9-packaging)
 10. [Module reference](#10-module-reference)
@@ -37,7 +36,7 @@ every engine and connects them purely through PyQt signals/slots.
 
 ```mermaid
 flowchart TB
-    subgraph AC["AppController — core/app.py"]
+    subgraph AC["AppController: core/app.py"]
         direction TB
         STATE["_state: AppState"]
     end
@@ -49,14 +48,14 @@ flowchart TB
     TTS["TTSEngine"] -- "playback_finished()" --> AC
     OV["SamOverlay"] -- "text_submitted(str)" --> AC
 
-    AC -- "direct method calls\n(activate/set_state/…)" --> OV
+    AC -- "direct method calls\n(activate/set_state/...)" --> OV
     AC -- "start() / speak() / generate()" --> WW & REC & STT & LLM & TTS
 
     style AC fill:#12121a,stroke:#00D4AA,stroke-width:2px,color:#e8e8e8
 ```
 
-**No engine calls another engine directly** — `WakeWordEngine` doesn't know `Recorder`
-exists; `STTEngine` doesn't know about `LLMRouter`. `AppController` is the only component
+**No engine calls another engine directly**: `WakeWordEngine` does not know `Recorder`
+exists; `STTEngine` does not know about `LLMRouter`. `AppController` is the only component
 that knows the whole pipeline, and `AppController._set_state()` is the only place UI state
 changes. This is the file to read first when tracing any feature end to end.
 
@@ -66,9 +65,9 @@ changes. This is the file to read first when tracing any feature end to end.
 
 ```mermaid
 flowchart LR
-    A["🎙️ Wake word"] --> D{{"AppController\n._on_trigger"}}
-    B["⌨️ Ctrl+Space"] --> D
-    C["⌨️ Typed input"] --> E["_on_transcript_ready()"]
+    A["Wake word"] --> D{{"AppController\n._on_trigger"}}
+    B["Ctrl+Space"] --> D
+    C["Typed input"] --> E["_on_transcript_ready()"]
 
     D --> R["Recorder\n(VAD)"]
     R --> S["STTEngine\nfaster-whisper"]
@@ -80,7 +79,7 @@ flowchart LR
 
     H --> T["TTSEngine"]
     L --> T
-    T --> I["auto-hide timer\n→ IDLE"]
+    T --> I["auto-hide timer\n-> IDLE"]
 
     style E fill:#12121a,stroke:#00D4AA,color:#e8e8e8
     style M fill:#12121a,stroke:#00BFFF,color:#e8e8e8
@@ -89,23 +88,23 @@ flowchart LR
 Three entry points converge on the same downstream pipeline. **Typed input**
 (`Ctrl+Shift+Space`, or clicking the orb) skips recording/STT entirely:
 `AppController.submit_text()` sets state to `THINKING` and calls
-`_on_transcript_ready()` directly — the exact method the STT pipeline calls — so command
+`_on_transcript_ready()` directly - the exact method the STT pipeline calls - so command
 routing and LLM generation behave identically whether the words came from a microphone or
 a keyboard.
 
 > **Streaming TTS.** The LLM response is spoken while it is still generating.
 > `_flush_streaming_tts()` watches the accumulating token buffer and hands each completed
 > sentence to `TTSEngine.speak_chunk()`; `_on_llm_complete` sends whatever prose is left and
-> calls `end_stream()`. `TTSEngine` is a queue plus one persistent worker thread —
+> calls `end_stream()`. `TTSEngine` is a queue plus one persistent worker thread.
 > `playback_finished` fires once per utterance, on the `end` marker, not per chunk. A
-> ```` ``` ```` fence in the stream stops streaming speech for that turn
-> (`core/code_parser.py` writes the code to the Desktop instead; it's never read aloud).
+> code fence in the stream stops streaming speech for that turn
+> (`core/code_parser.py` writes the code to the Desktop instead; it is never read aloud).
 
 ---
 
 ## 3. State machine
 
-`AppState` is four plain string constants — not an enum, not six states:
+`AppState` is four plain string constants:
 
 ```mermaid
 stateDiagram-v2
@@ -118,15 +117,14 @@ stateDiagram-v2
 
     note right of THINKING
         Covers BOTH "transcribing"
-        and "waiting on the LLM" —
-        no separate state for each.
+        and "waiting on the LLM".
         The caption text communicates
         the sub-phase, not the FSM.
     end note
 ```
 
 `AppController._set_state()` is the single funnel: it updates `self._state` and calls
-`self._bar.set_state(new_state)` — nothing else touches overlay state directly.
+`self._bar.set_state(new_state)` - nothing else touches overlay state directly.
 
 ---
 
@@ -139,7 +137,7 @@ flowchart TB
         SIG["Signal handlers in AppController"]
     end
 
-    subgraph WORKERS["daemon threading.Thread — one per engine"]
+    subgraph WORKERS["daemon threading.Thread: one per engine"]
         T1["WakeWordEngine"]
         T2["Recorder"]
         T3["STTEngine"]
@@ -165,13 +163,9 @@ Every engine that blocks does its work on a daemon thread and reports back to th
 thread **exclusively** via `pyqtSignal`. Never touch a PyQt widget from inside one of
 these threads.
 
-`LLMRouter` is worth calling out specifically: engine detection (`is_available()`, a
-2-second-timeout HTTP probe) used to run synchronously in `__init__` and again on *every*
-`generate()` call — a real, measured 2-second stall on the Qt thread whenever Ollama was
-down. It's now `QTimer.singleShot(0, refresh_engine)` at startup and never probes on the
-hot path; redetection is driven asynchronously by `OllamaService.ready`, a connection-error
-heuristic on `generation_error`, or an optional staleness TTL — all dispatching a
-background probe and applying the result later via a queued signal.
+`LLMRouter` engine detection runs via `QTimer.singleShot(0, refresh_engine)` at startup and
+never probes synchronously on the hot path. Redetection is driven asynchronously by
+`OllamaService.ready` or connection error heuristics.
 
 ---
 
@@ -179,7 +173,7 @@ background probe and applying the result later via a queued signal.
 
 ```mermaid
 flowchart TB
-    OV["SamOverlay — ui/overlay.py\n(facade: activate / dismiss / set_state / set_level /\nset_transcript / clear_transcript)"]
+    OV["SamOverlay: ui/overlay.py\n(facade: activate / dismiss / set_state / set_level /\nset_transcript / clear_transcript)"]
     OV --> ORB["OrbWindow\nui/orb.py"]
     OV --> CAP["CaptionWindow\nui/caption.py"]
     OV --> INP["TextInputWindow\nui/text_input.py"]
@@ -192,81 +186,43 @@ flowchart TB
     style OV fill:#12121a,stroke:#00D4AA,stroke-width:2px,color:#e8e8e8
 ```
 
-Four top-level windows, one facade. `SamOverlay` presents the exact method surface
-`FloatingBar` (the legacy bottom bar, `ui.overlay.style: bar`) used to, so
-`AppController` only differs by which class it constructs. Semantics shifted, though:
-`activate()` no longer shows a window (the orb is always visible) — it energises the ring
+Four top-level windows, one facade. `activate()` energises the ring
 and fades the caption in; `dismiss()` fades the caption back out and lets the orb settle
 to breathing. The orb itself never hides during a normal session.
 
-### Click-through and the circular hit-test
-
-A window can be `WS_EX_TRANSPARENT` (receives no mouse input at all — used for the
-caption, and for the orb when disabled), or it can answer `WM_NCHITTEST` itself. The orb
-does the latter:
+### Click-through and circular hit-test
 
 ```mermaid
 flowchart LR
-    M["WM_NCHITTEST\nscreen x,y"] --> D{"inside the\ncircular hit radius?"}
-    D -- yes --> C["HTCLIENT\nclick lands on the orb"]
-    D -- no --> T["HTTRANSPARENT\nclick falls through to the desktop"]
+    M["WM_NCHITTEST\nscreen x,y"] --> D{"inside circular\nhit radius?"}
+    D -- yes --> C["HTCLIENT\nclick lands on orb"]
+    D -- no --> T["HTTRANSPARENT\nclick falls through to desktop"]
 ```
 
 `OrbWindow.nativeEvent()` intercepts `WM_NCHITTEST` and returns `HTTRANSPARENT` for every
-point outside its circular hit radius, `HTCLIENT` inside it — so the square window around
-the circle lets clicks fall through everywhere except the visible disc.
-
-> ⚠️ **`super().nativeEvent()` is deliberately never called** in this handler. PyQt6's
-> default implementation returns an invalid pointer for this message and crashes the
-> process with an access violation if allowed to run.
+point outside its circular hit radius, and `HTCLIENT` inside it: so clicks pass through
+everywhere except the visible disc.
 
 ### Z-order: the `auto` layer
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    participant User
     participant Orb as OrbWindow
     participant Win as SetWindowPos (win32.py)
 
-    Note over Orb: idle — HWND_BOTTOM<br/>below every normal window
-    U->>Orb: wake word / hotkey / click
+    Note over Orb: idle: HWND_BOTTOM (below normal windows)
+    User->>Orb: wake word / hotkey / click
     Orb->>Orb: set_state(LISTENING)
     Orb->>Win: bring_to_top(hwnd)
-    Note over Orb: engaged — HWND_TOPMOST
-    U->>Orb: session ends → IDLE
+    Note over Orb: engaged: HWND_TOPMOST
+    User->>Orb: session ends -> IDLE
     Orb->>Win: send_to_bottom(hwnd)
-    Note over Orb: back to the bottom
+    Note over Orb: back to bottom
 ```
 
 `ui.orb.layer` (default `auto`) makes the orb sit at the very bottom of the Windows
-z-order — below every normal window, above only the wallpaper — until it's actually
-summoned. `ui/win32.py` wraps `SetWindowPos` with the `HWND_BOTTOM` / `HWND_TOPMOST`
-pseudo-handles for this; `OrbWindow._sync_zorder()` calls it whenever the engaged/idle
-state flips (`set_state`) or the typed-input box opens/closes
-(`set_foreground_request`) — the two conditions are OR'd, so opening the text box while
-idle still brings the orb forward. `topmost` (always on top, the old default) and `normal`
-(no special handling) are also available, static, and never touch `SetWindowPos`.
-
-A 2-second `QTimer` watchdog (`_check_fullscreen`) additionally hides the orb while a
-genuinely fullscreen window (a game, a video — not just a maximized app; the check requires
-no title bar/border, see `win32.foreground_is_fullscreen`) is in the foreground, unless SAM
-is actively engaged, in which case it's exempt so the orb still appears when called.
-
-### Typed input and the foreground-lock problem
-
-`TextInputWindow` is the one overlay window that must take keyboard focus, so — unlike the
-orb and caption — it does **not** set `WA_ShowWithoutActivating`. That alone isn't enough:
-Windows' foreground lock silently refuses `SetForegroundWindow` from a background process
-(exactly SAM's situation when a global hotkey fires), so `win32.force_foreground()`
-attaches to the current foreground thread's input queue for the duration of the call to
-lift the restriction.
-
-The hotkey shares the existing single `keyboard` listener thread
-(`AppController._register_hotkey`) rather than spawning a second one. Because `keyboard`
-fires a hotkey when its keys are down regardless of *extra* modifiers held,
-`ctrl+shift+space` is a superset of `ctrl+space` and would otherwise also fire the voice
-trigger; `_on_hotkey_pressed` checks whether the text hotkey's extra keys are currently
-held and bails out if so.
+z-order until summoned. `ui/win32.py` wraps `SetWindowPos` with `HWND_BOTTOM` and `HWND_TOPMOST`.
 
 ---
 
@@ -289,17 +245,11 @@ flowchart TD
 ```
 
 `llm/ollama_engine.py` is a pure HTTP client; `llm/ollama_service.py` (`OllamaService`)
-owns the *process*, entirely on a daemon thread. Executable lookup order: config override →
-`PATH` → the two locations the official Windows installer uses.
-
-On shutdown, the server is terminated **only if** `_we_started` **and**
-`llm.ollama.stop_on_exit` is true (default `false`) — SAM never kills a server the user
-already had running, and doesn't kill its own by default either, since model load time is
-expensive.
+owns the process on a daemon thread.
 
 ---
 
-## 7. Paths — dev vs. frozen exe
+## 7. Paths: dev vs. frozen exe
 
 ```mermaid
 flowchart LR
@@ -313,32 +263,17 @@ flowchart LR
     end
 ```
 
-`core/paths.py` is the single source of truth for "where do files live?" — separating a
-read-only bundle from writable per-user state. The dev-mode fallback is deliberate:
-`user_data_dir()` returning the repo root in development means `config.yaml`, `logs/`, and
-`assets/` resolve exactly where they always did, so this refactor changed nothing for a
-source checkout. Only the frozen build relocates.
-
-`Config.load()` seeds a fresh `%APPDATA%\SAM\config.yaml` from the bundled
-`config.example.yaml` the first time it finds none — this is what makes the installed
-exe's Settings window able to actually save. (The old behavior wrote into the read-only,
-temp-extracted PyInstaller payload and silently lost every change.)
-
-`resolve_asset()` is used wherever a *config value* names a file (the wake word model
-path, in particular) — it checks the user data dir, then the bundle, so a value that used
-to be resolved against the process's current working directory (breaking whenever SAM was
-launched from a shortcut) now resolves consistently regardless of launch method.
+`core/paths.py` is the single source of truth for file resolution, separating
+read-only bundle resources from writable per-user data directory.
 
 ---
 
 ## 8. Single-instance guard
 
 `core/paths.py::single_instance_lock()` claims a `Local\SAM_SingleInstance` named mutex via
-`CreateMutexW`; `main.py` calls it before anything else and exits immediately if another
-instance already holds it. This became mandatory once the installer can add a Windows
-startup entry — without it, a manual launch on top of the auto-started instance would spawn
-a second orb, a second wake-word microphone stream, and two processes fighting over the
-same global hotkey.
+`CreateMutexW`. `main.py` calls it before initializing engines and exits immediately if another
+instance already holds it. Additionally, `ui/web_settings.py` uses `Local\SAM_Settings_Window_Mutex`
+to guarantee that only one settings window instance runs at a time.
 
 ---
 
@@ -349,7 +284,7 @@ flowchart LR
     SRC["Source tree"] --> SPEC["SAM.spec\nPyInstaller (onedir)"]
     SPEC --> DIST["dist/SAM/"]
     DIST --> ISS["installer/SAM.iss\nInno Setup"]
-    ISS --> EXE["SAM-Setup-x.y.z.exe"]
+    ISS --> EXE["SAM-Setup-0.4.7.exe"]
 
     EXE -. "--install-models" .-> STEPS["core/installer_steps.py\n(no Qt)"]
     STEPS -. "ollama pull" .-> M1["language model"]
@@ -358,18 +293,6 @@ flowchart LR
     style SPEC fill:#12121a,stroke:#00D4AA,color:#e8e8e8
     style ISS fill:#12121a,stroke:#00BFFF,color:#e8e8e8
 ```
-
-- **`SAM.spec`** bundles the wake word model, activation chime, `config.example.yaml`, and
-  the native libraries PyInstaller doesn't auto-detect (`ctranslate2`, `onnxruntime`). It
-  deliberately excludes `torch`/`torchvision` (openwakeword's unused training-only
-  backend — SAM always runs it with `inference_framework="onnx"`), which alone cuts the
-  build from ~830 MB to ~450 MB. It refuses to build at all if `config.yaml` or any OAuth
-  cache file would be bundled — a hard assertion, not just a `.gitignore` entry.
-- **`installer/SAM.iss`** is a per-user install (no admin required), with tasks for
-  installing Ollama, pre-pulling the model, and pre-downloading the Whisper model. Model
-  downloads run through `SAM.exe --install-models` rather than a second helper binary,
-  specifically so the installer and the running app can never disagree about model names
-  or download paths.
 
 ---
 
@@ -382,45 +305,40 @@ flowchart LR
 <code>config.py</code> (defaults + loader/saver) ·
 <code>paths.py</code> (dev/frozen path resolution, single-instance lock) ·
 <code>code_parser.py</code> (pulls code blocks out of LLM replies) ·
-<code>installer_steps.py</code> (installer-only, no Qt)
+<code>installer_steps.py</code> (installer helper)
 </td></tr>
 <tr><td><code>audio/</code></td><td>
 <code>wake_word.py</code> · <code>recorder.py</code> · <code>stt.py</code> ·
 <code>tts.py</code> · <code>sounds.py</code>
 </td></tr>
 <tr><td><code>commands/</code></td><td>
-<code>router.py</code> (regex intent matching, chained commands via "and"/"ve") ·
-<code>system.py</code> (all OS side effects — app launch/kill, volume, power, Spotify,
-and the shell-launch blocklist) ·
-<code>vision.py</code> (screen capture for vision-model requests)
+<code>router.py</code> (regex intent matching) ·
+<code>system.py</code> (all OS side effects and shell-launch blocklist) ·
+<code>vision.py</code> (screen capture for vision requests)
 </td></tr>
 <tr><td><code>llm/</code></td><td>
 <code>base.py</code> (abstract <code>LLMEngine</code>) · <code>ollama_engine.py</code> ·
-<code>ollama_service.py</code> (process lifecycle, distinct from the HTTP client) ·
+<code>ollama_service.py</code> (process lifecycle) ·
 <code>claude_engine.py</code> · <code>router.py</code>
 </td></tr>
 <tr><td><code>ui/</code></td><td>
-<code>orb.py</code> / <code>caption.py</code> / <code>text_input.py</code> /
-<code>overlay.py</code> (the current overlay) ·
-<code>win32.py</code> (click-through / z-order / foreground-focus ctypes helpers) ·
-<code>floating_bar.py</code> + <code>waveform.py</code> (legacy bar, still selectable) ·
-<code>settings_window.py</code> · <code>tray.py</code> · <code>styles.py</code> ·
+<code>web/</code> (HTML5/CSS3/JS Webview interface) ·
+<code>web_settings.py</code> (pywebview settings host with Win32 single instance) ·
+<code>orb.py</code> / <code>caption.py</code> / <code>text_input.py</code> / <code>overlay.py</code> (desktop overlay) ·
+<code>win32.py</code> (click-through / z-order / foreground-focus helpers) ·
+<code>tray.py</code> (system tray integration) ·
 <code>icon_generator.py</code>
 </td></tr>
 <tr><td><code>tools/make_icon.py</code></td><td>
-Regenerates <code>assets/icon.ico</code> from the orb design — run by hand after a visual
-change, the output is committed.
+Regenerates <code>assets/icon.ico</code> from the orb design.
 </td></tr>
 <tr><td><code>main.py</code></td><td>
-single-instance check → config load → logging setup → <code>QApplication</code> →
-<code>AppController</code> → <code>TrayManager</code> → event loop. Also the
-<code>--install-models</code> argv branch used by the installer.
+CLI entry point, single-instance check, config load, and QApplication bootstrap.
 </td></tr>
 </table>
 
 <div align="center">
 
-For usage, see the **[README](../README.md)**; for a step-by-step install, see the
-**[Setup Guide](../setup.md)**.
+For usage, see [README.md](../README.md); for setup, see [setup.md](../setup.md).
 
 </div>

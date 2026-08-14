@@ -85,3 +85,8 @@ pip-delete-this-directory.txt
 !SAM.spec
 !installer/*.iss
 installer/Output/
+
+# ─── Internal / Assistant Configs ────────────────────────────
+CLAUDE.md
+MARKETING.md
+.claude/

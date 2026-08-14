@@ -21,11 +21,14 @@ ROOT = os.path.abspath(os.getcwd())
 datas = [
     ("assets/activation.wav", "assets"),
     ("assets/icon.ico", "assets"),
+    ("assets/icon.png", "assets"),
     ("config.example.yaml", "."),
     # RAG bilgi tabani — resource_root()/knowledge altinda aranir.
     # Bundle edilmezse frozen build'de RAG bos DB ile baslar ve FB sorulari
     # asilsiz cevaplarla dolar.
     ("knowledge", "knowledge"),
+    # Modern Webview Settings UI
+    ("ui/web", "ui/web"),
 ]
 
 # ─── Pre-download embedding model ─────────────────────────────────
@@ -65,6 +68,7 @@ datas += collect_data_files("sentence_transformers")
 datas += collect_data_files("chromadb")
 datas += collect_data_files("tokenizers")
 datas += collect_data_files("transformers")
+datas += collect_data_files("webview")
 
 # ─── Native libraries ─────────────────────────────────────────────
 # PyInstaller regularly misses these; without them Whisper and the wake word
@@ -81,8 +85,10 @@ hiddenimports = [
     "comtypes.stream",
     "sounddevice", "_cffi_backend",
     "yaml", "requests", "charset_normalizer",
+    "bottle", "proxy_tools", "pythonnet", "clr_loader",
 ]
 hiddenimports += collect_submodules("pycaw")
+hiddenimports += collect_submodules("webview")
 # RAG — llm/rag.py bunlari lazy import ediyor (fonksiyon icinde), PyInstaller
 # statik analizle bulamiyor. Acikca eklenmezse frozen build'de RAG init
 # "ModuleNotFoundError: sentence_transformers" ile sessizce basarisiz oluyor

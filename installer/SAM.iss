@@ -12,7 +12,7 @@
 ; itself to the same place.
 
 #define AppName        "SAM"
-#define AppVersion     "0.4.6"
+#define AppVersion     "0.4.7"
 #define AppPublisher   "Samet Gurtuna"
 #define AppExeName     "SAM.exe"
 #define OllamaUrl      "https://ollama.com/download/OllamaSetup.exe"

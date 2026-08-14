@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAM Settings</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="shortcut icon" href="icon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="header">
+    <div class="header-left">
+      <img src="icon.png" alt="SAM" style="width: 24px; height: 24px; border-radius: 6px; box-shadow: 0 0 8px rgba(0, 212, 170, 0.4);">
+      <h1 class="header-title">SAM Settings</h1>
+    </div>
+    <div class="header-right">
+      <span class="version-pill" id="appVersion">v0.4.7</span>
+      <span class="header-gear">⚙</span>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="main-container">
+    
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div class="avatar-card">
+        <img src="icon.png" alt="SAM" style="width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--accent); box-shadow: 0 0 10px rgba(0, 212, 170, 0.4); flex-shrink: 0;">
+        <div class="avatar-info">
+          <span class="avatar-name">SAM</span>
+          <span class="avatar-sub">Smart Assistant Module</span>
+        </div>
+      </div>
+
+      <ul class="nav-list">
+        <li class="nav-item active" data-target="page-general">
+          <span class="nav-icon">⚡</span>
+          <span>General</span>
+        </li>
+        <li class="nav-item" data-target="page-speech">
+          <span class="nav-icon">🎙</span>
+          <span>Speech</span>
+        </li>
+        <li class="nav-item" data-target="page-responses">
+          <span class="nav-icon">💬</span>
+          <span>Responses</span>
+        </li>
+        <li class="nav-item" data-target="page-llm">
+          <span class="nav-icon">🧠</span>
+          <span>LLM</span>
+        </li>
+        <li class="nav-item" data-target="page-appearance">
+          <span class="nav-icon">🎨</span>
+          <span>Appearance</span>
+        </li>
+        <li class="nav-item" data-target="page-integrations">
+          <span class="nav-icon">🎵</span>
+          <span>Integrations</span>
+        </li>
+        <li class="nav-item" data-target="page-about">
+          <span class="nav-icon">ℹ</span>
+          <span>About</span>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Right Content Pages -->
+    <main class="content-area">
+
+      <!-- ─── 1. GENERAL TAB ──────────────────────────────────────── -->
+      <section id="page-general" class="page active">
+        <div class="page-header">
+          <h2 class="page-title">Activation</h2>
+          <p class="page-desc">Configure how you interact with SAM globally.</p>
+        </div>
+
+        <div class="card">
+          <!-- Voice Hotkey -->
+          <div class="row-item">
+            <div class="row-left">
+              <span class="row-title">Voice Hotkey</span>
+              <span class="row-desc">Click and press any key combination to dictate voice commands.</span>
+            </div>
+            <div class="row-right">
+              <div class="hotkey-recorder" id="voiceHotkeyRecorder" data-input="hotkeyTrigger">
+                <span class="hotkey-display" id="voiceHotkeyDisplay">
+                  <span class="keycap">Ctrl</span> + <span class="keycap">Space</span>
+                </span>
+                <span class="hotkey-hint">Record</span>
+                <input type="hidden" id="hotkeyTrigger" value="ctrl+space">
+              </div>
+            </div>
+          </div>
+
+          <!-- Text Hotkey -->
+          <div class="row-item">
+            <div class="row-left">
+              <span class="row-title">Text Hotkey</span>
+              <span class="row-desc">Click and press keys to summon SAM's text input overlay.</span>
+            </div>
+            <div class="row-right">
+              <div class="hotkey-recorder" id="textHotkeyRecorder" data-input="hotkeyTextInput">
+                <span class="hotkey-display" id="textHotkeyDisplay">
+                  <span class="keycap">Ctrl</span> + <span class="keycap">Shift</span> + <span class="keycap">Space</span>
+                </span>
+                <span class="hotkey-hint">Record</span>
+                <input type="hidden" id="hotkeyTextInput" value="ctrl+shift+space">
+              </div>
+            </div>
+          </div>
+
+          <!-- Wake Word Model -->
+          <div class="row-item">
+            <div class="row-left">
+              <span class="row-title">Wake Word Model</span>
+              <span class="row-desc">Select the local ONNX model for wake word detection.</span>
+            </div>
+            <div class="row-right">
+              <input type="text" id="wakeModelInput" class="input-field input-mono" style="width: 220px;" value="assets/models/hey_sam.onnx">
+              <button class="btn" id="browseWakeBtn">Browse</button>
+            </div>
+          </div>
+
+          <!-- Wake Threshold -->
+          <div class="slider-container" style="padding-top: 10px;">
+            <div class="slider-top">
+              <div class="row-left">
+                <span class="row-title">Wake Threshold</span>
+                <span class="row-desc">Adjust sensitivity. Lower values activate easier.</span>
+              </div>
+              <span class="slider-badge" id="wakeThreshBadge">0.40</span>
+            </div>
+            <input type="range" id="wakeThresholdSlider" class="slider-track" min="10" max="100" value="40">
+            <div class="slider-limits">
+              <span>0.10</span>
+              <span>1.00</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── 2. SPEECH & VOICE TAB ────────────────────────────────── -->
+      <section id="page-speech" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Speech & Voice</h2>
+          <p class="page-desc">Configure speech recognition, live audio visualizer, and text-to-speech synthesis parameters.</p>
+        </div>
+
+        <!-- Live Microphone Test Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🎙️</span>
+              <span>Live Microphone & Audio Spectrum Test</span>
+            </div>
+            <button class="btn btn-primary" id="toggleMicTestBtn">
+              <span id="micBtnIcon">▶</span> <span id="micBtnText">Test Microphone</span>
+            </button>
+          </div>
+          <div class="mic-test-container">
+            <canvas id="micCanvas" width="700" height="65" style="width: 100%; height: 100%;"></canvas>
+            <div id="micStatusPlaceholder" style="position: absolute; color: var(--text-dim); font-size: 12px; pointer-events: none;">Click "Test Microphone" to verify input levels & audio waveform.</div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text-dim);">
+            <span>Level: <b id="micLevelLabel" style="color: var(--accent); font-family: var(--font-mono);">0%</b></span>
+            <span id="micDeviceLabel">Active Default Recording Device</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Card 1: Speech to Text -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span>🗣</span>
+                <span>Speech-to-Text (Faster-Whisper)</span>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Model</label>
+              <select id="sttModel" class="select-field">
+                <option value="tiny">tiny</option>
+                <option value="base" selected>base</option>
+                <option value="small">small</option>
+                <option value="medium">medium</option>
+                <option value="large-v3">large-v3</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Language</label>
+              <select id="sttLanguage" class="select-field">
+                <option value="en">English (en)</option>
+                <option value="tr">Turkish (tr)</option>
+                <option value="" selected>Auto-detect (auto)</option>
+                <option value="de">German (de)</option>
+                <option value="fr">French (fr)</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Compute Device</label>
+              <select id="sttDevice" class="select-field">
+                <option value="cpu" selected>CPU</option>
+                <option value="cuda">CUDA</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Card 2: Live Transcription -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span style="color: var(--accent);">〰</span>
+                <span>Live Transcription</span>
+              </div>
+            </div>
+            <p class="row-desc">Settings for real-time continuous listening mode. Faster models are recommended for lower latency.</p>
+            <div class="field-group">
+              <label class="field-label">Live Model</label>
+              <select id="sttPartialModel" class="select-field">
+                <option value="base" selected>base</option>
+                <option value="tiny">tiny</option>
+                <option value="small">small</option>
+                <option value="off">off</option>
+              </select>
+            </div>
+            <div class="slider-container" style="margin-top: 6px;">
+              <div class="slider-top">
+                <span class="field-label">Refresh Every</span>
+                <span class="slider-badge" id="liveRefreshBadge">400 ms</span>
+              </div>
+              <input type="range" id="sttPartialInterval" class="slider-track" min="100" max="1000" step="50" value="400">
+              <div class="slider-limits">
+                <span>Fast (100ms)</span>
+                <span>Stable (1s)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Text to Speech (Full width) -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🔊</span>
+              <span>Text-to-Speech (Edge-TTS)</span>
+            </div>
+          </div>
+          <div class="grid-2" style="gap: 24px;">
+            <!-- Left col -->
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div class="field-group">
+                <label class="field-label">Engine</label>
+                <select id="ttsEngine" class="select-field">
+                  <option value="edge-tts" selected>edge-tts</option>
+                  <option value="local">local</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Fallback Voice</label>
+                <select id="ttsVoice" class="select-field">
+                  <option value="en-US-GuyNeural">en-US-GuyNeural</option>
+                  <option value="en-US-JennyNeural">en-US-JennyNeural</option>
+                  <option value="tr-TR-EmelNeural">tr-TR-EmelNeural</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Rate Adjustment</label>
+                <div class="stepper-group">
+                  <button class="stepper-btn" id="rateDecBtn">-</button>
+                  <input type="text" id="ttsRate" class="stepper-input" value="+0%">
+                  <button class="stepper-btn" id="rateIncBtn">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right col -->
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div class="row-item" style="border: none; padding: 0;">
+                <div class="row-left" style="max-width: 80%;">
+                  <span class="row-title">Switch voice automatically</span>
+                  <span class="row-desc">Based on detected output language</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="ttsAutoLanguage" checked>
+                  <span class="slider-round"></span>
+                </label>
+              </div>
+              <div class="field-group">
+                <label class="field-label"><span style="background: var(--field); color: var(--accent); padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-right: 4px;">TR</span> Turkish Voice</label>
+                <select id="ttsVoiceTr" class="select-field">
+                  <option value="tr-TR-EmelNeural" selected>tr-TR-EmelNeural (Female)</option>
+                  <option value="tr-TR-AhmetNeural">tr-TR-AhmetNeural (Male)</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label"><span style="background: var(--field); color: var(--accent-cyan); padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-right: 4px;">EN</span> English Voice</label>
+                <select id="ttsVoiceEn" class="select-field">
+                  <option value="en-US-JennyNeural" selected>en-US-JennyNeural (Female)</option>
+                  <option value="en-US-GuyNeural">en-US-GuyNeural (Male)</option>
+                  <option value="en-US-AriaNeural">en-US-AriaNeural (Female)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── 3. RESPONSES TAB ────────────────────────────────────── -->
+      <section id="page-responses" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Instant Responses</h2>
+          <p class="page-desc">Configure zero-latency predefined replies for exact pattern matches.</p>
+        </div>
+
+        <div class="grid-2">
+          <!-- Left card -->
+          <div class="card">
+            <div class="row-item" style="border: none; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+              <div class="row-left">
+                <span class="row-title">Predefined Phrase List</span>
+                <span class="row-desc">Bypass LLM processing for specific queries.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="instantEnabled" checked>
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div style="background: var(--surface-hi); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--accent); font-size: 11px;">●</span>
+              <span id="instantCountLabel" style="color: var(--accent); font-family: var(--font-mono); font-weight: 600; font-size: 12px;">130 phrases active</span>
+            </div>
+
+            <div class="action-btn-group">
+              <button class="btn" id="editYamlBtn">✏ Edit YAML</button>
+              <button class="btn" id="showFolderBtn">📁 Folder</button>
+              <button class="btn btn-primary" id="reloadInstantBtn">🔄 Reload</button>
+            </div>
+          </div>
+
+          <!-- Right card -->
+          <div class="card">
+            <div class="card-section-title">Syntax Reference</div>
+            <div class="code-card">
+              <span class="code-bullet">-</span> <span class="code-key">pattern:</span> <span class="code-val">"what time is it"</span><br>
+              &nbsp;&nbsp;<span class="code-key">response:</span> <span class="code-str">"{sys.time}"</span><br>
+              &nbsp;&nbsp;<span class="code-key">lang:</span> <span class="code-val">"en"</span><br>
+              &nbsp;&nbsp;<span class="code-key">match:</span> <span class="code-val">"exact"</span><br><br>
+              <span class="code-bullet">-</span> <span class="code-key">pattern:</span> <span class="code-val">"reboot system"</span><br>
+              &nbsp;&nbsp;<span class="code-key">response:</span> <span class="code-str">"Initiating restart..."</span><br>
+              &nbsp;&nbsp;<span class="code-key">action:</span> <span class="code-val">"cmd_reboot"</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── 4. LLM TAB ──────────────────────────────────────────── -->
+      <section id="page-llm" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Local AI Engine</h2>
+          <p class="page-desc">Configure the connection parameters for your local LLM provider. Ensure the service is running before attempting to connect.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🖫</span>
+              <span>Ollama Engine</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button class="btn" id="testOllamaBtn" style="font-size: 11px; padding: 4px 12px;">⚡ Test Connection</button>
+              <div class="status-badge" id="ollamaStatusBadge">
+                <span class="status-dot">●</span>
+                <span id="ollamaStatusText">Checking...</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Base URL</label>
+              <input type="text" id="ollamaUrl" class="input-field input-mono" value="http://127.0.0.1:11434">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Model</label>
+              <select id="ollamaModel" class="select-field">
+                <option value="qwen2.5:3b" selected>qwen2.5:3b</option>
+                <option value="qwen2.5:7b">qwen2.5:7b</option>
+                <option value="llama3.2:3b">llama3.2:3b</option>
+                <option value="phi3.5">phi3.5</option>
+                <option value="gemma2:2b">gemma2:2b</option>
+                <option value="mistral">mistral</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="llm-sliders-grid">
+            <div class="slider-container">
+              <div class="slider-top">
+                <span class="field-label">Temperature</span>
+                <span class="slider-badge" id="tempBadge">0.70</span>
+              </div>
+              <input type="range" id="tempSlider" class="slider-track" min="0" max="100" value="70">
+              <div class="slider-limits">
+                <span>Precise</span>
+                <span>Creative</span>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Max Tokens</label>
+              <input type="number" id="maxTokensInput" class="input-field input-mono" value="256" step="64">
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Context (turns)</label>
+              <input type="number" id="contextWindowInput" class="input-field input-mono" value="8">
+            </div>
+          </div>
+
+          <!-- Executable Path -->
+          <div class="row-item">
+            <div class="row-left">
+              <span class="row-title">Executable Path</span>
+              <span class="row-desc">Auto-detect or custom ollama.exe location.</span>
+            </div>
+            <div class="row-right" style="flex: 1; max-width: 280px;">
+              <input type="text" id="ollamaExeInput" class="input-field input-mono" placeholder="Auto-detect" style="flex: 1;">
+              <button class="btn" id="browseOllamaBtn">Browse</button>
+            </div>
+          </div>
+
+          <!-- Auto start toggle -->
+          <div class="row-item">
+            <div class="row-left">
+              <span class="row-title">Start Ollama automatically</span>
+              <span class="row-desc">Launch the background service when SAM starts.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="ollamaAutostart" checked>
+              <span class="slider-round"></span>
+            </label>
+          </div>
+
+          <!-- Stop on exit toggle -->
+          <div class="row-item" style="border: none;">
+            <div class="row-left">
+              <span class="row-title">Stop server when SAM quits</span>
+              <span class="row-desc">Terminate the Ollama process on exit.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="ollamaStopOnExit">
+              <span class="slider-round"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── 5. APPEARANCE TAB ───────────────────────────────────── -->
+      <section id="page-appearance" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Desktop Orb Overlay</h2>
+          <p class="page-desc">Configure the persistent floating assistant widget.</p>
+        </div>
+
+        <div class="appearance-grid">
+          <!-- Left: Live Preview Canvas -->
+          <div class="card" style="align-items: center; justify-content: space-between;">
+            <div class="card-section-title" style="align-self: flex-start;">PREVIEW</div>
+            <div class="preview-card">
+              <canvas id="orbCanvas" width="180" height="170"></canvas>
+            </div>
+          </div>
+
+          <!-- Right: Controls -->
+          <div class="card">
+            <div class="row-item" style="padding-top: 0;">
+              <span class="card-section-title">STYLE</span>
+              <div class="segmented-control">
+                <button class="segmented-btn active" data-val="orb">Orb</button>
+                <button class="segmented-btn" data-val="bar">Bar</button>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="slider-container">
+                <div class="slider-top">
+                  <span class="slider-label">DIAMETER</span>
+                  <span class="slider-badge" id="diameterBadge">120 px</span>
+                </div>
+                <input type="range" id="diameterSlider" class="slider-track" min="60" max="320" value="120">
+              </div>
+
+              <div class="slider-container">
+                <div class="slider-top">
+                  <span class="slider-label">RING WIDTH</span>
+                  <span class="slider-badge" id="ringBadge">3 px</span>
+                </div>
+                <input type="range" id="ringSlider" class="slider-track" min="1" max="12" value="3">
+              </div>
+
+              <div class="slider-container">
+                <div class="slider-top">
+                  <span class="slider-label">OPACITY</span>
+                  <span class="slider-badge" id="opacityBadge">95%</span>
+                </div>
+                <input type="range" id="opacitySlider" class="slider-track" min="30" max="100" value="95">
+              </div>
+
+              <div class="slider-container">
+                <div class="slider-top">
+                  <span class="slider-label">AUTO-HIDE DELAY</span>
+                  <span class="slider-badge" id="autohideBadge">4 sec</span>
+                </div>
+                <input type="range" id="autohideSlider" class="slider-track" min="1" max="30" value="4">
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 8px;">
+              <div class="control-box">
+                <span class="row-title">Click-through</span>
+                <label class="switch">
+                  <input type="checkbox" id="orbClickThrough" checked>
+                  <span class="slider-round"></span>
+                </label>
+              </div>
+
+              <div class="control-box">
+                <span class="row-title">Animation</span>
+                <select id="orbAnimation" class="select-field" style="width: 120px; font-size: 11px;">
+                  <option value="smooth" selected>Smooth (24 fps)</option>
+                  <option value="breathing">Breathing (12 fps)</option>
+                  <option value="off">Off (0% CPU)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+              <button class="btn" id="resetOrbBtn">Reset Position</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── 6. INTEGRATIONS TAB ─────────────────────────────────── -->
+      <section id="page-integrations" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Connected Services</h2>
+          <p class="page-desc">Manage external APIs and service connections. These integrations expand SAM's capabilities to control external environments and fetch live data.</p>
+        </div>
+
+        <div class="grid-2">
+          <!-- Spotify Card -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span style="color: #1DB954; font-size: 16px;">🟢</span>
+                <div>
+                  <div class="row-title">Spotify Integration</div>
+                  <div class="row-desc">Audio Control API</div>
+                </div>
+              </div>
+              <div class="status-badge" id="spotifyStatusBadge">
+                <span class="status-dot">●</span>
+                <span>Connected</span>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Client ID</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="password" id="spotifyClientId" class="input-field input-mono" value="••••••••••••••••••••••••">
+                <button class="btn-icon" id="copyClientIdBtn">📋</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Client Secret</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="password" id="spotifyClientSecret" class="input-field input-mono" value="••••••••••••••••">
+                <button class="btn-icon" id="toggleSecretBtn">👁</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Redirect URI</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="text" id="spotifyRedirectUri" class="input-field input-mono" value="http://127.0.0.1:8080">
+                <button class="btn-icon" id="copyRedirectBtn">📋</button>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <button class="btn" id="syncSpotifyBtn">Sync Now</button>
+              <button class="btn btn-danger-outline" id="disconnectSpotifyBtn">Disconnect</button>
+            </div>
+          </div>
+
+          <!-- Notion Card -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span style="font-size: 16px;">📄</span>
+                <div>
+                  <div class="row-title">Notion Workspace</div>
+                  <div class="row-desc">Memory & Notes Sync</div>
+                </div>
+              </div>
+              <div class="status-badge disconnected">
+                <span class="status-dot">●</span>
+                <span>Disconnected</span>
+              </div>
+            </div>
+
+            <div style="border: 1px dashed rgba(255,255,255,0.14); border-radius: var(--radius-md); padding: 24px 16px; text-align: center; color: var(--text-dim); font-size: 12px; margin: auto 0;">
+              Connect Notion to allow SAM to read and write to your workspace.
+            </div>
+
+            <button class="btn btn-primary" id="connectNotionBtn" style="width: 100%;">Connect Service</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── 7. ABOUT TAB ────────────────────────────────────────── -->
+      <section id="page-about" class="page">
+        <div class="page-header">
+          <h2 class="page-title">About & Diagnostics</h2>
+          <p class="page-desc">System information and environmental configurations.</p>
+        </div>
+
+        <div class="grid-2">
+          <!-- About Card -->
+          <div class="card">
+            <div class="card-section-title">ABOUT SAM</div>
+            
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="font-size: 28px; background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px;">🤖</div>
+              <div>
+                <div style="font-size: 16px; font-weight: 700; color: var(--text);" id="aboutSamTitle">SAM v0.4.7</div>
+                <div class="row-desc">Smart Assistant Module</div>
+              </div>
+            </div>
+
+            <div class="row-item" style="border: none; padding: 4px 0;">
+              <span class="row-desc">Author</span>
+              <span style="font-weight: 600; color: var(--text);">Samet Gürtuna</span>
+            </div>
+
+            <div>
+              <span class="row-desc" style="display: block; margin-bottom: 6px;">Core Stack</span>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <span class="version-pill">PyQt6</span>
+                <span class="version-pill">Faster-Whisper</span>
+                <span class="version-pill">Ollama</span>
+                <span class="version-pill">Edge-TTS</span>
+                <span class="version-pill">OpenWakeWord</span>
+              </div>
+            </div>
+
+            <button class="btn" id="githubBtn" style="width: 100%; margin-top: 6px;">&lt;/&gt; View on GitHub</button>
+          </div>
+
+          <!-- System Paths Card -->
+          <div class="card">
+            <div class="card-section-title">SYSTEM PATHS</div>
+            
+            <div class="field-group">
+              <label class="field-label">Configuration</label>
+              <input type="text" id="configPathField" class="input-field input-mono" readonly value="~/.config/sam/config.yaml">
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Logs Directory</label>
+              <input type="text" id="logsPathField" class="input-field input-mono" readonly value="~/.local/state/sam/logs/">
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Models Path</label>
+              <input type="text" id="modelsPathField" class="input-field input-mono" readonly value="~/.local/share/sam/models/">
+            </div>
+
+            <button class="btn btn-primary" id="openDataFolderBtn" style="width: 100%; margin-top: 4px;">📁 Open User Data Folder</button>
+          </div>
+        </div>
+
+        <!-- Environment Status Card (4 Stat Boxes) -->
+        <div class="card">
+          <div class="card-section-title">ENVIRONMENT STATUS</div>
+          <div class="grid-4">
+            <div class="stat-box">
+              <span class="stat-title">Python</span>
+              <span class="stat-val accent" id="statPython">3.11.4</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-title">OS</span>
+              <span class="stat-val" id="statOs">Windows x86_64</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-title">CUDA</span>
+              <span class="stat-val accent" id="statCuda">Available (12.2)</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-title">Uptime</span>
+              <span class="stat-val" id="statUptime">00:00:00</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-status">
+      <span style="color: var(--accent); font-size: 11px;">●</span>
+      <span id="footerStatusText">System Ready</span>
+    </div>
+    <div class="footer-actions">
+      <button class="btn" id="cancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn">Save Changes</button>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

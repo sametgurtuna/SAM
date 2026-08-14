@@ -1,19 +1,19 @@
 <div align="center">
 
-# 📜 Changelog
+# Changelog
 
 All notable changes to **SAM** are documented in this file.
 
 <img src="https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-e05735?style=flat-square" alt="Keep a Changelog">
 <img src="https://img.shields.io/badge/SemVer-2.0.0-3776AB?style=flat-square" alt="Semantic Versioning">
-<img src="https://img.shields.io/badge/Current-v0.4.6-22c55e?style=flat-square" alt="Current version">
+<img src="https://img.shields.io/badge/Current-v0.4.7-22c55e?style=flat-square" alt="Current version">
 
 </div>
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and SAM
 follows [Semantic Versioning](https://semver.org/) once it reaches 1.0. Until then,
-minor versions (`0.x.0`) may include breaking config or behavior changes — see
-[ROADMAP.md](ROADMAP.md) for what's planned next.
+minor versions (`0.x.0`) may include breaking config or behavior changes. See
+[ROADMAP.md](ROADMAP.md) for what is planned next.
 
 ---
 
@@ -21,283 +21,172 @@ minor versions (`0.x.0`) may include breaking config or behavior changes — see
 
 | Version | Date | Highlight |
 |:---|:---|:---|
-| [Unreleased](#unreleased) | — | Screen/clipboard awareness, plugin system |
-| [0.4.6](#046---2026-08-13) | 2026-08-13 | ✏️ Editable instant responses & a rebuilt settings window |
-| [0.4.5](#045---2026-08-13) | 2026-08-13 | 🚀 Instant predefined responses & zero-LLM command dispatch |
-| [0.4.4](#044---2026-08-13) | 2026-08-13 | ⚡ Real-time speech transcription & bilingual command routing fixes |
-| [0.4.3](#043---2026-08-12) | 2026-08-12 | 🎯 Fenerbahçe RAG accuracy fixes (multilingual embeddings, strict grounding) |
-| [0.4.2](#042---2026-08-11) | 2026-08-11 | 🧠 Intent classification, RAG, conversation modes |
-| [0.4.1](#041---2026-08-11) | 2026-08-11 | 🟢 The always-on orb, typed input, installer |
-| [0.3.6](#036---2026-07-09) | 2026-07-09 | 🎙️ Custom "Hey Sam" wake word |
-| [0.3.5](#035---2026-07-07) | 2026-07-07 | ⚡ Router & VAD performance pass |
-| [0.3.0](#030---2026-07-07) | 2026-07-07 | 🚀 Initial public release |
+| [Unreleased](#unreleased) | - | Screen/clipboard awareness, plugin system |
+| [0.4.7](#047---2026-08-14) | 2026-08-14 | Major UI Revamp: Google Stitch Cyberpunk Webview, Live Mic EQ, Ollama Tester & Smart Hotkeys |
+| [0.4.6](#046---2026-08-13) | 2026-08-13 | Editable instant responses & a rebuilt settings window |
+| [0.4.5](#045---2026-08-13) | 2026-08-13 | Instant predefined responses & zero-LLM command dispatch |
+| [0.4.4](#044---2026-08-13) | 2026-08-13 | Real-time speech transcription & bilingual command routing fixes |
+| [0.4.3](#043---2026-08-12) | 2026-08-12 | Fenerbahce RAG accuracy fixes (multilingual embeddings, strict grounding) |
+| [0.4.2](#042---2026-08-11) | 2026-08-11 | Intent classification, RAG, conversation modes |
+| [0.4.1](#041---2026-08-11) | 2026-08-11 | The always-on orb, typed input, installer |
+| [0.3.6](#036---2026-07-09) | 2026-07-09 | Custom "Hey Sam" wake word |
+| [0.3.5](#035---2026-07-07) | 2026-07-07 | Router & VAD performance pass |
+| [0.3.0](#030---2026-07-07) | 2026-07-07 | Initial public release |
 
 ---
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md) — screen/clipboard awareness, productivity
+Tracked in [ROADMAP.md](ROADMAP.md) - screen/clipboard awareness, productivity
 features (reminders, scheduling), a plugin system, and a cross-platform command layer
 are next up.
 
 ---
 
-## [0.4.6] - 2026-08-13
+## [0.4.7] - 2026-08-14
 
-> ✏️ **Instant responses you can actually edit, and a settings window that looks the part.**
+> **Major UI Revamp: Google Stitch Cyberpunk Dark Webview Architecture, Live Diagnostics, and Native Windows Integration.**
 
 ### Added
-- **Editable Instant Responses**: on first launch SAM now copies
-  `knowledge/instant_responses.yaml` into the writable data directory
-  (`%APPDATA%\SAM\knowledge\` in an installed build) and reads it from there — exactly
-  like `config.yaml`. Installed users can add or reword phrases without touching
-  Program Files and without waiting for a new build.
-- **Responses settings page**: a new sidebar page with an enable toggle, the resolved
-  file path, **Edit Responses…** (opens the YAML in your default editor), **Show
-  Folder**, and **Reload** — which re-reads the file into the running app, so edits
-  apply without restarting SAM.
-- **Live Transcription settings**: `stt.partial_model` and `stt.partial_interval_ms` are
-  now editable from the Speech page instead of `config.yaml` only.
-- **About page**: shows the real developer, a GitHub link, and the on-disk locations of
-  your config, logs and models, with an **Open Data Folder** button.
+- **Modern Webview Settings UI (Edge WebView2 + Google Stitch)**: Replaced PyQt's legacy QSS raster engine with a high-performance, pixel-perfect HTML5/CSS3/JS Webview interface. Powered by `pywebview` utilizing native Windows Edge Chromium for minimal memory overhead.
+- **Cyberpunk Dark Design System**: Glassmorphism cards with `backdrop-filter: blur(12px)`, `#00D4AA` neon teal and `#38F2D8` accents, animated smooth pill toggle switches, and JetBrains Mono code styling.
+- **Live Microphone & Audio Spectrum Tester**: Integrated Web Audio API frequency visualizer directly into the Speech tab with real-time 60 FPS equalizer bars and live input volume measurement.
+- **Interactive Ollama Latency & Model Detector**: Built-in ping tool with roundtrip latency metrics (e.g. `Connected - 9ms`) and auto-discovery of locally installed LLM models directly populating the model selector.
+- **Smart Interactive Hotkey Recorder**: Click-to-record voice and text shortcut fields with automatic modifier key capture and visual keycap badges.
+- **Interactive Canvas Orb Preview**: Real-time breathing preview in the Appearance tab reacting dynamically to Diameter, Ring Width, and Opacity sliders.
+- **Windows Single-Instance Mutex & Focus**: Integrated Windows Named Mutex (`SAM_Settings_Window_Mutex`) and Win32 `FindWindowW` / `SetForegroundWindow` API preventing duplicate settings windows and bringing existing window to front on repeated tray clicks.
+- **Native AppUserModelID & Taskbar Branding**: Fixed Python taskbar grouping via `SetCurrentProcessExplicitAppUserModelID` and Windows `WM_SETICON`, giving SAM a dedicated taskbar identity with SAM's real logo.
 
 ### Changed
-- **Settings window redesign**: larger and resizable instead of fixed at 720×560, with a
-  header and version pill, per-page titles and descriptions, card-style sections,
-  restyled sidebar / checkboxes / scrollbars / tooltips, and a footer that states which
-  settings apply immediately. Tabs renamed for clarity (`UI` → `Appearance`).
+- **Fixed Golden Ratio Window Layout**: Locked settings window to a crisp `1020x690` resolution (`resizable=False`) preventing button clipping and awkward text wrapping.
+- **Scrollbar Elimination**: Completely removed unsightly browser scrollbars while keeping mousewheel and touch navigation smooth.
+
+---
+
+## [0.4.6] - 2026-08-13
+
+> **Instant responses you can actually edit, and a settings window that looks the part.**
+
+### Added
+- **Editable Instant Responses**: on first launch SAM now copies `knowledge/instant_responses.yaml` into the writable data directory (`%APPDATA%\SAM\knowledge\` in an installed build) and reads it from there, exactly like `config.yaml`.
+- **Responses settings page**: a new sidebar page with an enable toggle, the resolved file path, **Edit Responses**, **Show Folder**, and **Reload** which re-reads the file into the running app without restarting SAM.
+- **Live Transcription settings**: `stt.partial_model` and `stt.partial_interval_ms` are now editable from the Speech page instead of `config.yaml` only.
+- **About page**: shows developer details, a GitHub link, and on-disk locations of config, logs and models, with an **Open Data Folder** button.
+
+### Changed
+- **Settings window redesign**: larger layout with a header and version pill, per-page titles and descriptions, card-style sections, and restyled controls.
 
 ### Fixed
-- Buttons nested inside a settings page could render invisible: the scroll viewport was
-  given a selector-less stylesheet (`background: transparent;`), which Qt inherits down
-  to every child widget and which overrode their own backgrounds. The rule is now scoped
-  to the viewport itself.
+- Buttons nested inside a settings page could render invisible due to inherited viewport styles. Scoped styles directly to the viewport.
 
 ---
 
 ## [0.4.5] - 2026-08-13
 
-> 🚀 **Instant responses & a command path that never touches the LLM.**
+> **Instant responses and a fast command path skipping the LLM.**
 
 ### Added
-- **Instant Responses**: a new `knowledge/instant_responses.yaml` file with ~130 predefined
-  TR/EN phrases (greetings, thanks, time/date/day, "who are you", small talk). A match is a
-  dictionary lookup (`commands/instant.py`) — SAM answers the moment it hears the phrase,
-  with no LLM round-trip at all. Supports response lists (picked at random), `{time}` /
-  `{date}` / `{day}` placeholders, and a `match: contains` mode for loose phrases.
-- **Fast Command Path**: recognized system commands and instant responses now skip the
-  `THINKING` state entirely — `AppController._dispatch()` answers straight from
-  `LISTENING` → `SPEAKING`. Previously every utterance detoured through the LLM router
-  before falling back to the regex command matcher.
-- **Fast-Path Transcription Skip**: if the live partial transcript already covers ~90% of
-  the recorded audio and matches a known command or instant response, SAM acts on it
-  immediately and skips the final (slower) Whisper decode altogether.
-- **Dedicated Live-Transcription Model**: partial captioning now runs on its own small
-  model (`stt.partial_model`, default `base`, on half the CPU threads) instead of
-  re-running the full-size model every ~300ms, so live captions no longer compete with
-  (and slow down) the final transcription. Configurable per-model or fully disabled
-  (`"off"`).
+- **Instant Responses**: a new `knowledge/instant_responses.yaml` file with ~130 predefined TR/EN phrases (greetings, thanks, time/date, small talk). A match is a fast dictionary lookup (`commands/instant.py`).
+- **Fast Command Path**: recognized system commands and instant responses now skip the `THINKING` state entirely: `AppController._dispatch()` answers straight from `LISTENING` -> `SPEAKING`.
+- **Fast-Path Transcription Skip**: if the live partial transcript already covers ~90% of the recorded audio and matches a known command, SAM acts on it immediately and skips the final Whisper decode.
+- **Dedicated Live-Transcription Model**: partial captioning runs on its own small model (`stt.partial_model`, default `base`) instead of re-running the full-size model every ~300ms.
 
 ### Changed
-- `commands/router.CommandRouter.try_handle()` takes a `vision` flag so the fast command
-  path doesn't pay for a screen capture it won't use.
-- Live-decode cadence is now rate-limited (`stt.partial_interval_ms`, default 400ms)
-  instead of firing on every recorder chunk.
+- `commands/router.CommandRouter.try_handle()` takes a `vision` flag so the fast command path does not pay for unused screen captures.
+- Live-decode cadence is rate-limited (`stt.partial_interval_ms`, default 400ms) instead of firing on every recorder chunk.
 
 ---
 
 ## [0.4.4] - 2026-08-13
 
-> ⚡ **Real-time live speech transcription & robust bilingual command routing.**
+> **Real-time live speech transcription and bilingual command routing.**
 
 ### Added
 - **Live Partial Captioning**: Audio captured while speaking is decoded every ~300ms using fast greedy Whisper (`beam_size=1`) and streamed live to the UI overlay/orb in real-time.
-- **Turkish Command Support**: Complete Turkish intent coverage for media (`sonraki parça`, `şarkıyı geç`, `sıradaki`, `pas geç`), volume control (`sesi aç`, `sesi kıs`, `sessize al`), system actions (`ekranı kilitle`, `ekran görüntüsü al`), and application management (`chrome aç`, `spotify kapat`).
+- **Turkish Command Support**: Complete Turkish intent coverage for media, volume control, system actions, and application management.
 
 ### Fixed
-- **Command Router Matching**: Stripped conversational fluff (`hey sam`, `please`, `lütfen`) and flexible phrase matching to prevent system commands like `"next track please"` or `"sonraki parçaya geç"` from falling through to the LLM.
+- **Command Router Matching**: Stripped conversational filler words (`hey sam`, `please`, `lutfen`) to prevent system commands from falling through to the LLM.
 - **Latency & Turnaround**: Tuned default silence detection duration from 900ms to 600ms for faster post-speech response.
 
 ---
 
 ## [0.4.3] - 2026-08-12
 
-> 🎯 **Fenerbahçe RAG accuracy pass** — less hallucination, more grounded answers.
+> **Fenerbahce RAG accuracy pass: less hallucination, more grounded answers.**
 
-#### 🐛 Fixed
+### Fixed
+- Retrieval broke for Turkish questions against English knowledge files. Swapped embedding model to `paraphrase-multilingual-MiniLM-L12-v2` for cross-lingual TR/EN retrieval.
+- Corrected championship numbers in knowledge files.
 
-- Retrieval broke for Turkish questions against English knowledge files. Swapped the
-  embedding model from `all-MiniLM-L6-v2` (English-only) to
-  `paraphrase-multilingual-MiniLM-L12-v2` (~same size, cross-lingual TR/EN), so a
-  Turkish query now actually matches the relevant chunk instead of returning noise.
-- `legends.md` claimed Alex de Souza won "four Süper Lig titles (2004-05, 2006-07,
-  2010-11, and one more)" — the trailing "and one more" was effectively an instruction
-  to fabricate. Corrected to the actual three titles.
-
-#### 🔧 Changed
-
-- `FENERBAHCE` mode instructions rebalanced — the previous "fanaticism 9/10" tone
-  fought with the accuracy rules on a 3B local model. Now accuracy is the explicit
-  priority; tone stays warm but not shouted, with an explicit "Bunu net bilmiyorum"
-  fallback taught to the model.
-- Prompt builder now wraps retrieved knowledge in a hard `GROUNDED FACTS` block that
-  forbids invention and requires the model to say it doesn't know when the answer
-  isn't in the facts.
-- `rag.top_k`: 3 → 5. The KB is small; the extra chunks cost nothing and reduce the
-  chance the right chunk falls outside the top-3 window.
+### Changed
+- Rebalanced prompt instructions to prioritize factual precision over tone.
+- Added strict factual grounding blocks in retrieved context.
+- Increased `rag.top_k` from 3 to 5.
 
 ---
 
 ## [0.4.2] - 2026-08-11
 
-> 🧠 **Conversation intelligence** — SAM stopped treating every message the same way.
+> **Conversation intelligence: intent classification and RAG integration.**
 
-#### ✨ Added
-
-- Intent classification (`llm/intent.py`) — a keyword/regex layer, no LLM call, tags
-  every message as `NORMAL`, `FENERBAHCE`, or `COMPLEX` before it's routed, so simple
-  chat never pays for a heavier round-trip it doesn't need.
-- Dynamic conversation modes (`llm/modes.py`) — the system prompt now adapts per-turn
-  instead of staying static for the whole session.
-- RAG knowledge retrieval (`llm/rag.py`) — sentence-transformers embeddings +
-  ChromaDB, lazy-loaded on first query. Ships with a first knowledge domain:
-  Fenerbahçe history, legends, trophies, stadium, rivals, and modern era
-  (`knowledge/football/fenerbahce/`).
-- Prompt assembly pipeline (`llm/prompt_builder.py`) — persona, behavior rules, mode
-  instructions, and RAG context are now composed per-turn instead of concatenated
-  ad hoc inside the router.
-- Long-term memory interface (`llm/memory.py`) — currently a `NullMemory` stub, laying
-  the groundwork for persistent user memory in a future release.
-
-#### 🔧 Changed
-
-- `llm/router.py` reworked to wire intent classification, mode selection, RAG
-  retrieval, and prompt building into the existing engine routing flow.
-- `ui/caption.py` reworked for the longer, RAG-backed replies this release introduced.
-- `core/config.py` and `config.example.yaml` gained new keys for RAG, modes, and
-  intent thresholds — all with safe defaults, so existing `config.yaml` files keep
-  working unmodified.
-
-#### 🗑️ Removed
-
-- `BUILDING.md` — consolidated into the contribution guide and [setup.md](setup.md).
+### Added
+- Intent classification (`llm/intent.py`): keyword and regex layer classifying messages as `NORMAL`, `FENERBAHCE`, or `COMPLEX`.
+- Dynamic conversation modes (`llm/modes.py`): adaptive system prompts per-turn.
+- RAG knowledge retrieval (`llm/rag.py`): sentence-transformers embeddings + ChromaDB.
+- Prompt assembly pipeline (`llm/prompt_builder.py`): composed persona, behavior rules, mode instructions, and RAG context.
+- Long-term memory interface stub (`llm/memory.py`).
 
 ---
 
 ## [0.4.1] - 2026-08-11
 
-> 🟢 **The orb** — the biggest visual and structural change since v0.1.0.
+> **The orb overlay and native installer release.**
 
-#### ✨ Added
-
-- The orb overlay (`ui/orb.py`) — replaces the trigger-only floating bar with an
-  always-on circle that breathes gently when idle and reacts live to mic input while
-  engaged.
-- Z-order presence control — the orb sits at the bottom of the window stack by
-  default (`ui.orb.layer: auto`), below every other window and above only the
-  wallpaper, until a wake word, hotkey, or click brings it to the front
-  (`ui/win32.py` — click-through and foreground-focus ctypes helpers).
-- Click-through hit-testing — only the visible circle is clickable; everything else
-  in its bounding box passes mouse events straight to the desktop underneath. `Ctrl`
-  + drag repositions it, and the position is remembered.
-- Typed input mode (`ui/text_input.py`) — `Ctrl+Shift+Space`, or a click on the orb,
-  opens a text box that runs through the same router → LLM → TTS pipeline as speech.
-- Ollama auto-start (`llm/ollama_service.py`) — SAM finds and starts the Ollama
-  server itself, hidden, with no console flash, and never touches a server that was
-  already running (`stop_on_exit: false` by default).
-- A real installer — Inno Setup script (`installer/SAM.iss`), a PyInstaller build
-  spec (`SAM.spec`), and `core/installer_steps.py` (`SAM.exe --install-models`)
-  produce a per-user `SAM-Setup-x.y.z.exe` with no admin requirement.
-- Frozen-exe path resolution (`core/paths.py`) — dev vs. installed-build paths, plus
-  a named-mutex single-instance lock so SAM can't run twice.
-- Codebase conventions formalized into a single contribution guide.
-- New icon and preview assets (`assets/icon.ico`, `assets/icon.png`,
-  `assets/preview-orb-states.png`) and the generator behind them
-  (`tools/make_icon.py`).
-
-#### 🔧 Changed
-
-- `docs/ARCHITECTURE.md` rewritten to describe the orb-based overlay and the new
-  threading/z-order model.
-- `audio/tts.py` reworked for smoother streaming playback alongside the new overlay.
-- `ui/settings_window.py`, `ui/waveform.py`, and `ui/floating_bar.py` updated for the
-  orb-first UI (the floating bar remains available via `ui.overlay.style: bar`).
-- `main.py`, `core/app.py`, and `core/config.py` extended to support the new
-  overlay, installer flags, and Ollama service lifecycle.
-
-#### 🛡️ Security
-
-- Shells can no longer be opened by voice or text, under any circumstance. `cmd`,
-  `powershell`, `wt`, `bash`, and similar are hard-blocked in `commands/system.py`
-  regardless of how the request arrives — closing a real gap where a Whisper
-  hallucination on background noise could previously have opened a terminal window
-  unprompted.
+### Added
+- The orb overlay (`ui/orb.py`): always-on desktop circle with reactive animations.
+- Z-order presence control: orb rests at the bottom of the window stack until summoned (`ui/win32.py`).
+- Typed input mode (`ui/text_input.py`): triggered via `Ctrl+Shift+Space` or clicking the orb.
+- Ollama auto-start (`llm/ollama_service.py`): automatic local Ollama server discovery and startup.
+- Inno Setup installer (`installer/SAM.iss`) and PyInstaller spec (`SAM.spec`).
+- Named-mutex single-instance lock and path resolution (`core/paths.py`).
 
 ---
 
 ## [0.3.6] - 2026-07-09
 
-> 🎙️ **"Hey Sam"** — SAM's own name became its wake word.
-
-#### ✨ Added
-
-- Custom-trained wake word model, `assets/models/hey_sam.onnx`, set as the new
-  default — replacing the generic wake word used since v0.2.0.
-- A file browser dialog in the Settings UI for choosing custom wake word models
-  (`.onnx` / `.tflite`), instead of hand-editing `config.yaml`.
-- Dynamic rendering of the active wake word and app version in the CLI banner and
-  the about screen, instead of hardcoded strings.
-
-#### 🔧 Changed
-
-- Default app version bumped to v0.3.6 consistently across configs, scripts, and
-  docs (`README.md`, `ROADMAP.md`, `setup.md`).
+### Added
+- Custom "Hey Sam" wake word model (`assets/models/hey_sam.onnx`) set as default.
+- Wake word model file browser in settings.
+- Dynamic wake word and version display in CLI banner.
 
 ---
 
 ## [0.3.5] - 2026-07-07
 
-> ⚡ **Performance & fluidity** — a same-day follow-up to the initial release.
-
-#### 🔧 Changed
-
-- `commands/router.py` expanded significantly — broader command pattern coverage
-  and improved chained-command handling (`"and"` / `"ve"` / `"then"`).
-- `audio/recorder.py` and `audio/wake_word.py` tuned for more responsive voice
-  activity detection and wake word sensitivity.
-- `core/app.py` state transitions tightened for a smoother idle → listening →
-  thinking → speaking cycle.
-- `audio/stt.py` simplified — trimmed dead configuration paths left over from the
-  initial implementation.
+### Changed
+- Expanded command router pattern coverage and chained-command handling.
+- Tuned VAD voice activity detection sensitivity.
+- Polished state transition timings in `core/app.py`.
 
 ---
 
 ## [0.3.0] - 2026-07-07
 
-> 🚀 **Initial public release.**
-
-#### ✨ Added
-
-- PyQt6 floating overlay UI with a live mic-level waveform visualizer.
-- Wake word detection via `openwakeword` (ONNX/TFLite), continuous and low-CPU.
-- Local speech-to-text via `faster-whisper` (CTranslate2, int8 quantized).
-- Local LLM conversation via Ollama (`qwen2.5:3b` default model).
-- Instant OS command routing (regex-matched, <10ms) for volume, media playback,
-  app launch/close, and power actions.
-- Spotify API integration for direct track playback by voice.
-- System tray icon with a dark-themed settings dashboard.
-- Speech synthesis via `edge-tts` (online voices) or `pyttsx3` (fully offline).
-- Full initial documentation set: README, setup guide, roadmap, and architecture doc.
+### Added
+- Initial public release of SAM.
+- Floating overlay UI with live mic visualizer.
+- Wake word detection via `openwakeword`.
+- Local speech-to-text with `faster-whisper`.
+- Local LLM chat via Ollama.
+- Instant regex command router for OS controls.
+- Spotify API integration.
+- Speech synthesis with `edge-tts` and `pyttsx3`.
 
 ---
 
-<div align="center">
-
-*For where SAM is headed next, see* [*ROADMAP.md*](ROADMAP.md)*.*
-
-</div>
-
-[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.6...HEAD
+[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/sametgurtuna/SAM/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/sametgurtuna/SAM/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/sametgurtuna/SAM/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/sametgurtuna/SAM/compare/v0.4.3...v0.4.4

@@ -1,16 +1,12 @@
-# SAM — System Tray Manager
-# Sag altta (system tray) ikon gosterir.
-# Sag tik menusu: Settings, Mute, Clear Context, Quit
-# Sol tik veya cift tik: Settings penceresini acar.
-
+import os
 import logging
 
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtCore import QObject
 
 from ui.icon_generator import create_tray_icon
-from ui.settings_window import SettingsWindow
+from ui.web_settings import launch_web_settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +23,17 @@ class TrayManager(QObject):
         self._muted = False
         self._settings_window = None
 
-        # Tray ikonu olustur
-        self._tray = QSystemTrayIcon(create_tray_icon(), parent)
+        # Tray ikonu olustur — assets/icon.ico varsa onu kullan, yoksa ciz
+        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "icon.ico"))
+        if not os.path.exists(icon_path):
+            icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "icon.png"))
+
+        if os.path.exists(icon_path):
+            tray_icon = QIcon(icon_path)
+        else:
+            tray_icon = create_tray_icon()
+
+        self._tray = QSystemTrayIcon(tray_icon, parent)
         self._tray.setToolTip("SAM — AI Desktop Assistant")
 
         # Menu olustur
@@ -85,26 +90,18 @@ class TrayManager(QObject):
         self._menu.addAction(quit_action)
 
     def _on_tray_activated(self, reason):
-        """Sol tik veya cift tik → Settings penceresini ac."""
-        if reason in (
-            QSystemTrayIcon.ActivationReason.Trigger,
-            QSystemTrayIcon.ActivationReason.DoubleClick,
-        ):
+        """Sol tik → Settings penceresini ac."""
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self._open_settings()
 
     def _open_settings(self):
-        """Settings penceresini ac (tekil instance)."""
-        if self._settings_window is None or not self._settings_window.isVisible():
-            self._settings_window = SettingsWindow(controller=self._controller)
-            if self._controller is not None:
-                self._settings_window.settings_saved.connect(
-                    self._controller.apply_settings
-                )
-            self._settings_window.show()
-        else:
-            # Zaten aciksa one getir
-            self._settings_window.activateWindow()
-            self._settings_window.raise_()
+        """Settings penceresini ac (debounce korumali tekil instance)."""
+        import time
+        now = time.time()
+        if hasattr(self, "_last_settings_click") and now - self._last_settings_click < 1.2:
+            return
+        self._last_settings_click = now
+        launch_web_settings(controller=self._controller)
 
     def _open_text_input(self):
         """Orb'un altindaki yazi kutusunu ac."""

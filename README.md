@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" alt="SAM" width="88" />
 
-# SAM — Smart Assistant Module
+# SAM - Smart Assistant Module
 
 ### A local, always-on voice assistant that lives on your desktop
 
@@ -10,17 +10,17 @@
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge" alt="License: MIT">
   <img src="https://img.shields.io/badge/Ollama-Local%20LLM-1a1a2e?style=for-the-badge&logo=ollama" alt="Powered by Ollama">
-  <img src="https://img.shields.io/badge/UI-PyQt6-41cd52?style=for-the-badge&logo=qt" alt="UI: PyQt6">
+  <img src="https://img.shields.io/badge/UI-WebView2%20%2F%20PyQt6-41cd52?style=for-the-badge" alt="UI: WebView2 / PyQt6">
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows" alt="Platform: Windows">
 </p>
 
-<img src="assets/preview-orb-states.png" alt="SAM orb — idle, listening, thinking, speaking" width="760">
+<img src="assets/preview-orb-states.png" alt="SAM orb states: idle, listening, thinking, speaking" width="760">
 
-<sub>The orb's four states — idle breathing, level-reactive listening, a sweeping thinking arc, speaking.</sub>
+<sub>The orb's four states: idle breathing, level-reactive listening, a sweeping thinking arc, speaking.</sub>
 
 <br><br>
 
-**[Setup Guide](setup.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Roadmap](ROADMAP.md)**
+**[Setup Guide](setup.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Roadmap](ROADMAP.md)** · **[Changelog](CHANGELOG.md)**
 
 </div>
 
@@ -28,64 +28,52 @@
 
 ## What SAM actually is
 
-SAM is a Windows background app that sits on your desktop as a small circular **orb** —
+SAM is a Windows background app that sits on your desktop as a small circular **orb**:
 out of the way until you need it, gone from the window stack, then instantly on top the
 moment you speak, type, or click it.
 
-> Say the wake word or press a hotkey → SAM records you → transcribes locally with
-> `faster-whisper` → either runs a matching OS command directly, or streams a reply from a
-> local **Ollama** model → speaks the answer back.
+> Say the wake word or press a hotkey -> SAM records you -> transcribes locally with
+> `faster-whisper` -> either runs a matching OS command directly, or streams a reply from a
+> local **Ollama** model -> speaks the answer back.
 
-It's not a cloud assistant with a local UI bolted on. Voice, transcription, and — with
-Ollama — the language model itself, all run on your machine. SAM's only unprompted network
-call is to `localhost:11434` (your own Ollama server); a cloud fallback (Claude) is opt-in.
+It is not a cloud assistant with a local UI bolted on. Voice capture, transcription, and
+the language model itself (via Ollama) all run on your machine. SAM's only unprompted network
+call is to `localhost:11434` (your local Ollama server). A cloud fallback (Claude) is opt-in.
 
 ---
 
-## ✨ What's new in v0.4.6
+## What's new in v0.4.7
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**✏️ Instant responses you can edit**
-On first launch the phrase list is copied to your writable data folder
-(`%APPDATA%\SAM\knowledge\` in an installed build), just like `config.yaml` — so you
-can add your own without a new build. **Settings → Responses** opens it in your editor
-and reloads it into the running app.
+**Major UI Revamp (Edge WebView2 + Google Stitch)**
+Replaced legacy PyQt QSS settings with a high-performance HTML5/CSS3/JS Webview interface. Features glassmorphism cards (`backdrop-filter: blur(12px)`), neon teal `#00D4AA` accents, and custom switches.
 
-**🎛️ Rebuilt settings window**
-Resizable, with per-page titles and descriptions, card-style sections, a new
-**Responses** page, live-transcription controls, and an **About** page that points at
-your config, logs and models on disk.
+**Live Microphone & Audio Spectrum Tester**
+Interactive 60 FPS Web Audio API frequency visualizer directly in the Speech tab with real-time waveform bars and live volume percentage meter.
 
-**⚡ Zero-LLM command dispatch**
-Recognized commands and predefined phrases answer straight from `LISTENING` →
-`SPEAKING`, skipping `THINKING` entirely — no LLM round-trip involved.
+**Interactive Ollama Latency & Model Detector**
+Live connection ping with roundtrip latency metrics (`Connected - 9ms`) and auto-discovery of locally installed LLM models.
 
-**💬 Instant responses**
-~130 predefined TR/EN phrases (greetings, thanks, time/date, "who are you") answer the
-moment SAM hears them — a dictionary lookup, editable in
-[`knowledge/instant_responses.yaml`](knowledge/instant_responses.yaml).
-
-**🏎️ Fast-path transcription skip**
-If the live caption already covers the recording and matches a known command, SAM acts
-on it immediately — no waiting on the final Whisper decode.
+**Smart Interactive Hotkey Recorder**
+Click-to-record voice and text shortcut inputs with automatic key combination detection (`Ctrl + Space`).
 
 </td>
 <td width="50%" valign="top">
 
-**🎙️ Dedicated live-transcription model**
-Live captions now decode on their own small model (`stt.partial_model`) instead of the
-full-size one, so they no longer compete with — or slow down — the final transcription.
+**Live Canvas Orb Preview**
+Real-time breathing 60 FPS Canvas orb visualizer in Appearance settings reacting instantly to Diameter, Ring Width, and Opacity adjustments.
 
-**🇹🇷 Bilingual command routing fixes**
-Conversational fluff (`hey sam`, `lütfen`) is stripped before matching, and Turkish media
-(`sonraki parça`, `sesi kıs`) / system commands are covered end to end.
+**Single-Instance Window & Taskbar Branding**
+Windows Named Mutex and AppUserModelID integration preventing duplicate settings windows and ensuring SAM's logo is pinned on the Windows taskbar.
 
-**🟢 The always-on orb**
-A breathing circle that stays out of your way — bottom of the window stack until
-summoned by wake word, hotkey, or click. Click-through, `Ctrl`+drag to reposition.
+**Editable Instant Responses & Fast Routing**
+Predefined TR/EN phrases (`knowledge/instant_responses.yaml`) answer instantly without LLM latency, reloadable on-the-fly.
+
+**The always-on orb**
+A breathing circle that stays out of your way: bottom of the window stack until summoned by wake word, hotkey, or click.
 
 </td>
 </tr>
@@ -99,13 +87,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ```mermaid
 flowchart LR
-    WW["🎙️ Wake word"] --> ROUTE
-    HK["⌨️ Ctrl+Space"] --> ROUTE
-    TX["⌨️ Typed input"] -.skips recording.-> STT
-    ROUTE(( )) --> REC["Recorder — VAD"]
-    REC --> STT["STT — faster-whisper\n(live partial + final)"]
+    WW["Wake word"] --> ROUTE
+    HK["Ctrl+Space"] --> ROUTE
+    TX["Typed input"] -.skips recording.-> STT
+    ROUTE(( )) --> REC["Recorder: VAD"]
+    REC --> STT["STT: faster-whisper\n(live partial + final)"]
     STT --> INSTANT{"Predefined\nphrase?"}
-    INSTANT -- yes --> TTS["🔊 edge-tts / pyttsx3"]
+    INSTANT -- yes --> TTS["TTS: edge-tts / pyttsx3"]
     INSTANT -- no --> CMD{"Matches a\ncommand pattern?"}
     CMD -- yes --> SYS["OS action\n(no shell, ever)"]
     CMD -- no --> LLM["Ollama / Claude\n(streaming)"]
@@ -119,7 +107,7 @@ flowchart LR
     style INSTANT fill:#1a1a24,stroke:#00D4AA,color:#e8e8e8
 ```
 
-Everything is orchestrated by `AppController` (`core/app.py`) through PyQt signals — no
+Everything is orchestrated by `AppController` (`core/app.py`) through PyQt signals: no
 component calls another directly. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for
 the full picture, including the state machine, threading model, and the z-order mechanics
 behind "out of your way until called."
@@ -128,28 +116,27 @@ behind "out of your way until called."
 |:--|:--|
 | Wake word | `openwakeword` (ONNX), continuous, low CPU |
 | Recording | RMS-based voice activity detection |
-| Transcription | `faster-whisper` (CTranslate2, int8) — small model for live captions, full model for the final pass |
-| Instant responses | Dictionary lookup (`commands/instant.py`) — never touches the LLM |
-| Instant commands | Regex router → `os.startfile` / `ctypes` / list-form `subprocess` — never a shell |
-| Conversation | Local Ollama, or Claude if you configure it |
+| Transcription | `faster-whisper` (CTranslate2, int8): small model for live captions, full model for the final pass |
+| Instant responses | Dictionary lookup (`commands/instant.py`): never touches the LLM |
+| Instant commands | Regex router -> `os.startfile` / `ctypes` / list-form `subprocess` (never a shell) |
+| Conversation | Local Ollama, or Claude if configured |
 | Speech out | `edge-tts` (online voices) or `pyttsx3` (fully offline) |
 | Overlay | Always-on orb + fading caption + typed-input box |
 
 ---
 
-## 🚀 Installation
+## Installation
 
 > [!TIP]
-> Most people should grab the installer. Full walkthrough — including what each checkbox
-> does — in the **[Setup Guide](setup.md)**.
+> Most users should use the installer. See the **[Setup Guide](setup.md)** for a complete walkthrough.
 
 <table>
-<tr><th>📦 Installer (recommended)</th><th>🛠️ From source (development)</th></tr>
+<tr><th>Installer (recommended)</th><th>From source (development)</th></tr>
 <tr>
 <td valign="top">
 
 ```
-SAM-Setup-x.y.z.exe
+SAM-Setup-0.4.7.exe
 ```
 
 Per-user install, no admin needed. Optionally
@@ -174,12 +161,12 @@ python main.py
 </tr>
 </table>
 
-No build step for source use — it's a script you run directly. `config.yaml` is created
-from `config.example.yaml` on first run if it doesn't already exist.
+No build step for source use: it is a script you run directly. `config.yaml` is created
+from `config.example.yaml` on first run if it does not already exist.
 
 ---
 
-## 🎮 Using SAM
+## Using SAM
 
 | Method | Result |
 |:--|:--|
@@ -187,14 +174,14 @@ from `config.example.yaml` on first run if it doesn't already exist.
 | Press `Ctrl+Space` | Same, no wake word needed |
 | Press `Ctrl+Shift+Space` | Opens a text box under the orb instead |
 | Click the orb | Same as the text hotkey |
-| `Ctrl` + drag the orb | Moves it — position is remembered |
-| Right-click the tray icon | Settings, mute wake word, clear memory, "Ask SAM…", quit |
+| `Ctrl` + drag the orb | Moves it: position is remembered |
+| Right-click the tray icon | Settings, mute wake word, clear memory, quit |
 
 ---
 
-## ⌨️ Command reference
+## Command reference
 
-Matches here execute directly — no LLM round-trip, response in milliseconds. Everything
+Matches here execute directly: no LLM round-trip, response in milliseconds. Everything
 else falls through to the local LLM.
 
 <table>
@@ -209,8 +196,8 @@ else falls through to the local LLM.
 <tr><td>Screenshot</td><td><code>"take a screenshot"</code></td></tr>
 </table>
 
-> ¹ Needs a Spotify Client ID/Secret — Settings → Integrations, or the
-> `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` environment variables (these win). The
+> ¹ Needs Spotify Client ID/Secret: Settings -> Integrations, or the
+> `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` environment variables. The
 > OAuth token is cached in `%LOCALAPPDATA%\SAM\`, never in the project folder.
 >
 > ² **Two-step by design.** `"shutdown computer"` only arms the action and starts a
@@ -218,22 +205,21 @@ else falls through to the local LLM.
 > must name an explicit object (`computer`/`pc`/`machine`/`laptop`), so
 > `"restart chrome"` goes to the app handler, never the power handler.
 
-**Shells cannot be opened by voice or text, on purpose** — see below.
+**Shells cannot be opened by voice or text, on purpose** - see Security section below.
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 Every key in `config.yaml` has a default in `core/config.py`, so a missing or partial file
-never breaks the app. Edit it via **Settings** in the tray menu (Appearance-page cosmetics —
-size, opacity, fps, click-through, layer, auto-hide delay — apply live; everything else
-needs a restart), or directly — the full annotated template is
+never breaks the app. Edit it via **Settings** in the tray menu (Appearance-page cosmetics
+apply live; audio/llm settings apply on restart), or directly via
 [`config.example.yaml`](config.example.yaml).
 
 Instant responses live in their own file. In an installed build SAM seeds a writable copy
 at `%APPDATA%\SAM\knowledge\instant_responses.yaml` on first launch and reads that one,
-so your edits survive updates. **Settings → Responses** has *Edit Responses…*, *Show
-Folder* and *Reload* (applies your changes without restarting SAM).
+so your edits survive updates. **Settings -> Responses** includes *Edit Responses*, *Show
+Folder* and *Reload* (applies changes without restarting SAM).
 
 ```yaml
 hotkey:
@@ -245,7 +231,7 @@ ui:
     layer: auto        # auto (bottom until called, then on top) | topmost | normal
     click_through: true
     idle_animation: true
-    idle_fps: 12        # SAM runs 24/7 — this is what it costs while idle
+    idle_fps: 12        # SAM runs 24/7 - low idle cost
     active_fps: 60
 
 wake_word:
@@ -265,13 +251,13 @@ llm:
 
 ---
 
-## 🧩 Writing a custom command
+## Writing a custom command
 
 A regex in `commands/router.py` plus a handler in `commands/system.py` (or a new module)
-that returns a spoken-style confirmation string.
+that returns a spoken confirmation string:
 
 ```python
-# commands/router.py — inside _build_patterns()
+# commands/router.py - inside _build_patterns()
 patterns.append((
     re.compile(r"\b(what'?s|check) (my )?cpu (temp|temperature)\b", re.IGNORECASE),
     lambda m: system.get_cpu_temperature()
@@ -281,61 +267,56 @@ patterns.append((
 ```python
 # commands/system.py
 def get_cpu_temperature() -> str:
-    """Handlers never raise — the router already wraps calls in try/except,
-    but a clean string beats a caught traceback."""
+    """Handlers never raise - the router already wraps calls in try/except."""
     try:
-        # Real OS side effects go through list-form subprocess or os.startfile —
-        # never shell=True, and never pass transcript text into a shell.
+        # Real OS side effects use list-form subprocess or os.startfile (never shell=True)
         ...
         return f"Your CPU is at {celsius:.1f} degrees."
     except Exception:
         return "Sorry, I couldn't read the CPU temperature."
 ```
 
-See [`CLAUDE.md`](CLAUDE.md)'s **Conventions** for the full rule set this codebase
-follows — no `shell=True`, destructive actions are two-step and anchored, secrets come
-from the environment first.
-
 ---
 
-## 🚑 Troubleshooting
+## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |:--|:--|:--|
-| `No LLM engine found` in the log | Ollama isn't installed, or the model isn't pulled | Check the log for "Ollama is not installed"; otherwise `ollama pull qwen2.5:3b` |
-| Wake word doesn't trigger | Threshold too high, or wrong mic | Lower `wake_word.threshold` (try `0.35`); check your default input device |
-| Whisper transcribes garbage on silence | Known Whisper hallucination behavior on background noise | Raise `audio.silence_threshold` — also why shells can't be voice-opened, see below |
-| `Ctrl+Space` does nothing | `keyboard` needs to see other apps' keystrokes | Run SAM as Administrator, or check `logs/sam.log` for a hotkey error |
-| A second orb / doubled hotkeys | Two SAM processes running | SAM allows one instance only (named mutex) — check the tray before starting another |
-| Settings won't save | Installed build's config lives in `%APPDATA%\SAM\config.yaml`, not next to the exe | Edit that file, or use the Settings window |
+| `No LLM engine found` in the log | Ollama is not installed, or the model is not pulled | Check the log for details; run `ollama pull qwen2.5:3b` |
+| Wake word does not trigger | Threshold too high, or wrong mic | Lower `wake_word.threshold` (try `0.35`); check your default input device |
+| Whisper transcribes noise on silence | Whisper hallucination behavior on background noise | Raise `audio.silence_threshold` |
+| `Ctrl+Space` does nothing | Hotkey hook needs elevated access on some windows | Run SAM as Administrator, or check `logs/sam.log` for a hotkey error |
+| A second orb / doubled hotkeys | Two SAM processes running | SAM allows one instance only (named mutex) - check the tray before starting another |
+| Settings will not save | Installed build config lives in `%APPDATA%\SAM\config.yaml` | Edit that file, or use the Settings window |
 
 Logs: `logs/sam.log` from source, `%APPDATA%\SAM\logs\sam.log` when installed.
 
 ---
 
-## 📂 Project layout
+## Project layout
 
 ```
 SAM/
 ├── assets/                    icon, activation chime, wake word model
-├── audio/                     wake word · recorder (VAD) · STT · TTS
+├── audio/                     wake word, recorder (VAD), STT, TTS
 ├── commands/                  regex router + OS side effects
 ├── core/
-│   ├── app.py                   AppController — the state machine, wires everything together
+│   ├── app.py                   AppController: state machine, wires everything together
 │   ├── config.py                DEFAULTS + config.yaml loader/saver
 │   ├── paths.py                 dev vs. frozen-exe path resolution, single-instance lock
-│   ├── code_parser.py           extracts ```code``` blocks from LLM replies to the Desktop
-│   └── installer_steps.py       `SAM.exe --install-models` — used by the installer
+│   ├── code_parser.py           extracts code blocks from LLM replies to the Desktop
+│   └── installer_steps.py       SAM.exe --install-models (used by installer)
 ├── llm/                        LLMEngine base + Ollama/Claude engines + router + OllamaService
 ├── ui/
-│   ├── orb.py · caption.py · text_input.py · overlay.py     the always-on overlay
-│   ├── win32.py                 click-through, z-order, foreground-focus ctypes helpers
-│   ├── floating_bar.py          legacy bottom bar (ui.overlay.style: bar)
-│   └── settings_window.py · tray.py · styles.py · waveform.py
+│   ├── web/                     Modern Cyberpunk Dark Webview interface (HTML5/CSS3/JS)
+│   ├── web_settings.py          pywebview settings host with native Win32 single instance
+│   ├── orb.py · caption.py      The always-on overlay
+│   ├── win32.py                 click-through, z-order, foreground-focus helpers
+│   └── tray.py                  System tray integration
 ├── installer/SAM.iss          Inno Setup script
 ├── tools/make_icon.py         regenerates assets/icon.ico from the orb design
 ├── SAM.spec                   PyInstaller build spec
-├── config.example.yaml        committed template — config.yaml is gitignored
+├── config.example.yaml        committed template (config.yaml is gitignored)
 ├── docs/ARCHITECTURE.md
 ├── setup.md
 └── main.py
@@ -343,41 +324,37 @@ SAM/
 
 ---
 
-## 🛡️ Security & Privacy
+## Security & Privacy
 
-- **No shell, ever, from voice or text.** faster-whisper occasionally hallucinates short
-  phrases from silence or background noise. If that hallucination ever contained something
-  like "open command prompt," earlier versions of SAM would have genuinely opened one — a
-  real terminal window appearing for no reason is exactly what makes an always-listening
-  assistant feel unsafe. `cmd`, `powershell`, `wt`, `bash`, and friends are hard-blocked in
-  `commands/system.py`, regardless of how the request arrives.
+- **No shell, ever, from voice or text.** `faster-whisper` occasionally hallucinates short
+  phrases from silence or background noise. If a hallucination contained a command prompt
+  request, opening a terminal unexpectedly is unsafe. `cmd`, `powershell`, `wt`, `bash`, and
+  related executables are hard-blocked in `commands/system.py`, regardless of request origin.
 - **Destructive actions are two-step.** `shutdown`/`restart` only arm; a separate
-  `"confirm"` executes, within a 30-second window.
+  `"confirm"` executes within a 30-second window.
 - **Transcripts never reach a shell.** All OS actions use `os.startfile()` or list-form
-  `subprocess` — never `shell=True`.
+  `subprocess` (never `shell=True`).
 - **No telemetry.** SAM's only self-initiated network calls are to your local Ollama
-  server, Spotify (only if configured), and edge-tts (only if you use it instead of the
-  fully offline `pyttsx3`). Claude is opt-in only.
-- **Audio isn't written to disk** — processed in memory, discarded after transcription.
+  server, Spotify (only if configured), and edge-tts (only if used instead of the
+  offline `pyttsx3`). Claude is opt-in only.
+- **Audio is not written to disk:** processed in memory, discarded after transcription.
 - **Secrets stay out of the repo.** `config.yaml` is gitignored; API keys are read from
-  the environment first. OAuth caches live in `%LOCALAPPDATA%\SAM\`, and the PyInstaller
-  build refuses to bundle either.
+  the environment first. OAuth caches live in `%LOCALAPPDATA%\SAM\`.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-1. Fork and branch: `git checkout -b feature/whatever`
-2. Follow [`CLAUDE.md`](CLAUDE.md) — English identifiers/docstrings, Turkish in-line
-   comments (existing convention), config access through `config.get(...)`, no `shell=True`.
-3. No test suite — verify manually with `python main.py` and `logs/sam.log`.
-4. Open a PR describing what changed and how you tested it.
+1. Fork and branch: `git checkout -b feature/your-feature`
+2. Follow project standards: English identifiers/docstrings, config access through `config.get(...)`, no `shell=True`.
+3. Verify manually with `python main.py` and inspect `logs/sam.log`.
+4. Open a pull request describing changes and verification steps.
 
 ---
 
-## 📜 License
+## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
 
 <div align="center">
 

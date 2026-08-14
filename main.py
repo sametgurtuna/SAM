@@ -53,11 +53,24 @@ def setup_logging() -> None:
 
 def main() -> None:
     """SAM entry point."""
+    # Set AppUserModelID so Windows taskbar uses SAM's identity and icon
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("sam.assistant.main.1.0")
+    except Exception:
+        pass
+
     # Installer helper mode — download models and exit, no Qt, no UI.
     # Must run before QApplication is constructed.
     if "--install-models" in sys.argv:
         from core.installer_steps import run_install_steps
         sys.exit(run_install_steps(sys.argv))
+
+    # Settings standalone window mode — launches webview settings and exits.
+    if "--settings" in sys.argv:
+        from ui.web_settings import launch_web_settings
+        launch_web_settings()
+        sys.exit(0)
 
     # Tek ornek kilidi — Windows acilisina eklendiginde elle bir kez daha
     # baslatmak iki orb ve iki mikrofon akisi yaratirdi.
@@ -81,6 +94,12 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName(config.get("app", "name", default="SAM"))
     app.setQuitOnLastWindowClosed(False)  # SAM runs as a background app
+
+    # Set Application Icon
+    from PyQt6.QtGui import QIcon
+    icon_path = os.path.abspath(os.path.join(project_root, "assets", "icon.ico"))
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
 
     # High DPI support
     app.setHighDpiScaleFactorRoundingPolicy(
