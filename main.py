@@ -40,9 +40,8 @@ def setup_logging() -> None:
         handlers=handlers,
     )
 
-    # Ucuncu parti kutuphaneler DEBUG'ta her HTTP basligini yaziyor —
-    # log dosyasini kullanilmaz hale getiriyor ve her satir icin disk I/O
-    # maliyeti cikariyor. Bunlari WARNING'e sabitle.
+    # Third-party libraries log HTTP headers on DEBUG — suppress to WARNING
+    # to avoid log file bloat and unnecessary disk I/O.
     for noisy in (
         "urllib3", "httpcore", "httpx", "requests",
         "huggingface_hub", "filelock", "asyncio",
@@ -72,8 +71,7 @@ def main() -> None:
         launch_web_settings()
         sys.exit(0)
 
-    # Tek ornek kilidi — Windows acilisina eklendiginde elle bir kez daha
-    # baslatmak iki orb ve iki mikrofon akisi yaratirdi.
+    # Single instance lock — prevents duplicate instances running concurrently
     if not paths.single_instance_lock():
         if sys.stdout is not None:
             print("SAM is already running (check the system tray).")

@@ -1,9 +1,9 @@
 # SAM — Command Router
-# Kullanicinin soyledigini analiz eder:
-# 1. Sistem komutu mu? → Direkt calistir (LLM gereksiz)
-# 2. Soru/sohbet mi? → LLM'e yonlendir
+# Analyzes user input:
+# 1. System command? → Execute directly (bypasses LLM)
+# 2. Conversational query? → Route to LLM
 #
-# Pattern matching ile calisir — hizli, lokal, bagimliliksiz.
+# Pattern-matching based — fast, local, zero-dependency.
 
 import logging
 import re
@@ -15,64 +15,61 @@ logger = logging.getLogger(__name__)
 
 
 class CommandResult:
-    """Komut calistirma sonucu."""
+    """Result of command execution."""
 
     def __init__(self, handled: bool, response: str = "", image_b64: str | None = None) -> None:
-        self.handled = handled   # True = komut bulundu ve calistirildi
-        self.response = response # Kullaniciya gosterilecek mesaj
-        self.image_b64 = image_b64 # Vision LLM icin ekran goruntusu
+        self.handled = handled       # True = command was matched and executed
+        self.response = response     # Response message for the user
+        self.image_b64 = image_b64   # Screenshot for vision LLM
 
 
 class CommandRouter:
     """
-    Transcript'i analiz edip uygun komutu calistirir.
+    Analyzes transcripts and executes matching system commands.
     
-    Desteklenen komut kategorileri:
-        - Uygulama acma: "open spotify", "launch chrome"
-        - Uygulama kapatma: "close spotify", "quit chrome"
-        - Ses kontrolu: "volume up", "volume down", "mute"
-        - Medya kontrolu: "play", "pause", "next track", "previous track"
-        - Sistem: "lock screen", "shutdown", "restart", "screenshot"
-        - Web arama: "search for X", "google X"
-        - URL acma: "go to youtube.com"
+    Supported command categories:
+        - App launch: "open spotify", "launch chrome"
+        - App terminate: "close spotify", "quit chrome"
+        - Volume control: "volume up", "volume down", "mute"
+        - Media playback: "play", "pause", "next track", "previous track"
+        - System control: "lock screen", "shutdown", "restart", "screenshot"
+        - Web search: "search for X", "google X"
+        - URL navigation: "go to youtube.com"
     
-    Eslesme bulunamazsa handled=False doner → LLM'e yonlendirilir.
+    Returns handled=False when no command pattern matches → routed to LLM.
     """
 
     def __init__(self) -> None:
-        # Komut desenleri — (regex_pattern, handler_function)
-        # Sirasi onemli: ilk eslesen kazanir
+        # Command patterns — (regex_pattern, handler_function)
+        # Order matters: first match wins
         self._patterns: List[Tuple[re.Pattern, Callable[[re.Match], str]]] = self._build_patterns()
         self._vision_patterns: List[re.Pattern] = self._build_vision_patterns()
 
     def try_handle(self, transcript: str, *, vision: bool = True) -> CommandResult:
         """
-        Transcript'i analiz et. Komutsa calistir, degilse handled=False don.
-        Zincirleme komutlari (and/ve) destekler.
-
-        vision=False iken ekran yakalama atlanir — cagiran sonucu LLM'e
-        vermeyecekse (hizli yol) yakalanan goruntu bosa giderdi.
+        Analyze transcript. If command matches, execute and return handled=True.
+        Supports chained multi-commands ("and", "ve", "then").
         """
         text = transcript.lower().strip()
         text = self._clean_text(text)
 
         logger.debug("Command router input: '%s'", text)
 
-        # Vision pattern kontrolu - eger eslesirse ekrani yakala ve LLM'e gonder
+        # Vision pattern check — capture screen if user requested visual analysis
         for v_pat in (self._vision_patterns if vision else ()):
             if v_pat.search(text):
                 from commands.vision import capture_screen_base64
                 logger.info("Vision intent matched: %s", text)
                 b64 = capture_screen_base64()
-                # Handled=False cunku LLM hala metni islemeli, ancak resim eklendi
+                # Handled=False because LLM still generates the textual answer with image attached
                 return CommandResult(handled=False, image_b64=b64)
 
-        # " and ", " ve ", " then " ile ayir
+        # Split chained commands (" and ", " ve ", " then ")
         split_pattern = re.compile(r'\s+\band\b\s+|\s+\bve\b\s+|\s+\bthen\b\s+')
         parts = split_pattern.split(text)
 
         if len(parts) > 1:
-            # Eger birden fazla parca varsa ve HEPSI komutsa zincirleme calistir.
+            # If all sub-phrases are commands, execute sequentially
             matches = []
             for part in parts:
                 part = part.strip()
@@ -86,7 +83,6 @@ class CommandRouter:
             
             if matches:
                 import time
-                # Hepsi komutmus! Sirayla calistir.
                 responses = []
                 for i, (handler, match) in enumerate(matches):
                     try:
@@ -94,9 +90,8 @@ class CommandRouter:
                         if resp:
                             responses.append(resp)
                             
-                        # Zincirdeki komutlar arasinda bekle
+                        # Brief pause between chained commands
                         if i < len(matches) - 1:
-                            # Eger bir uygulama aciyorsak, yuklenmesi icin ekstra sure tani
                             if resp and ("Opening" in resp or "Trying to open" in resp):
                                 time.sleep(3.0)
                             else:
@@ -106,7 +101,7 @@ class CommandRouter:
                 
                 return CommandResult(handled=True, response=" and ".join(responses))
 
-        # Zincir degilse veya parcalardan biri komut degilse, tek parca olarak dene
+        # Single command matching
         match_info = self._get_match(text)
         if match_info:
             handler, match = match_info
@@ -122,7 +117,7 @@ class CommandRouter:
         return CommandResult(handled=False)
 
     def _get_match(self, text: str):
-        """Metin icin uygun komut desenini bulur."""
+        """Find matching command pattern for given text."""
         for pattern, handler in self._patterns:
             match = pattern.search(text)
             if match:
@@ -130,22 +125,22 @@ class CommandRouter:
         return None
 
     def _clean_text(self, text: str) -> str:
-        """Gereksiz bosluk, noktalama ve dolgu kelimeleri temizle."""
-        # Noktalama kaldir
+        """Strip filler words, address tokens, and excess punctuation."""
+        # Remove punctuation
         text = re.sub(r'[.,!?;:\'"]+', '', text)
-        # Dolgu / nezaket kelimelerini ve samet/sam ses hitaplarini temizle
+        # Remove address tokens and polite prefixes
         text = re.sub(r'^(?:hey\s+sam|sam|please|lütfen|lutfen|can\s+you|bana)\s+', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\s+(?:please|lütfen|lutfen)$', '', text, flags=re.IGNORECASE)
-        # Coklu bosluk temizle
+        # Collapse whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         return text
 
     def _build_patterns(self) -> List[Tuple[re.Pattern, Callable[[re.Match], str]]]:
-        """Tum komut desenlerini olustur."""
+        """Build list of command pattern tuples."""
         patterns = []
 
         # ═══════════════════════════════════════════════════════
-        # MEDYA KONTROLU (EN + TR)
+        # MEDIA PLAYBACK (EN + TR)
         # ═══════════════════════════════════════════════════════
 
         # Play X on Spotify
@@ -193,7 +188,7 @@ class CommandRouter:
         ))
 
         # ═══════════════════════════════════════════════════════
-        # SES KONTROLU (EN + TR)
+        # VOLUME CONTROL (EN + TR)
         # ═══════════════════════════════════════════════════════
 
         # Volume up
@@ -227,7 +222,7 @@ class CommandRouter:
         ))
 
         # ═══════════════════════════════════════════════════════
-        # SISTEM KOMUTLARI (EN + TR)
+        # SYSTEM COMMANDS (EN + TR)
         # ═══════════════════════════════════════════════════════
 
         # Lock screen
@@ -260,7 +255,7 @@ class CommandRouter:
             lambda m: system.cancel_shutdown()
         ))
 
-        # Guc islemi onayi
+        # Power confirmation
         patterns.append((
             re.compile(r'^(?:confirm|yes\s+confirm|confirm\s+it|do\s+it|onayla|evet\s+onayla)$', re.IGNORECASE),
             lambda m: system.confirm_power_action()
@@ -285,7 +280,7 @@ class CommandRouter:
         ))
 
         # ═══════════════════════════════════════════════════════
-        # UYGULAMA ACMA / KAPATMA (EN + TR)
+        # APP LAUNCH / CLOSE (EN + TR)
         # ═══════════════════════════════════════════════════════
 
         # "open spotify", "launch chrome", "aç spotify"
@@ -311,7 +306,7 @@ class CommandRouter:
         ))
 
         # ═══════════════════════════════════════════════════════
-        # WEB ARAMA & URL
+        # WEB SEARCH & URL
         # ═══════════════════════════════════════════════════════
 
         # "search for X", "google X", "X ara"
@@ -329,7 +324,7 @@ class CommandRouter:
         return patterns
 
     def _build_vision_patterns(self) -> List[re.Pattern]:
-        """Ekran analizi niyetlerini tespit etmek icin desenler."""
+        """Patterns to detect screen analysis intent."""
         return [
             re.compile(r'\b(?:analyze|look at|read|describe)\s+(?:my\s+)?(?:screen|desktop|display)\b', re.IGNORECASE),
             re.compile(r'\bwhat(?:\'s| is)\s+on\s+my\s+screen\b', re.IGNORECASE),

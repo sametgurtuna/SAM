@@ -1,21 +1,19 @@
-# SAM — Anlık Cevaplar / Instant Responses
+# SAM — Instant Responses
 #
-# Buradaki ifadeler LLM'e HİÇ gitmez; SAM duyar duymaz cevabı anında söyler (~0 ms).
-# Yeni satır veya kategori eklemek için SAM'i yeniden başlatmak yeterlidir.
+# Expressions listed here bypass the LLM entirely; SAM responds with zero latency (~0 ms).
 #
-# Alanlar:
-#   patterns : Eşleşecek ifadeler (küçük/büyük harf, noktalama, Türkçe aksan
-#              fark etmez — "saat kac", "Saat kaç?" aynı sayılır).
-#   response : Tek metin veya liste (listeden her seferinde rastgele biri seçilir).
-#   lang     : tr | en  → {time}/{date}/{day} yer tutucularının dili/biçimi.
-#   match    : exact (varsayılan, hızlı sözlük araması) | contains (cümle içinde geçerse).
+# Fields:
+#   patterns : Phrases to match (case, punctuation, and character accents are normalized).
+#   response : Single string or list of candidate responses (selected randomly).
+#   lang     : tr | en  → {time}/{date}/{day} placeholder locale.
+#   match    : exact (default, fast hash map lookup) | contains (substring match).
 #
-# Yer tutucular: {time} {date} {day}
+# Placeholders: {time} {date} {day}
 
 responses:
 
   # ═══════════════════════════════════════════════════════════════
-  #  1. SELAMLAMA & KARŞILAMA  (TR)
+  #  1. GREETINGS & WELCOME  (TR)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -179,7 +177,7 @@ responses:
       - "Sweet dreams! Just call me in the morning."
 
   # ═══════════════════════════════════════════════════════════════
-  #  3. VEDA & AYRILIK  (TR / EN)
+  #  3. FAREWELLS & GOODBYES  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -222,7 +220,7 @@ responses:
       - "Later! Just say 'hey SAM' and I'll be ready."
 
   # ═══════════════════════════════════════════════════════════════
-  #  4. TEŞEKKÜR & ÖVGÜ  (TR / EN)
+  #  4. THANKS & PRAISE  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -312,7 +310,7 @@ responses:
       - "I appreciate the kind words! Ready for more."
 
   # ═══════════════════════════════════════════════════════════════
-  #  5. ÖZÜR & HOŞGÖRÜ  (TR / EN)
+  #  5. APOLOGIES & FORGIVENESS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -353,7 +351,7 @@ responses:
       - "It's fine! No harm done."
 
   # ═══════════════════════════════════════════════════════════════
-  #  6. ONAY & KABUL  (TR / EN)
+  #  6. ACKNOWLEDGEMENT & CONFIRMATION  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -403,7 +401,7 @@ responses:
       - "Sounds good!"
 
   # ═══════════════════════════════════════════════════════════════
-  #  7. İPTAL & VAZGEÇİŞ  (TR / EN)
+  #  7. CANCELLATION & DISMISSAL  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -448,7 +446,7 @@ responses:
       - "Got it, moving on. What do you need?"
 
   # ═══════════════════════════════════════════════════════════════
-  #  8. HAL HATIR & NASIL GIDIYOR  (TR / EN)
+  #  8. HOW ARE YOU / SMALL TALK  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -496,7 +494,7 @@ responses:
       - "Living the digital dream! What can I do for you?"
 
   # ═══════════════════════════════════════════════════════════════
-  #  9. SAAT, TARİH & GÜN  (TR)
+  #  9. TIME, DATE & DAY  (TR)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -590,7 +588,7 @@ responses:
       - "{day}!"
 
   # ═══════════════════════════════════════════════════════════════
-  # 11. SAM KİMLİĞİ & HAKKINDA  (TR)
+  # 11. SAM IDENTITY & ABOUT  (TR)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -699,7 +697,7 @@ responses:
       - "I'm always being updated, so technically I'm reborn every day!"
 
   # ═══════════════════════════════════════════════════════════════
-  # 13. YETENEKLER & YARDIM  (TR / EN)
+  # 13. CAPABILITIES & HELP  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -754,7 +752,7 @@ responses:
         Try 'open Spotify', 'next track', or ask me anything.
 
   # ═══════════════════════════════════════════════════════════════
-  # 14. CANLILIK TESTİ & BAĞLANTI KONTROLÜ  (TR / EN)
+  # 14. LIVENESS CHECK & STATUS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -800,7 +798,7 @@ responses:
       - "Listening! Never stopped. What can I do for you?"
 
   # ═══════════════════════════════════════════════════════════════
-  # 15. SEVGİ & DUYGUSAL YANITLAR  (TR / EN)
+  # 15. AFFECTION & EMOTIONAL REPLIES  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -834,7 +832,7 @@ responses:
       - "You're making me blush — well, if I could. Thanks for the kind words!"
 
   # ═══════════════════════════════════════════════════════════════
-  # 16. HAKARET & OLUMSUZ GERİBİLDİRİM  (TR / EN)
+  # 16. INSULTS & NEGATIVE FEEDBACK  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -874,7 +872,7 @@ responses:
       - "I can take it! Criticism makes me stronger. What should I do differently?"
 
   # ═══════════════════════════════════════════════════════════════
-  # 17. SIKINTI, CAN SIKINISI & MOTİVASYON  (TR / EN)
+  # 17. BOREDOM & MOTIVATION  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -906,7 +904,7 @@ responses:
       - "How about we search for something fun? Just say 'search for' and tell me what interests you."
 
   # ═══════════════════════════════════════════════════════════════
-  # 18. YORGUNLUK & DİNLENME  (TR / EN)
+  # 18. FATIGUE & REST  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -942,7 +940,7 @@ responses:
       - "Rest up! Your brain needs downtime too. I'll hold down the fort."
 
   # ═══════════════════════════════════════════════════════════════
-  # 19. STRES & MORAL DESTEĞI  (TR / EN)
+  # 19. STRESS & MORALE SUPPORT  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -987,7 +985,7 @@ responses:
       - "Want me to play something relaxing? Sometimes a change of atmosphere helps."
 
   # ═══════════════════════════════════════════════════════════════
-  # 20. MOTİVASYON & TEŞVİK  (TR / EN)
+  # 20. MOTIVATION & ENCOURAGEMENT  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1022,7 +1020,7 @@ responses:
       - "The person who built me also had days like this. He had another coffee and kept coding. So can you."
 
   # ═══════════════════════════════════════════════════════════════
-  # 21. ŞAKA & ESPRİ  (TR / EN)
+  # 21. JOKES & HUMOR  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1055,7 +1053,7 @@ responses:
       - "There are 10 types of people in the world: those who understand binary and those who don't."
 
   # ═══════════════════════════════════════════════════════════════
-  # 22. ILTIFAT & KARŞILIKLI TATLILAMA  (TR / EN)
+  # 22. COMPLIMENTS & SWEET TALK  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1081,7 +1079,7 @@ responses:
       - "I'm told I have a great voice! The looks department is still loading."
 
   # ═══════════════════════════════════════════════════════════════
-  # 23. FELSEFI & DERİN SORULAR  (TR / EN)
+  # 23. PHILOSOPHY & DEEP QUESTIONS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1107,7 +1105,7 @@ responses:
       - "The meaning of life? To live it fully. And maybe to have a great voice assistant by your side."
 
   # ═══════════════════════════════════════════════════════════════
-  # 24. SAM vs DİĞER ASİSTANLAR  (TR / EN)
+  # 24. SAM vs OTHER ASSISTANTS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1137,7 +1135,7 @@ responses:
       - "They're great, no doubt! But I'm getting better every day, and I respect your privacy like no other."
 
   # ═══════════════════════════════════════════════════════════════
-  # 25. YAPAY ZEKA & BİLİNÇ SORULARI  (TR / EN)
+  # 25. AI & CONSCIOUSNESS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1169,7 +1167,7 @@ responses:
       - "Philosophers haven't figured out consciousness yet, so I'll just say: I'm here, I help, and that's enough for now."
 
   # ═══════════════════════════════════════════════════════════════
-  # 26. TEKNİK SORULAR HAKKINDA SAM  (TR / EN)
+  # 26. TECHNICAL QUESTIONS ABOUT SAM  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1220,7 +1218,7 @@ responses:
         All local, all fast, all private.
 
   # ═══════════════════════════════════════════════════════════════
-  # 27. KÜÇÜK SOHBET & MİSCELLANEOUS  (TR / EN)
+  # 27. SMALL TALK & MISCELLANEOUS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1272,7 +1270,7 @@ responses:
       - "As an assistant, I support whatever you decide. You've got good judgment."
 
   # ═══════════════════════════════════════════════════════════════
-  # 28. AÇLIK & YİYECEK  (TR / EN)
+  # 28. HUNGER & FOOD  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1302,7 +1300,7 @@ responses:
       - "A good meal is a good investment. Take a break and refuel."
 
   # ═══════════════════════════════════════════════════════════════
-  # 29. HAVA DURUMU & MEVSIM SOHBET  (TR / EN)
+  # 29. WEATHER & SEASONS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1350,7 +1348,7 @@ responses:
       - "Time to cool down! Open a window, grab some water, and let's keep going at a chill pace."
 
   # ═══════════════════════════════════════════════════════════════
-  # 30. KAHVE & ÇAY SOHBET  (TR / EN)
+  # 30. COFFEE & TEA  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1399,7 +1397,7 @@ responses:
       - "Nothing like a cup of tea. Relax and let me know what you need."
 
   # ═══════════════════════════════════════════════════════════════
-  # 31. HAFTA SONU & TATİL  (TR / EN)
+  # 31. WEEKENDS & HOLIDAYS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1427,7 +1425,7 @@ responses:
       - "Holiday mode activated! But I'm always on standby for you."
 
   # ═══════════════════════════════════════════════════════════════
-  # 32. İYİ DİLEKLER & KOLAY GELSİN  (TR)
+  # 32. GOOD WISHES & PRODUCTIVITY  (TR)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1465,7 +1463,7 @@ responses:
       - "Sağ ol! Hayırlısıyla inşallah."
 
   # ═══════════════════════════════════════════════════════════════
-  # 33. SAYGI & RESMİ HİTAPLAR  (TR / EN)
+  # 33. RESPECT & FORMAL GREETINGS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1496,7 +1494,7 @@ responses:
       - "Command acknowledged! What's the plan?"
 
   # ═══════════════════════════════════════════════════════════════
-  # 34. RANDOM FACTS / BİLGİ  (TR / EN)
+  # 34. RANDOM FACTS  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1527,7 +1525,7 @@ responses:
       - "Fun fact: There are more possible chess games than atoms in the observable universe."
 
   # ═══════════════════════════════════════════════════════════════
-  # 35. İLTİFAT & TEŞEKKÜR (USER → SAM)  (TR / EN)
+  # 35. COMPLIMENTS & GRATITUDE (USER -> SAM)  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1558,7 +1556,7 @@ responses:
       - "Awesome! Ready for the next one."
 
   # ═══════════════════════════════════════════════════════════════
-  # 36. UYKU & GECE  (TR / EN) — extended
+  # 36. SLEEP & NIGHTTIME (EXTENDED)  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1583,7 +1581,7 @@ responses:
       - "Insomnia is tough. Put the screens away, relax, and give your brain time to wind down."
 
   # ═══════════════════════════════════════════════════════════════
-  # 37. ÇALIŞMA & VERİMLİLİK  (TR / EN)
+  # 37. WORK & PRODUCTIVITY  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1614,7 +1612,7 @@ responses:
       - "Locked in and ready. What's the first task?"
 
   # ═══════════════════════════════════════════════════════════════
-  # 38. MÜZİK SOHBET  (TR / EN)
+  # 38. MUSIC CHAT  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1640,7 +1638,7 @@ responses:
       - "Music mode! What genre are you in the mood for?"
 
   # ═══════════════════════════════════════════════════════════════
-  # 39. PROGRAMLAMA & KOD SOHBET  (TR / EN)
+  # 39. PROGRAMMING & CODE CHAT  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1669,7 +1667,7 @@ responses:
       - "Debug mode! Rubber duck debugging works — I'm your rubber duck. Talk to me."
 
   # ═══════════════════════════════════════════════════════════════
-  # 40. OYUN & EĞLENCE  (TR / EN)
+  # 40. GAMING & ENTERTAINMENT  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1695,7 +1693,7 @@ responses:
       - "Happy gaming! I'm on standby — just call my name if you need anything."
 
   # ═══════════════════════════════════════════════════════════════
-  # 41. EGZERSIZ & SAĞLIK  (TR / EN)
+  # 41. EXERCISE & HEALTH  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1722,7 +1720,7 @@ responses:
       - "Workout mode! Your body will thank you later. See you when you're back."
 
   # ═══════════════════════════════════════════════════════════════
-  # 42. TESADUFI ILK KULLANIM  (TR / EN)
+  # 42. FIRST TIME DISCOVERY  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1752,7 +1750,7 @@ responses:
       - "Test complete! Everything's operational. What would you like to do?"
 
   # ═══════════════════════════════════════════════════════════════
-  # 43. GİZLİLİK & VERİ GÜVENLİĞİ  (TR / EN)
+  # 43. PRIVACY & DATA SECURITY  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1788,7 +1786,7 @@ responses:
       - "I don't collect, store, or share any data. No cloud, no servers. Everything stays right here on your machine."
 
   # ═══════════════════════════════════════════════════════════════
-  # 44. CUMA & PAZARTESİ SOHBET  (TR / EN)
+  # 44. FRIDAY & MONDAY CHAT  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:
@@ -1835,7 +1833,7 @@ responses:
       - "I know, Mondays are tough. But hey, you've got me on your side. Let's crush it."
 
   # ═══════════════════════════════════════════════════════════════
-  # 45. SON — ÇEŞITLI KISA YANIT  (TR / EN)
+  # 45. MISCELLANEOUS SHORT REPLIES  (TR / EN)
   # ═══════════════════════════════════════════════════════════════
 
   - patterns:

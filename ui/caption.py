@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 
 _PADDING_H = 18
 _PADDING_V = 12
-# Kullanici asagi kaydirmadan ne kadar uzaktaysa "hala en altta" sayilir —
-# scrollbar'in tam pikselinde durmasini beklemek fazla hassas olurdu.
+# Slop tolerance in pixels for scrollbar bottom detection
 _BOTTOM_SLOP_PX = 4
 
 
@@ -42,8 +41,7 @@ class CaptionWindow(QWidget):
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Tool
         )
-        # Caption sadece bir oturum aktifken gorunur, o yuzden "auto" ve
-        # "topmost" icin ayni davranir: gosterildigi surece en ustte.
+        # Caption is shown only while a session is active; stays on top when visible.
         if config.get("ui", "orb", "layer", default="auto") != "normal":
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
@@ -68,8 +66,7 @@ class CaptionWindow(QWidget):
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim: QPropertyAnimation | None = None
 
-        # LLM token akisinda her token icin bir relayout + pencere resize
-        # olmasin diye guncellemeler tek-atimlik timer'da birlestirilir.
+        # Coalesce streaming tokens into single-shot timer to avoid relayout per token
         self._pending_text: str | None = None
         self._flush_timer = QTimer(self)
         self._flush_timer.setSingleShot(True)
@@ -80,11 +77,9 @@ class CaptionWindow(QWidget):
 
         self._current_text: str = ""
 
-        # ─── Scroll / follow durumu ─────────────────────────────────
-        # True iken: yeni token geldiginde veya TTS bir sonraki cumleye
-        # gectiginde en alta / soylenen noktaya otomatik kaydirilir.
-        # Kullanici elle yukari kaydirinca False olur (okumasi bolunmesin);
-        # tekrar en alta donunce veya yeni bir yanit baslayinca True'ya doner.
+        # ─── Scroll / auto-follow state ───────────────────────────
+        # When True: automatically scroll to bottom on new tokens / TTS chunks.
+        # Set to False when user scrolls up manually; re-enabled when back at bottom.
         self._auto_follow: bool = True
         self._programmatic_scroll: bool = False
         self._last_follow_range: tuple[int, int] | None = None
@@ -173,8 +168,8 @@ class CaptionWindow(QWidget):
 
     def follow_to(self, start: int, end: int) -> None:
         """
-        TTS su an [start, end) karakter araligini soyluyor. O bolumu hafifce
-        vurgula ve — kullanici elle geriye kaydirmadiysa — gorunur alana getir.
+        Highlight the [start, end) character range currently spoken by TTS,
+        and scroll into view if auto-follow is active.
         """
         self._last_follow_range = (start, end)
         self._apply_highlight(start, end)
@@ -200,15 +195,14 @@ class CaptionWindow(QWidget):
         self._resize_to_content()
 
         if is_new_response:
-            # Yeni yanit basliyor — onceki oturumdan kalan "kullanici geriye
-            # kaydirmisti" durumunu unut, en alttan takibe devam et.
+            # New response starting — reset auto-follow to track from bottom
             self._auto_follow = True
 
         if self._auto_follow:
             self._scroll_to_bottom()
 
     def _apply_highlight(self, start: int, end: int) -> None:
-        """Su an konusulan araligi hafif bir vurguyla isaretle (extra selection)."""
+        """Apply subtle accent background to the currently spoken character range."""
         doc = self._text_edit.document()
         count = doc.characterCount()
         if count <= 1:
@@ -230,7 +224,7 @@ class CaptionWindow(QWidget):
         self._text_edit.setExtraSelections([selection])
 
     def _scroll_cursor_to(self, position: int) -> None:
-        """Gercek imleci (secim yapmadan) verilen noktaya tasi ve gorunur kil."""
+        """Move cursor to target position without modifying selection and ensure visibility."""
         doc = self._text_edit.document()
         count = doc.characterCount()
         if count <= 1:
@@ -254,8 +248,7 @@ class CaptionWindow(QWidget):
     def _on_scroll_changed(self, _value: int) -> None:
         if self._programmatic_scroll:
             return
-        # Kullanici scrollbar'i veya tekerlegi kullandi — en alttaysa takibe
-        # devam et, degilse (geri okuyor) otomatik kaydirmayi durdur.
+        # User manually scrolled — keep following if at bottom, pause if reading back
         bar = self._text_edit.verticalScrollBar()
         self._auto_follow = bar.value() >= bar.maximum() - _BOTTOM_SLOP_PX
 
@@ -298,7 +291,7 @@ class CaptionWindow(QWidget):
         anim.setStartValue(self._opacity_effect.opacity())
         anim.setEndValue(target)
         if hide_when_done:
-            # Gizlenince hicbir sey boyanmaz — bos caption CPU harcamasin.
+            # Hide completely when opacity drops to zero to eliminate idle paints
             anim.finished.connect(self._on_fade_out_finished)
         self._fade_anim = anim
         anim.start()

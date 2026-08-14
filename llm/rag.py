@@ -1,7 +1,7 @@
 # SAM — RAG Engine
-# Lokal bilgi tabani uzerinde semantik arama.
-# sentence-transformers + ChromaDB kullanir.
-# Lazy-init: ilk FENERBAHCE sorgusuna kadar hicbir sey yuklenmez.
+# Semantic search over local knowledge base.
+# Uses sentence-transformers + ChromaDB.
+# Lazy-init: nothing is loaded until the first domain query.
 
 import glob
 import hashlib
@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 
 class RAGEngine:
     """
-    Markdown dosyalarindan bilgi alip semantik arama yapar.
+    Indexes markdown files and provides semantic retrieval.
 
-    Tasarim:
-    - Lazy initialization: ilk retrieve() cagrisina kadar model/DB yuklenmez.
-    - Thread-safe: initialize() bir kez calisir, sonraki cagrilar no-op.
-    - In-memory ChromaDB: bilgi tabani kucuk (~20 chunk), persistent gereksiz.
-    - Paragraf bazli chunking: kisa chunk'lar 3B model icin ideal.
+    Design:
+    - Lazy initialization: models/DB loaded only on first retrieve() call.
+    - Thread-safe: initialize() runs once under lock; subsequent calls are no-ops.
+    - In-memory ChromaDB: small knowledge base (~20-50 chunks).
+    - Paragraph-based chunking with header context propagation.
     """
 
     def __init__(self, knowledge_path: str, embedding_model: str = "all-MiniLM-L6-v2",
@@ -37,7 +37,7 @@ class RAGEngine:
         self._init_lock = threading.Lock()
 
     def _ensure_initialized(self) -> bool:
-        """Lazy init — ilk kullanimda model ve DB'yi yukle."""
+        """Lazy init — load model and database on first use."""
         if self._initialized:
             return True
 
@@ -54,14 +54,12 @@ class RAGEngine:
                 return False
 
     def _do_initialize(self) -> None:
-        """Model yukle, bilgi dosyalarini indexle."""
-        # Lazy import — torch ve chromadb sadece gerektiginde yuklenir
+        """Load embedding model and index knowledge files."""
+        # Lazy import — load torch and chromadb only when needed
         from sentence_transformers import SentenceTransformer
         import chromadb
 
-        # Frozen build'de model onceden indirilip bundle edildi mi kontrol et.
-        # Onceden bundle edilmisse offline yuklenir (internet gerekmez, ~5s
-        # yerine ~1s). Yoksa HF cache'e dusup indirmeyi dener.
+        # Check if embedding model is pre-bundled in frozen distribution
         from core import paths
         local_model_dir = paths.resource_path(
             "assets", "models", "embedding", self._embedding_model_name
@@ -88,7 +86,7 @@ class RAGEngine:
         logger.info("RAG engine ready — %d chunks indexed", self._collection.count())
 
     def _index_knowledge(self) -> None:
-        """knowledge/ dizinindeki tum .md dosyalarini chunk'la ve indexle."""
+        """Chunk and index all .md files in the knowledge directory."""
         if not os.path.isdir(self._knowledge_path):
             logger.warning("Knowledge path not found: %s", self._knowledge_path)
             return
@@ -112,7 +110,7 @@ class RAGEngine:
             logger.warning("No knowledge chunks found in %s", self._knowledge_path)
             return
 
-        # Batch encode ve indexle
+        # Batch encode and index
         texts = [c["text"] for c in all_chunks]
         ids = [c["id"] for c in all_chunks]
         sources = [{"source": c["source"]} for c in all_chunks]
@@ -128,12 +126,12 @@ class RAGEngine:
 
     def _chunk_text(self, text: str, source: str) -> list[dict]:
         """
-        Paragraf bazli chunking.
+        Paragraph-based chunking.
 
-        Strateji:
-        1. Bos satirlardan paragraflara bol.
-        2. Cok uzun paragraflari chunk_size'a gore kes.
-        3. Baslik satirlarini (#) bir sonraki paragrafa ekle (context icin).
+        Strategy:
+        1. Split by double newlines into paragraphs.
+        2. Subdivide long paragraphs based on chunk_size.
+        3. Prepend markdown headers (#) to subsequent paragraphs for context.
         """
         paragraphs: list[str] = []
         current_heading = ""
@@ -143,22 +141,22 @@ class RAGEngine:
             if not block:
                 continue
 
-            # Markdown baslik mi?
+            # Markdown heading?
             if block.startswith("#"):
                 current_heading = block.split("\n")[0].strip()
-                # Baslik altinda icerik varsa onu da al
+                # Include content underneath heading
                 rest = "\n".join(block.split("\n")[1:]).strip()
                 if rest:
                     paragraphs.append(f"{current_heading}\n{rest}")
                 continue
 
-            # Normal paragraf — basligi one ekle
+            # Standard paragraph — prepend current heading
             if current_heading:
                 block = f"{current_heading}\n{block}"
 
             paragraphs.append(block)
 
-        # Uzun paragraflari chunk_size'a gore bol
+        # Split oversized paragraphs to respect chunk_size
         chunks: list[dict] = []
         for para in paragraphs:
             if len(para) <= self._chunk_size:
@@ -169,7 +167,7 @@ class RAGEngine:
                     "source": source,
                 })
             else:
-                # Cumle sinirlarindan bol
+                # Split on sentence boundaries
                 sentences = para.replace(". ", ".\n").split("\n")
                 current = ""
                 for sent in sentences:
@@ -180,7 +178,7 @@ class RAGEngine:
                             "text": current.strip(),
                             "source": source,
                         })
-                        # Overlap: son cumleyi yeni chunk'a tasi
+                        # Overlap: carry over last sentence to next chunk
                         overlap_text = current.rsplit(".", 1)[-1].strip()
                         current = overlap_text + " " + sent if overlap_text else sent
                     else:
@@ -198,14 +196,14 @@ class RAGEngine:
 
     def retrieve(self, query: str, top_k: int | None = None) -> str | None:
         """
-        Sorguya en yakin chunk'lari getir.
+        Retrieve chunks semantically closest to the query.
 
         Args:
-            query: Kullanici sorusu.
-            top_k: Dondurilecek chunk sayisi (None = varsayilan).
+            query: User search query.
+            top_k: Number of chunks to retrieve (None = default).
 
         Returns:
-            Birlesmis bilgi metni veya None (RAG hazir degilse/sonuc yoksa).
+            Concatenated knowledge text or None if empty.
         """
         if not self._ensure_initialized():
             return None
@@ -226,11 +224,11 @@ class RAGEngine:
         if not documents:
             return None
 
-        # Chunk'lari birlestir, kaynak bilgisiyle
+        # Join retrieved chunks
         return "\n\n---\n\n".join(documents)
 
     def warm(self) -> None:
-        """Modeli ve indexi onceden yukle — ilk gercek sorguyu bekletmemek icin."""
+        """Pre-warm embedding model and index in background."""
         self._ensure_initialized()
 
     @property

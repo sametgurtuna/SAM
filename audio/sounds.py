@@ -24,8 +24,7 @@ FADE_MS = 30                    # Fade in/out to avoid clicks
 FREQUENCY_HZ_2 = 830
 DURATION_MS_2 = 120
 
-# Okuma: pakete gomulu ses. Yazma: kullanici cache'i — paket dizini
-# (Program Files / _internal) salt-okunur olabilir.
+# Read: bundled sound file. Write: user cache (bundle dir in Program Files may be read-only).
 BUNDLED_SOUND_FILE = paths.resource_path("assets", "activation.wav")
 GENERATED_SOUND_FILE = os.path.join(paths.cache_dir(), "activation.wav")
 

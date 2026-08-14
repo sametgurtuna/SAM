@@ -133,7 +133,7 @@ def single_instance_lock() -> bool:
         # each run their own SAM.
         handle = kernel32.CreateMutexW(None, False, "Local\\SAM_SingleInstance")
         if not handle:
-            return True  # mutex kurulamadiysa engelleme
+            return True  # do not block if mutex could not be created
         if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
             return False
         _LOCKS.append(handle)

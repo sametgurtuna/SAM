@@ -22,7 +22,7 @@ minor versions (`0.x.0`) may include breaking config or behavior changes. See
 | Version | Date | Highlight |
 |:---|:---|:---|
 | [Unreleased](#unreleased) | - | Screen/clipboard awareness, plugin system |
-| [0.4.7](#047---2026-08-14) | 2026-08-14 | Major UI Revamp: Google Stitch Cyberpunk Webview, Live Mic EQ, Ollama Tester & Smart Hotkeys |
+| [0.4.7](#047---2026-08-14) | 2026-08-14 | Major UI Revamp: Cyberpunk Dark Webview, Live Mic EQ, Ollama Tester & Smart Hotkeys |
 | [0.4.6](#046---2026-08-13) | 2026-08-13 | Editable instant responses & a rebuilt settings window |
 | [0.4.5](#045---2026-08-13) | 2026-08-13 | Instant predefined responses & zero-LLM command dispatch |
 | [0.4.4](#044---2026-08-13) | 2026-08-13 | Real-time speech transcription & bilingual command routing fixes |
@@ -45,10 +45,10 @@ are next up.
 
 ## [0.4.7] - 2026-08-14
 
-> **Major UI Revamp: Google Stitch Cyberpunk Dark Webview Architecture, Live Diagnostics, and Native Windows Integration.**
+> **Major UI Revamp: Cyberpunk Dark Webview Architecture, Live Diagnostics, and Native Windows Integration.**
 
 ### Added
-- **Modern Webview Settings UI (Edge WebView2 + Google Stitch)**: Replaced PyQt's legacy QSS raster engine with a high-performance, pixel-perfect HTML5/CSS3/JS Webview interface. Powered by `pywebview` utilizing native Windows Edge Chromium for minimal memory overhead.
+- **Modern Webview Settings UI (Edge WebView2)**: Replaced PyQt's legacy QSS raster engine with a high-performance, pixel-perfect HTML5/CSS3/JS Webview interface. Powered by `pywebview` utilizing native Windows Edge Chromium for minimal memory overhead.
 - **Cyberpunk Dark Design System**: Glassmorphism cards with `backdrop-filter: blur(12px)`, `#00D4AA` neon teal and `#38F2D8` accents, animated smooth pill toggle switches, and JetBrains Mono code styling.
 - **Live Microphone & Audio Spectrum Tester**: Integrated Web Audio API frequency visualizer directly into the Speech tab with real-time 60 FPS equalizer bars and live input volume measurement.
 - **Interactive Ollama Latency & Model Detector**: Built-in ping tool with roundtrip latency metrics (e.g. `Connected - 9ms`) and auto-discovery of locally installed LLM models directly populating the model selector.

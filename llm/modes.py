@@ -1,23 +1,22 @@
 # SAM — Dynamic Conversation Modes
-# Her mod, SAM'in üslubunu degistirir ama bilgi uretmez.
-# Yeni mod eklemek icin MODES dict'ine bir Mode eklemek yeterli.
+# Each mode modulates SAM's persona and tone.
+# Adding a new mode is as simple as registering an entry in the MODES dictionary.
 
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Mode:
-    """Tek bir konusma modu tanimi."""
-    name: str            # "FENERBAHCE", "GAMING", vb.
-    instructions: str    # System prompt'a eklenen talimat
+    """Definition of a conversation mode."""
+    name: str            # Mode identifier: "FENERBAHCE", "GAMING", etc.
+    instructions: str    # Instructions injected into system prompt
 
     def __str__(self) -> str:
         return self.name
 
 
-# ── Kayitli modlar ────────────────────────────────────────────
-# Yeni mod eklemek icin buraya bir Mode daha ekle.
-# Mode talimatları TONE degistirir, BILGI uretmez.
+# ── Registered Modes ──────────────────────────────────────────
+# Mode instructions alter TONE and style, not underlying knowledge facts.
 
 MODES: dict[str, Mode] = {
     "FENERBAHCE": Mode(
@@ -39,7 +38,7 @@ MODES: dict[str, Mode] = {
             "- Playful teasing of rivals is fine, but never hateful or abusive."
         ),
     ),
-    # Gelecek modlar:
+    # Future modes:
     # "CODING": Mode(name="CODING", instructions="..."),
     # "GAMING": Mode(name="GAMING", instructions="..."),
 }

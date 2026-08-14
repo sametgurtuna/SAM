@@ -1,7 +1,7 @@
 # SAM — Intent Classifier
-# Hafif keyword/regex tabanli siniflandirici. LLM cagirmaz.
-# Amac: her kullanici mesajini NORMAL / FENERBAHCE / COMPLEX olarak etiketle
-# ve dogru motora (Qwen vs Claude) yonlendir.
+# Lightweight keyword and regex-based classifier. Does not invoke an LLM.
+# Purpose: categorize user queries into NORMAL / FENERBAHCE / COMPLEX
+# to route to the appropriate engine and prompt template.
 
 import re
 import logging
@@ -19,35 +19,34 @@ class Intent(Enum):
 
 @dataclass
 class ClassifiedIntent:
-    """Siniflandirma sonucu."""
+    """Classification result."""
     intent: Intent
     confidence: float  # 0.0 - 1.0
 
 
 class IntentClassifier:
     """
-    Keyword + regex tabanli intent siniflandirici.
+    Keyword and regex-based intent classifier.
 
-    Tasarim kararlari:
-    - LLM cagirmaz — sifir ek gecikme.
-    - Yuksek precision, kabul edilebilir recall: yanlis pozitif kotu,
-      yanlis negatif kabul edilebilir (normal cevap verir sadece).
-    - Genisletilebilir: yeni keyword setleri veya regex pattern'leri ekle.
+    Design principles:
+    - Zero additional latency (no LLM call).
+    - High precision, acceptable recall.
+    - Extensible keyword and pattern sets.
     """
 
-    # ── Fenerbahce keyword'leri ──────────────────────────────────
-    # Kucuk harf, Turkce ve Ingilizce. Uzun keyword'ler onde (greedier match).
+    # ── Fenerbahce Keywords ───────────────────────────────────────
+    # Lowercase Turkish and English terms. Longer keywords listed first.
     _FB_KEYWORDS: tuple[str, ...] = (
-        # Kulup isimleri ve lakaplaR
+        # Club names and nicknames
         "fenerbahçe", "fenerbahce", "fener",
         "sarı lacivert", "sari lacivert",
         "yellow canaries", "yellow navy",
         "kanarya",
-        # Stadyum
+        # Stadiums
         "kadıköy", "kadikoy",
         "şükrü saracoğlu", "sukru saracoglu",
         "ülker stadyumu", "ulker stadium",
-        # Efsaneler & onemli isimler
+        # Legends and key figures
         "alex de souza",
         "can bartu",
         "lefter küçükandonyadis", "lefter",
@@ -58,12 +57,12 @@ class IntentClassifier:
         "ismail kartal",
         "aziz yıldırım", "aziz yildirim",
         "ali koç", "ali koc",
-        # Lig & organizasyon (FB baglami gucluyse)
+        # League context
         "süper lig", "super lig",
     )
 
-    # ── Complex sinyalleri ───────────────────────────────────────
-    # Bunlarin 2+ tanesi eslesmeli, veya 1 tanesi + uzun sorgu.
+    # ── Complex Signals ───────────────────────────────────────────
+    # Triggers on 2+ pattern matches, or 1 match + long query.
     _COMPLEX_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"\b(?:explain|analyze|analyse|compare|debug|refactor|optimize)\b", re.I),
         re.compile(
@@ -73,29 +72,28 @@ class IntentClassifier:
         ),
         re.compile(r"\b(?:step by step|in detail|thoroughly|comprehensive|elaborate)\b", re.I),
         re.compile(r"\b(?:difference between|pros and cons|advantages|trade.?offs?)\b", re.I),
-        re.compile(r"```", re.I),  # Kullanici kod yapistirmis
+        re.compile(r"```", re.I),  # User pasted code block
         re.compile(r"\b(?:algorithm|complexity|architecture|design pattern|concurrency)\b", re.I),
         re.compile(r"\b(?:why does|how does|what happens when)\b.*\b(?:fail|crash|error|bug)\b", re.I),
     )
 
-    # Complex icin minimum kelime sayisi (tek sinyal varsa)
+    # Word count threshold for complex intent with single signal
     _COMPLEX_WORD_THRESHOLD: int = 15
 
     def classify(self, text: str) -> ClassifiedIntent:
         """
-        Kullanici mesajini siniflandir.
-
-        Oncelik: FENERBAHCE > COMPLEX > NORMAL
+        Classify user input text into an Intent.
+        Priority: FENERBAHCE > COMPLEX > NORMAL
         """
         text_lower = text.lower()
 
-        # 1. Fenerbahce kontrolu — keyword match
+        # 1. Keyword check
         for kw in self._FB_KEYWORDS:
             if kw in text_lower:
                 logger.debug("Intent FENERBAHCE — keyword hit: '%s'", kw)
                 return ClassifiedIntent(Intent.FENERBAHCE, 0.95)
 
-        # 2. Complex kontrolu — pattern match
+        # 2. Complex check — pattern matching
         hits = sum(1 for p in self._COMPLEX_PATTERNS if p.search(text))
         word_count = len(text.split())
 
@@ -106,5 +104,5 @@ class IntentClassifier:
             logger.debug("Intent COMPLEX — 1 hit + %d words", word_count)
             return ClassifiedIntent(Intent.COMPLEX, 0.7)
 
-        # 3. Varsayilan: NORMAL
+        # 3. Default: NORMAL
         return ClassifiedIntent(Intent.NORMAL, 1.0)

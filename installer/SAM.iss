@@ -99,8 +99,8 @@ var
 
 function OllamaInstalled: Boolean;
 begin
-  // {commonpf} kullanilmiyor: PrivilegesRequired=lowest ile Inno onu reddediyor.
-  // Ortam degiskenini dogrudan okumak her iki ayricalik modunda da calisir.
+  // {commonpf} is not used: rejected by Inno with PrivilegesRequired=lowest.
+  // Reading environment variables directly works across both privilege modes.
   Result := FileExists(ExpandConstant('{localappdata}\Programs\Ollama\ollama.exe'))
          or FileExists(ExpandConstant('{localappdata}\Ollama\ollama.exe'))
          or FileExists(GetEnv('ProgramFiles') + '\Ollama\ollama.exe');
@@ -132,8 +132,7 @@ begin
       try
         OllamaDownloadPage.Download;
       except
-        // Indirme basarisiz olursa kurulumu iptal etme — SAM'in kendi
-        // "Ollama kurulu degil" yolu devreye girer.
+        // Do not abort setup if download fails — SAM handles missing Ollama gracefully.
         MsgBox('Could not download the Ollama installer:'#13#10 +
                GetExceptionMessage + #13#10#13#10 +
                'SAM will still be installed. You can install Ollama later ' +
@@ -150,7 +149,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
-  // Calisan bir SAM ornegi DLL'leri kilitler ve guncelleme basarisiz olur.
+  // A running SAM instance locks DLLs and prevents a clean upgrade.
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#AppExeName}',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';
@@ -160,9 +159,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // Kullanici verisi varsayilan olarak BIRAKILIR: config.yaml API
-    // anahtarlarini, models\ birkac GB'lik indirmeyi tutuyor ve Ollama
-    // modelleri baska istemcilerle paylasiliyor olabilir.
+    // User data is preserved by default (settings, logs, speech models).
     if MsgBox('Also delete SAM''s settings, logs and downloaded speech models?'#13#10#13#10 +
               'Choose No to keep them for a future reinstall.'#13#10 +
               '(Ollama and its models are never removed by this uninstaller.)',

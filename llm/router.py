@@ -29,14 +29,14 @@ class LLMRouter(QObject):
     """
     Routes LLM requests to the best available engine.
 
-    Yeni mimari:
+    Architecture:
         1. IntentClassifier → NORMAL / FENERBAHCE / COMPLEX
-        2. PromptBuilder    → persona + rules + mode + RAG bilgisi
-        3. Engine selection  → Ollama (lokal) veya Claude (cloud)
+        2. PromptBuilder    → persona + rules + mode + RAG context
+        3. Engine selection → Ollama (local) or Claude (cloud)
 
-    NORMAL / FENERBAHCE → Ollama (lokal, hizli)
-    COMPLEX             → Claude (cloud, akilli)
-    Fallback            → Mevcut olan motor
+    NORMAL / FENERBAHCE → Ollama (local, fast)
+    COMPLEX             → Claude (cloud, high-reasoning)
+    Fallback            → Currently available engine
 
     Signals:
         token_received(str): Forwarded from active engine.
@@ -58,12 +58,12 @@ class LLMRouter(QObject):
 
         self._max_context: int = config.get("llm", "context_window", default=8)
 
-        # ── Yeni alt sistemler ────────────────────────────────────
+        # ── Subsystems ────────────────────────────────────────────
         self._classifier = IntentClassifier()
         self._prompt_builder = PromptBuilder()
         self._memory = create_memory_store()
 
-        # RAG — lazy init, sadece FENERBAHCE sorgusunda yuklenir
+        # RAG — lazy init, loaded only when needed
         self._rag = None
         self._rag_enabled: bool = config.get("llm", "rag", "enabled", default=True)
 
@@ -71,25 +71,25 @@ class LLMRouter(QObject):
         self._history: deque[dict[str, str]] = deque(maxlen=self._max_context * 2)
 
         # ── Dual engine setup ─────────────────────────────────────
-        # Her iki motor da olusturulur, availability bagimsiz izlenir.
+        # Both engines instantiated; availability monitored independently
         self._ollama = OllamaEngine()
         self._claude = ClaudeEngine()
         self._ollama_available: bool = False
         self._claude_available: bool = False
 
-        # Sinyal yonetimi icin aktif motor izleme
+        # Active engine tracking for signal wiring
         self._active_engine: LLMEngine | None = None
 
         self._detecting: bool = False
         self._retry_pending: bool = False
         self._pending_request: tuple[str, str | None] | None = None
 
-        # Bu turn icin secilen intent (dispatch'te kullanilir)
+        # Intent selected for this turn
         self._current_intent: Intent = Intent.NORMAL
 
         self._engines_probed.connect(self._on_engines_probed)
 
-        # Event loop baslar baslamaz arka planda motor tespiti yap
+        # Probe engines in background once event loop starts
         QTimer.singleShot(0, self.refresh_engines)
 
     # ─── Engine detection ─────────────────────────────────────────
@@ -115,17 +115,17 @@ class LLMRouter(QObject):
 
         threading.Thread(target=_probe, daemon=True, name="LLMDetect").start()
 
-    # Geriye uyumluluk — OllamaService refresh_engine() cagiriyordu
+    # Backward compatibility — OllamaService called refresh_engine()
     def refresh_engine(self) -> None:
         self.refresh_engines()
 
     def _on_engines_probed(self, ollama_ok: bool, claude_ok: bool) -> None:
-        """Qt main thread'de calisir — sinyal/state dokunmak guvenli."""
+        """Runs on Qt main thread — safe to mutate state and emit signals."""
         self._detecting = False
         self._ollama_available = ollama_ok
         self._claude_available = claude_ok
 
-        # Durum raporu
+        # Status report
         available = []
         if ollama_ok:
             available.append(self._ollama.engine_name)
@@ -134,7 +134,7 @@ class LLMRouter(QObject):
 
         if available:
             logger.info("LLM engines available: %s", ", ".join(available))
-            self.engine_status.emit(available[0])  # Birincil motoru raporla
+            self.engine_status.emit(available[0])  # Report primary engine
         else:
             logger.warning("No LLM engine available. Install Ollama or set ANTHROPIC_API_KEY.")
             self.engine_status.emit("No LLM available")
@@ -142,7 +142,7 @@ class LLMRouter(QObject):
                 self._emit_no_engine_error()
             return
 
-        # Bekleyen istek varsa tekrar dene
+        # Retry queued request if pending
         if self._retry_pending:
             self._retry_pending = False
             if self._pending_request is not None:
@@ -153,11 +153,9 @@ class LLMRouter(QObject):
 
     def _select_engine(self, intent: Intent) -> LLMEngine | None:
         """
-        Intent'e gore motor sec.
-
-        Ollama her zaman birincil motor. Claude SADECE kullanici API key
-        girmisse ve intent COMPLEX ise kullanilir — otomatik fallback yok.
-        Kullanici acikca bir cloud LLM yapilandirmadikca her sey lokal kalir.
+        Select engine based on intent.
+        Ollama is the primary local engine. Claude is used when configured
+        for complex tasks.
         """
         if intent == Intent.COMPLEX and self._claude_available:
             return self._claude
@@ -165,8 +163,7 @@ class LLMRouter(QObject):
         if self._ollama_available:
             return self._ollama
 
-        # Son care: Ollama da yoksa ve Claude varsa en azindan cevap ver
-        # (kullanici API key girmis ama Ollama kapali — nadir durum)
+        # Fallback to Claude if Ollama is unavailable but API key exists
         if self._claude_available:
             logger.info("Ollama unavailable — using Claude (API key configured)")
             return self._claude
@@ -174,11 +171,11 @@ class LLMRouter(QObject):
         return None
 
     def _connect_engine(self, engine: LLMEngine) -> None:
-        """Aktif motoru degistir ve sinyalleri bagla."""
+        """Switch active engine and wire signals."""
         if self._active_engine is engine:
             return
 
-        # Onceki motorun sinyallerini kopar
+        # Disconnect previous engine signals
         if self._active_engine is not None:
             try:
                 self._active_engine.token_received.disconnect(self.token_received)
@@ -189,7 +186,7 @@ class LLMRouter(QObject):
 
         self._active_engine = engine
 
-        # Yeni motorun sinyallerini bagla
+        # Connect new engine signals
         engine.token_received.connect(self.token_received)
         engine.generation_complete.connect(self._on_generation_complete)
         engine.generation_error.connect(self._on_generation_error)
@@ -202,25 +199,24 @@ class LLMRouter(QObject):
         Generate a response to the user's message.
 
         Pipeline:
-          1. Intent'i siniflandir (NORMAL / FENERBAHCE / COMPLEX)
-          2. Modu ayarla
-          3. Motoru sec
+          1. Classify intent (NORMAL / FENERBAHCE / COMPLEX)
+          2. Set mode
+          3. Select engine
           4. Dispatch
 
         Args:
-            language: STT'nin algiladigi dil kodu ("tr"/"en") — LLM'e hangi
-                dilde cevap vermesi gerektigini soylemek icin kullanilir.
+            language: Detected speech language code ("tr"/"en") for output alignment.
         """
-        # 1. Intent siniflandirmasi
+        # 1. Intent classification
         result = self._classifier.classify(user_message)
         self._current_intent = result.intent
         logger.info("Intent: %s (confidence: %.2f)", result.intent.value, result.confidence)
 
-        # 2. Motor sec
+        # 2. Select engine
         engine = self._select_engine(result.intent)
 
         if engine is None:
-            # Hicbir motor yok — bekleyen istek olarak sakla ve yeniden tespit et
+            # No engine available — queue request and re-probe
             self._pending_request = (user_message, image_b64)
             self._retry_pending = True
             self.refresh_engines()
@@ -230,7 +226,7 @@ class LLMRouter(QObject):
                 logger.info("No active LLM engine — detecting, request queued")
             return
 
-        # 3. Motoru bagla
+        # 3. Connect engine
         self._connect_engine(engine)
         logger.info("Routing to %s", engine.engine_name)
 
@@ -244,24 +240,24 @@ class LLMRouter(QObject):
             self._emit_no_engine_error()
             return
 
-        # History'ye ekle (image haric — RAM tasarrufu)
+        # Record to history (image omitted to save RAM)
         if record_history:
             self._history.append({"role": "user", "content": user_message})
 
-        # ── RAG retrieval (sadece FENERBAHCE intent'inde) ─────────
+        # ── RAG retrieval (domain intents) ───────────────────────
         knowledge = None
         if self._current_intent == Intent.FENERBAHCE and self._rag_enabled:
             knowledge = self._get_rag_knowledge(user_message)
 
-        # ── Hafiza ozeti ──────────────────────────────────────────
+        # ── Memory context summary ────────────────────────────────
         memory = self._memory.get_context_summary()
 
-        # ── Mod belirleme ─────────────────────────────────────────
+        # ── Mode determination ────────────────────────────────────
         mode = None
         if self._current_intent == Intent.FENERBAHCE:
             mode = "FENERBAHCE"
 
-        # ── System prompt olustur ─────────────────────────────────
+        # ── System prompt ─────────────────────────────────────────
         system_prompt = self._prompt_builder.build(
             mode=mode,
             knowledge=knowledge,
@@ -269,13 +265,13 @@ class LLMRouter(QObject):
             language=language,
         )
 
-        # ── Mesaj listesi ─────────────────────────────────────────
+        # ── Messages payload ──────────────────────────────────────
         messages = [{"role": "system", "content": system_prompt}]
 
         for h in self._history:
             messages.append(dict(h))
 
-        # Vision icin image ekle
+        # Attach image for vision
         if image_b64:
             messages[-1]["images"] = [image_b64]
 
@@ -286,16 +282,13 @@ class LLMRouter(QObject):
         self._active_engine.generate(messages)
 
     def _ensure_rag_constructed(self) -> "RAGEngine | None":
-        """RAGEngine instance'ini olustur (henuz olusturulmadiysa). Model/DB yuklemez."""
+        """Instantiate RAGEngine if not already created (lazy)."""
         if self._rag is not None:
             return self._rag
 
         try:
             from llm.rag import RAGEngine
 
-            # NOT: config.get() sadece anahtar HIC YOKSA default'a duser.
-            # config.yaml'da bos string ('') olarak tanimliysa onu aynen
-            # dondurur — bu yuzden "or" ile bos degerleri de eliyoruz.
             knowledge_path = config.get(
                 "llm", "rag", "knowledge_path", default=""
             ) or os.path.join(paths.resource_root(), "knowledge")
@@ -328,7 +321,7 @@ class LLMRouter(QObject):
         return self._rag
 
     def _get_rag_knowledge(self, query: str) -> str | None:
-        """RAG'den bilgi al. Lazy init — ilk cagride model yukler."""
+        """Retrieve context from RAG. Loads models on first invocation."""
         rag = self._ensure_rag_constructed()
         if rag is None:
             return None
@@ -336,11 +329,8 @@ class LLMRouter(QObject):
 
     def warm_rag(self) -> None:
         """
-        RAG motorunu (embedding modeli + index) arka planda onceden yukle.
-        Ilk gercek FENERBAHCE sorgusunun bu yuku beklemesini onler.
-        Ayni self._rag instance'ini kullanir — _get_rag_knowledge ile yaris
-        durumu RAGEngine._ensure_initialized() icindeki kilit tarafindan
-        guvenli sekilde ele alinir.
+        Pre-warm RAG engine (embedding model + vector index) in the background
+        to eliminate first-query loading latency.
         """
         if not self._rag_enabled:
             return
@@ -412,7 +402,7 @@ class LLMRouter(QObject):
         logger.debug("Conversation context cleared")
 
     def remember(self, category: str, key: str, value: str) -> None:
-        """Uzun vadeli hafizaya bir bilgi kaydet (bkz. llm/memory.py)."""
+        """Persist a piece of information into long-term memory (see llm/memory.py)."""
         self._memory.store(key, value, category)
 
     @property

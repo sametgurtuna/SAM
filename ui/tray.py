@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 class TrayManager(QObject):
     """
-    System tray ikonu ve menusunu yonetir.
-    AppController referansi uzerinden mute/unmute ve context temizleme yapar.
+    Manages system tray icon and context menu.
+    Provides mute/unmute, context clearing, and settings access via AppController.
     """
 
     def __init__(self, controller=None, parent=None):
@@ -23,7 +23,7 @@ class TrayManager(QObject):
         self._muted = False
         self._settings_window = None
 
-        # Tray ikonu olustur — assets/icon.ico varsa onu kullan, yoksa ciz
+        # Create tray icon — use assets/icon.ico if present, otherwise render
         icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "icon.ico"))
         if not os.path.exists(icon_path):
             icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "icon.png"))
@@ -36,20 +36,20 @@ class TrayManager(QObject):
         self._tray = QSystemTrayIcon(tray_icon, parent)
         self._tray.setToolTip("SAM — AI Desktop Assistant")
 
-        # Menu olustur
+        # Build context menu
         self._menu = QMenu()
         self._build_menu()
         self._tray.setContextMenu(self._menu)
 
-        # Sol tik → Settings ac
+        # Left click → Open settings
         self._tray.activated.connect(self._on_tray_activated)
 
-        # Goster
+        # Show
         self._tray.show()
         logger.info("System tray icon initialized")
 
     def _build_menu(self):
-        """Sag tik menusu icindeki aksiyonlari olusturur."""
+        """Construct actions for the tray context menu."""
         # Header (Disabled)
         header_action = QAction("✨ SAM Assistant", self._menu)
         header_action.setDisabled(True)
@@ -90,12 +90,12 @@ class TrayManager(QObject):
         self._menu.addAction(quit_action)
 
     def _on_tray_activated(self, reason):
-        """Sol tik → Settings penceresini ac."""
+        """Left click → open Settings window."""
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self._open_settings()
 
     def _open_settings(self):
-        """Settings penceresini ac (debounce korumali tekil instance)."""
+        """Open Settings window (debounced singleton instance)."""
         import time
         now = time.time()
         if hasattr(self, "_last_settings_click") and now - self._last_settings_click < 1.2:
@@ -104,12 +104,12 @@ class TrayManager(QObject):
         launch_web_settings(controller=self._controller)
 
     def _open_text_input(self):
-        """Orb'un altindaki yazi kutusunu ac."""
+        """Open typed text input below the orb."""
         if self._controller is not None:
             self._controller.text_input_signal.emit()
 
     def _toggle_mute(self):
-        """Wake word dinlemeyi ac/kapat."""
+        """Toggle wake word listening on/off."""
         self._muted = not self._muted
 
         if self._controller is not None:
@@ -125,19 +125,19 @@ class TrayManager(QObject):
                 logger.info("Wake word unmuted via tray")
 
     def _clear_context(self):
-        """LLM sohbet gecmisini temizle."""
+        """Clear conversation history."""
         if self._controller is not None:
             self._controller._llm.clear_context()
             self._tray.showMessage("SAM", "Conversation context cleared", QSystemTrayIcon.MessageIcon.Information, 2000)
             logger.info("Context cleared via tray")
 
     def _quit_app(self):
-        """Uygulamayi temiz bir sekilde kapat."""
+        """Gracefully shut down application."""
         logger.info("Quit requested from tray menu")
         if self._controller is not None:
             self._controller.shutdown()
         QApplication.quit()
 
     def cleanup(self):
-        """Tray ikonunu temizle."""
+        """Clean up system tray icon."""
         self._tray.hide()

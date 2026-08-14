@@ -1,9 +1,9 @@
 # SAM — Instant Responder
-# Onceden tanimli soru/cevap eslestirmesi. Siri'nin "hazir cevaplari" gibi:
-# eslesme bulunursa STT ciktisi hicbir zaman LLM'e gitmez, cevap dogrudan
-# TTS'e verilir (~0 ms). Eslesme yoksa CommandRouter → LLM zinciri devam eder.
+# Predefined question/answer lookup. Similar to assistant canned responses:
+# if a match is found, input is immediately routed to TTS (~0ms)
+# without calling the LLM. If no match is found, CommandRouter → LLM flow continues.
 #
-# Veri dosyasi: knowledge/instant_responses.yaml (kullanici duzenleyebilir).
+# Data file: knowledge/instant_responses.yaml (user editable).
 
 import logging
 import os
@@ -19,12 +19,12 @@ from core import paths
 
 logger = logging.getLogger(__name__)
 
-# Turkce karakter katlama — "saat kac" ve "saat kaç" ayni anahtara dusmeli.
+# Character folding for diacritics
 _FOLD = str.maketrans("çğıöşüâîû", "cgiosuaiu")
 
 _PUNCT_RE = re.compile(r"[.,!?;:'\"`´’]+")
 _WS_RE = re.compile(r"\s+")
-# Hitap ve nezaket dolgulari — router._clean_text ile ayni mantik.
+# Filler and address tokens
 _LEAD_RE = re.compile(
     r"^(?:hey\s+sam|hey\s+samet|sam|samet|please|lütfen|lutfen|ya|hey)\s+",
     re.IGNORECASE,
@@ -41,7 +41,7 @@ DEFAULT_FILE = os.path.join("knowledge", "instant_responses.yaml")
 
 
 def normalize(text: str) -> str:
-    """Eslestirme anahtari uret: kucuk harf, noktalamasiz, aksansiz, dolgusuz."""
+    """Generate normalized lookup key: lowercase, no punctuation, folded diacritics."""
     text = text.strip().lower()
     text = _PUNCT_RE.sub("", text)
     text = _WS_RE.sub(" ", text).strip()
@@ -52,23 +52,23 @@ def normalize(text: str) -> str:
 
 class InstantResponder:
     """
-    Sabit ifadeler icin O(1) sozluk aramasi.
+    O(1) dictionary lookup for fixed phrases and canned responses.
 
-    YAML formati:
+    YAML format:
 
         responses:
           - patterns: ["merhaba", "selam", "hello"]
-            response: ["Merhaba!", "Selam, buradayım."]
-          - patterns: ["saat kac"]
-            response: "Saat {time}."
-            lang: tr
-          - patterns: ["tesekkurler"]
-            response: "Rica ederim."
+            response: ["Merhaba!", "Hello, I am here."]
+          - patterns: ["what time is it", "saat kac"]
+            response: "It is {time}."
+            lang: en
+          - patterns: ["thanks", "tesekkurler"]
+            response: "You're welcome."
             match: contains
 
-    `match: exact` (varsayilan) sozluk aramasidir — bedava. `match: contains`
-    girdileri sirayla taranir, bu yuzden az sayida tutulmali.
-    Cevap metninde {time}, {date}, {day} yer tutuculari desteklenir.
+    `match: exact` (default) is an O(1) dictionary lookup. `match: contains`
+    is scanned sequentially.
+    Supports {time}, {date}, {day} placeholders in responses.
     """
 
     def __init__(self, file_path: str | None = None) -> None:
@@ -77,17 +77,13 @@ class InstantResponder:
         self._path = self._resolve_path(file_path or DEFAULT_FILE)
         self._load()
 
-    # ─── Dosya konumu ─────────────────────────────────────────────
+    # ─── File Resolution ──────────────────────────────────────────
 
     @staticmethod
     def _resolve_path(rel: str) -> str:
         """
-        Kullanicinin duzenleyebilecegi kopyanin yolunu dondur.
-
-        Kurulu (frozen) surumde paketteki kopya Program Files altinda ve salt
-        okunur — bu yuzden config.yaml'da oldugu gibi, ilk acilista yazilabilir
-        veri klasorune (%APPDATA%\\SAM) kopyalanir. Kullanici oradaki dosyayi
-        duzenler; paketteki kopya yalnizca sablon olarak kalir.
+        Return path to user-editable copy in user data directory.
+        Seeds from bundled file on first run.
         """
         if os.path.isabs(rel):
             return rel
@@ -98,10 +94,9 @@ class InstantResponder:
 
         bundled = paths.resource_path(rel)
         if not os.path.exists(bundled):
-            return user_copy  # ikisi de yok — _load uyarip bos gececek
+            return user_copy
 
-        # Kaynak ile hedef ayni dosyaysa (kaynaktan calisirken oyle)
-        # kopyalanacak bir sey yok.
+        # If source and destination are identical (in source tree), do not copy
         if os.path.normcase(os.path.abspath(bundled)) == os.path.normcase(
             os.path.abspath(user_copy)
         ):
@@ -118,10 +113,10 @@ class InstantResponder:
 
     @property
     def path(self) -> str:
-        """Okunan (ve kullanicinin duzenleyebilecegi) dosyanin tam yolu."""
+        """Full path of active (and user-editable) responses file."""
         return self._path
 
-    # ─── Yukleme ──────────────────────────────────────────────────
+    # ─── Loading ──────────────────────────────────────────────────
 
     def _load(self) -> None:
         if not os.path.exists(self._path):
@@ -157,7 +152,7 @@ class InstantResponder:
                     len(self._exact), len(self._contains), self._path)
 
     def reload(self) -> None:
-        """Veri dosyasini yeniden oku (ayarlar penceresinden cagrilabilir)."""
+        """Reload YAML responses file from disk."""
         self._exact.clear()
         self._contains.clear()
         self._load()
@@ -166,11 +161,12 @@ class InstantResponder:
     def count(self) -> int:
         return len(self._exact) + len(self._contains)
 
-    # ─── Eslestirme ───────────────────────────────────────────────
+    # ─── Matching ─────────────────────────────────────────────────
 
     def match(self, transcript: str) -> tuple[str, str] | None:
         """
-        (cevap, dil_kodu) dondur, eslesme yoksa None. Mikrosaniyeler surer.
+        Return (response_text, lang_code) tuple, or None if no match.
+        Runs in microsecond time.
         """
         if not self._exact and not self._contains:
             return None
@@ -194,7 +190,7 @@ class InstantResponder:
         lang = meta.get("lang", "en")
         return self._fill(str(response), lang), lang
 
-    # ─── Yer tutucular ────────────────────────────────────────────
+    # ─── Placeholders ─────────────────────────────────────────────
 
     @staticmethod
     def _fill(text: str, lang: str) -> str:

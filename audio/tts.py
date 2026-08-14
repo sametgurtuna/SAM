@@ -44,19 +44,17 @@ class TTSEngine(QObject):
         self._temp_dir: str = tempfile.mkdtemp(prefix="sam_tts_")
         self._playing: bool = False
 
-        # ─── Konusma kuyrugu ─────────────────────────────────────
-        # LLM yanitinin tamamlanmasini beklemek yerine cumle cumle
-        # seslendirebilmek icin kalici bir worker + kuyruk kullanilir.
-        # `_generation` sayaci stop() cagrildiginda artar; kuyrukta
-        # bekleyen eski parcalar boylece sessizce atilir.
+        # ─── Speech Queue ─────────────────────────────────────────
+        # Persistent worker and queue to stream speech sentence-by-sentence
+        # without waiting for the full LLM generation.
+        # `_generation` increments when stop() is called to discard obsolete chunks.
         self._queue: "queue.Queue[tuple[int, str, str, int]]" = queue.Queue()
         self._generation: int = 0
         self._gen_lock = threading.Lock()
 
-        # ─── Prefetch (chunk overlap) ────────────────────────────
-        # Bir cumle calarken bir sonraki cumlenin sentezi arka planda
-        # baslar, boylece cumleler arasi sessiz bosluk (network round-trip)
-        # kalmaz. `_seq_counter` her enqueue'da artar; cache seq -> mp3 yolu.
+        # ─── Prefetch (Chunk Overlap) ────────────────────────────
+        # Synthesize next sentence in the background while current sentence plays,
+        # eliminating network latency gaps between sentences.
         self._seq_counter: int = 0
         self._prefetch_cache: dict[int, str] = {}
         self._prefetch_lock = threading.Lock()
@@ -84,11 +82,8 @@ class TTSEngine(QObject):
 
     def set_voice(self, voice: str) -> None:
         """
-        Runtime'da konusma sesini degistir (ör. algilanan dile gore).
-
-        `_engine_type`'in `_speak_one` icinde her cagrida tazelenmesiyle ayni
-        desen — bir sonraki sentezden itibaren gecerli olur, kuyrukta zaten
-        bekleyen parcalar (varsa) eski sesle sentezlenmis olabilir.
+        Dynamically update voice at runtime (e.g. based on detected language).
+        Applies to subsequent syntheses.
         """
         self._voice = voice
 
@@ -133,7 +128,7 @@ class TTSEngine(QObject):
     def stop(self) -> None:
         """Cancel queued speech and stop any currently playing audio."""
         with self._gen_lock:
-            # Kuyrukta bekleyen her sey artik eski nesle ait — worker atacak
+            # Everything queued so far belongs to previous generation — worker will discard
             self._generation += 1
 
         while True:
@@ -157,7 +152,7 @@ class TTSEngine(QObject):
             return generation == self._generation
 
     def _clear_prefetch_cache(self) -> None:
-        """Iptal edilen/kullanilmayan onceden-sentezlenmis ses dosyalarini sil."""
+        """Delete pre-synthesized audio files from cancelled/unused streams."""
         with self._prefetch_lock:
             paths = list(self._prefetch_cache.values())
             self._prefetch_cache.clear()
@@ -173,7 +168,7 @@ class TTSEngine(QObject):
         while True:
             generation, kind, text, seq = self._queue.get()
 
-            # stop() sonrasi kuyrukta kalan eski parcalari atla
+            # Skip stale chunks after stop()
             if not self._is_current(generation):
                 continue
 
@@ -195,17 +190,14 @@ class TTSEngine(QObject):
             self._speak_local(text)
             return
 
-        # Onceki cumle calarken arka planda hazirlanmis olabilir — varsa
-        # kullan, yoksa simdi senkron sentezle (ilk cumlede her zaman boyle).
+        # Use prefetched audio if available, otherwise synthesize synchronously
         audio_path = self._take_prefetched(seq)
         if audio_path is None:
             audio_path = self._generate_audio(text)
         if audio_path is None or not self._is_current(generation):
             return
 
-        # Bu parca calmaya baslamadan once, kuyruktaki bir sonraki parcanin
-        # sentezini arka planda baslat — boylece cumleler arasinda network
-        # round-trip'i beklenmez.
+        # Prefetch the next chunk in queue while current chunk is playing
         self._prefetch_next(generation)
 
         self._play_audio(audio_path)
@@ -215,7 +207,7 @@ class TTSEngine(QObject):
             return self._prefetch_cache.pop(seq, None)
 
     def _prefetch_next(self, current_generation: int) -> None:
-        """Kuyruktaki bir sonraki 'say' parcasini arka planda onceden sentezle."""
+        """Prefetch the next 'say' chunk in queue in the background."""
         with self._queue.mutex:
             peeked = self._queue.queue[0] if self._queue.queue else None
         if peeked is None:
@@ -235,8 +227,6 @@ class TTSEngine(QObject):
             if path is None:
                 return
             if not self._is_current(gen):
-                # Bu arada iptal edildi (stop()) — dosyayi tut, bir sonraki
-                # cleanup()/stop() genel temizlikte silinir.
                 return
             with self._prefetch_lock:
                 self._prefetch_cache[seq] = path
@@ -306,11 +296,8 @@ class TTSEngine(QObject):
 
     def _apply_local_voice(self, engine) -> None:
         """
-        pyttsx3 (Windows SAPI5) edge-tts ses adlarini ("tr-TR-EmelNeural" gibi)
-        taniyamaz — bunun yerine sistemde KURULU SAPI seslerinden birini secmek
-        gerekir. `_voice`'in bastaki locale onekini ("tr-TR", "en-US") kurulu
-        seslerin id/name alaninda arayip eslesen ilkini seciyoruz. Eslesme
-        yoksa (ör. Turkce SAPI sesi kurulu degilse) sistem varsayilani kalir.
+        pyttsx3 (Windows SAPI5) does not recognize edge-tts voice names.
+        Match language prefix ("tr-TR", "en-US") against installed local SAPI voices.
         """
         locale_prefix = "-".join(self._voice.split("-")[:2]).lower()
         if not locale_prefix:
@@ -362,9 +349,7 @@ class TTSEngine(QObject):
 
             logger.debug("TTS playback started")
 
-            # Wait for playback to finish
-            # Kisa poll araligi — zincirlenmis cumleler arasinda
-            # duyulur bir bosluk kalmasini onler.
+            # Wait for playback to finish (tight poll to prevent gaps between chunks)
             while pygame.mixer.music.get_busy() and self._playing:
                 time.sleep(0.02)
 

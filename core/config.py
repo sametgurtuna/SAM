@@ -38,11 +38,10 @@ DEFAULTS: dict[str, Any] = {
             "idle_animation": True,  # False => timer stops entirely at rest
             "breathe_period_ms": 4000,
             "spike_count": 36,
-            # auto = katilmayan pencerelerin en altinda durur, sadece SAM
-            #        cagrildiginda (dinleme/dusunme/konusma veya yazi kutusu)
-            #        en one gelir — varsayilan.
-            # topmost = eski davranis, her zaman her seyin ustunde.
-            # normal = ozel z-sira yonetimi yok, sıradan bir pencere gibi.
+            # auto = stays at bottom of window stack, comes to front only when
+            #        SAM is called (listening/thinking/speaking or text input) — default.
+            # topmost = legacy behavior, always on top of everything.
+            # normal = standard window without custom z-order management.
             "layer": "auto",
             "hide_on_fullscreen": True,
             "click_through": True,
@@ -75,7 +74,7 @@ DEFAULTS: dict[str, Any] = {
         "colors": {
             "background": "rgba(10, 10, 15, 0.92)",
             "accent": "#00D4AA",
-            # Mavi-yesil tema: kehribar "thinking" rengi tema disindaydi.
+            # Blue-green theme accents
             "accent_thinking": "#38F2D8",
             "accent_speaking": "#00D4AA",
             "accent_listening": "#00BFFF",
@@ -110,16 +109,14 @@ DEFAULTS: dict[str, Any] = {
         "level": "DEBUG",
         "file": "logs/sam.log",
     },
-    # Bu dort bolum eskiden yalnizca config.yaml'daydi; gitignore'lu oldugu
-    # icin temiz bir kurulum (ve frozen build) yanlis varsayilanlarla aciliyordu.
+    # Audio configuration defaults
     "audio": {
         "sample_rate": 16000,
         "channels": 1,
         "dtype": "int16",
         "silence_threshold": 300,
-        # 600ms — konusma bitince cevabin baslamasi icin beklenen sure.
-        # Cok dusuk deger cumle ortasinda kesilmeye yol acabilir, gerekirse
-        # config.yaml'dan kullaniciya gore ayarlanabilir.
+        # 600ms — silence wait time after speech ends before processing.
+        # Can be tuned in config.yaml based on user preference.
         "silence_duration_ms": 600,
         "max_record_seconds": 30,
     },
@@ -132,34 +129,29 @@ DEFAULTS: dict[str, Any] = {
     "stt": {
         "engine": "faster-whisper",
         "model": "small",
-        # None = otomatik dil algilama (faster-whisper her transkripsiyonda
-        # konusulan dili tespit eder). Iki dilli TTS ozelligi bunu gerektirir.
+        # None = automatic language detection (faster-whisper detects spoken language).
         "language": None,
         "beam_size": 1,
         "device": "cpu",
         "compute_type": "int8",
-        # Canli (yazarken gorunen) transkripsiyon icin ayri, kucuk model.
-        # Ana model "medium"/"large" ise her 300 ms'de onu calistirmak CPU'yu
-        # doyurup nihai decode'u da yavaslatiyor. Bos birakilirsa ana model
-        # kullanilir; "off" ise canli transkripsiyon tamamen kapanir.
+        # Dedicated small model for live (partial) captioning.
+        # If empty, main model is used; "off" disables live partial transcription.
         "partial_model": "base",
-        # Iki canli decode arasindaki en az sure (ms).
+        # Minimum interval between live partial decodes (ms).
         "partial_interval_ms": 400,
     },
     "instant": {
-        # Onceden tanimli anlik cevaplar — LLM'e hic gitmez.
+        # Predefined instant responses — bypasses LLM entirely.
         "enabled": True,
         "file": "knowledge/instant_responses.yaml",
     },
     "tts": {
         "engine": "edge-tts",
-        # Sabit/manuel ses — auto_language kapaliysa veya algilanan dil
-        # desteklenmiyorsa bu kullanilir.
+        # Fallback voice when auto_language is off or language is unsupported.
         "voice": "en-US-GuyNeural",
         "rate": "+0%",
         "volume": "+0%",
-        # Konusulan dile gore otomatik ses secimi (bkz. core/app.py
-        # _on_language_detected). False ise her zaman sabit "voice" kullanilir.
+        # Automatic voice selection based on detected spoken language.
         "auto_language": True,
         "voices": {
             "tr": "tr-TR-EmelNeural",
@@ -185,19 +177,13 @@ DEFAULTS: dict[str, Any] = {
         },
         "rag": {
             "enabled": True,
-            # Multilingual model — kullanici Turkce soruyor, knowledge dosyalari
-            # cogunlukla Ingilizce. all-MiniLM (english-only) Turkce sorguyu
-            # dogru chunk'a eslestiremiyor. paraphrase-multilingual ayni boyda
-            # (~120MB) ama TR/EN cross-lingual retrieval yapabiliyor.
+            # Multilingual embedding model for cross-lingual TR/EN retrieval.
             "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
-            "knowledge_path": "",  # Bos = varsayilan (resource_root/knowledge)
-            # Bilgi bolumleri (## basliklar) genelde 400-900 karakter —
-            # chunk_size'in onlari bolmemesi icin yeterince buyuk olmali.
-            # Kucuk chunk = parcali/kopuk bilgi = model bosluklari uydurur.
+            "knowledge_path": "",  # Empty = default (resource_root/knowledge)
+            # Knowledge sections (## headings) are typically 400-900 chars.
             "chunk_size": 800,
             "chunk_overlap": 80,
-            # top_k=5 — kucuk KB (~30 chunk), fazla getirmenin maliyeti dusuk,
-            # dogru chunk'in top-3 disinda kalma riskini azaltiyor.
+            # top_k=5 for small knowledge base
             "top_k": 5,
         },
         "memory": {
@@ -210,18 +196,15 @@ DEFAULTS: dict[str, Any] = {
             "vision_model": "llava",
             "temperature": 0.7,
             "max_tokens": 256,
-            # Modeli bellekte tut — varsayilan Ollama davranisi 5 dk sonra
-            # modeli bellekten atip bir sonraki istekte yeniden yuklemek,
-            # bu da ilk token'a kadar gecen sureyi (birkac saniyeyi) katliyor.
+            # Keep model in RAM to prevent reload latency between requests.
             "keep_alive": "30m",
-            # RAG context + uzun gecmis icin arttirildi (eskisi 2048)
+            # Increased context window for RAG context + history
             "num_ctx": 4096,
-            # Sunucu yasam dongusu — llm/ollama_service.py
+            # Server lifecycle — llm/ollama_service.py
             "autostart": True,
             "executable": "",
             "startup_timeout_seconds": 45,
-            # Ollama'nin kendi autostart'i ayaga kalkarken bekle — bkz.
-            # llm/ollama_service.py, ikinci bir sunucu baslatmamak icin.
+            # Grace period for existing Ollama server startup
             "existing_server_grace_seconds": 8,
             "stop_on_exit": False,
             "availability_ttl_seconds": 30,

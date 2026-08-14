@@ -1,6 +1,6 @@
 # SAM — System Commands
-# Bilgisayar uzerinde direkt islem yapan komutlar:
-# uygulama acma/kapatma, ses kontrolu, ekran kilitleme, vb.
+# Directly executes OS-level operations:
+# application launching/closing, volume control, screen locking, etc.
 
 import ctypes
 import logging
@@ -13,17 +13,11 @@ from typing import Optional, Dict, Any
 
 from core import paths
 
-# Spotipy is lazy-loaded in the function to prevent slow startup,
-# but we can import it at the top if it's available. 
-# We'll keep it lazy-loaded inside `play_on_spotify` to ensure 
-# the assistant boots fast even if spotipy isn't configured, 
-# but we'll move `os` and `urllib` to the top.
-
 logger = logging.getLogger(__name__)
 
-# ─── Windows API Sabitleri ────────────────────────────────────
+# ─── Windows API Constants ────────────────────────────────────
 
-# Ses kontrolu icin virtual key codes
+# Virtual key codes for volume control
 VK_VOLUME_MUTE = 0xAD
 VK_VOLUME_DOWN = 0xAE
 VK_VOLUME_UP = 0xAF
@@ -34,30 +28,29 @@ VK_MEDIA_PREV = 0xB1
 KEYEVENTF_KEYUP = 0x0002
 
 
-# ─── Guvenlik ─────────────────────────────────────────────────
-# Transcript metni STT'den gelir ve dogrudan isletim sistemine
-# aktarilir. Kabuk metakarakterleri iceren hicbir isim kabul
-# edilmez — sadece harf, rakam, bosluk ve birkac guvenli isaret.
+# ─── Security ─────────────────────────────────────────────────
+# Transcript text originates from STT and is passed to OS APIs.
+# Reject any string containing shell metacharacters — only allow
+# alphanumeric, spaces, and safe punctuation.
 _SAFE_APP_NAME_RE = re.compile(r"^[\w .'-]{1,64}$", re.UNICODE)
 
 
 def _is_safe_name(name: str) -> bool:
-    """Uygulama adinin isletim sistemine gecirilmesi guvenli mi?"""
+    """Check whether application name is safe to pass to OS routines."""
     return bool(_SAFE_APP_NAME_RE.match(name.strip()))
 
 
 def _user_cache_dir() -> str:
-    """SAM'in kullaniciya ozel cache dizini (token'lar burada tutulur)."""
+    """SAM's user-specific cache directory (OAuth tokens stored here)."""
     return paths.cache_dir()
 
 
-# ─── Bilinen Uygulamalar ──────────────────────────────────────
-# Anahtar: kucultumus isim → (arama_deseni, baslatma_komutu)
-# Oncelik: shell start (Windows baslat menusunden bulur) > direkt yol
+# ─── Known Applications ───────────────────────────────────────
+# Key: lowercase name → dictionary with start details
+# Priority: shell start (finds from Start Menu) > direct path
 
-# Sesle veya yazi ile ASLA acilmayacak uygulamalar — hepsi bir kabuk/komut
-# istemi. Whisper hallusinasyonlari veya STT hatalari bunlari tetikleyebilir;
-# beklenmedik bir terminal acilmasi kullaniciyi korkutur (bkz. open_app()).
+# Applications that must NEVER be opened via voice/text commands (shell/terminals).
+# Prevents accidental terminal launch on STT hallucination.
 _BLOCKED_APP_NAMES = frozenset({
     "cmd", "command prompt", "terminal", "windows terminal",
     "powershell", "power shell", "pwsh", "wt", "bash", "wsl",
@@ -65,7 +58,7 @@ _BLOCKED_APP_NAMES = frozenset({
 })
 
 KNOWN_APPS: Dict[str, Dict[str, Any]] = {
-    # Tarayicilar
+    # Browsers
     "chrome": {
         "exe": "chrome.exe",
         "start": "chrome",
@@ -86,7 +79,7 @@ KNOWN_APPS: Dict[str, Dict[str, Any]] = {
         "start": "brave",
         "aliases": ["brave"],
     },
-    # Muzik / Video
+    # Music / Video
     "spotify": {
         "exe": "Spotify.exe",
         "start": "spotify",
@@ -98,7 +91,7 @@ KNOWN_APPS: Dict[str, Dict[str, Any]] = {
         "start": "vlc",
         "aliases": ["vlc", "media player"],
     },
-    # Mesajlasma
+    # Messaging
     "discord": {
         "exe": "Discord.exe",
         "start": "discord",
@@ -114,7 +107,7 @@ KNOWN_APPS: Dict[str, Dict[str, Any]] = {
         "start": "whatsapp",
         "aliases": ["whatsapp", "whats app"],
     },
-    # Microsoft
+    # Microsoft Office
     "word": {
         "exe": "WINWORD.EXE",
         "start": "winword",
@@ -130,18 +123,13 @@ KNOWN_APPS: Dict[str, Dict[str, Any]] = {
         "start": "powerpnt",
         "aliases": ["powerpoint", "power point"],
     },
-    # Gelistirici
+    # Developer tools
     "vscode": {
         "exe": "Code.exe",
         "start": "code",
         "aliases": ["vscode", "vs code", "visual studio code", "code"],
     },
-    # NOT: terminal/cmd/powershell BILEREK burada yok. Bunlar bir kabuk acar;
-    # Whisper'in sessizlik/gurultude "open cmd" gibi bir seyi hallusine
-    # etmesi (bilinen bir faster-whisper davranisi) kullaniciyi korkutan,
-    # beklenmedik bir komut istemi acilmasina yol acabilirdi. _BLOCKED_EXES
-    # asagida hem bu listeye hem bilinmeyen-uygulama yoluna karsi ek koruma.
-    # Sistem
+    # System utilities
     "notepad": {
         "exe": "notepad.exe",
         "start": "notepad",
@@ -172,7 +160,7 @@ KNOWN_APPS: Dict[str, Dict[str, Any]] = {
         "start": "mspaint",
         "aliases": ["paint", "ms paint"],
     },
-    # Oyun
+    # Gaming
     "steam": {
         "exe": "steam.exe",
         "start": "steam",
@@ -189,11 +177,8 @@ KNOWN_APPS: Dict[str, Dict[str, Any]] = {
 
 def _start_menu_shortcut(name: str) -> Optional[str]:
     """
-    Baslat Menusu kisayollari arasinda uygulamayi ara.
-
-    Firefox, Discord, Telegram gibi uygulamalar ne PATH'te ne de "App Paths"
-    kaydinda bulunur; kullanicinin profilindeki .lnk dosyasi bunlari acmanin
-    tek guvenilir yoludur.
+    Search for application in Start Menu shortcut directories.
+    Handles apps installed in user profile or ProgramData.
     """
     roots = [
         os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Start Menu\Programs"),
@@ -212,8 +197,7 @@ def _start_menu_shortcut(name: str) -> Optional[str]:
                 stem = os.path.splitext(fn)[0].lower()
                 if stem == target:
                     return os.path.join(dirpath, fn)
-                # Tam eslesme yoksa "Firefox" ~ "Mozilla Firefox" gibi
-                # kismi eslesmeyi yedek olarak sakla
+                # Keep partial match as fallback if no exact match found
                 if fallback is None and target in stem:
                     fallback = os.path.join(dirpath, fn)
 
@@ -227,10 +211,10 @@ def _press_key(vk_code: int) -> None:
     ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
 
 
-# ─── Ses Kontrolu ────────────────────────────────────────────
+# ─── Volume Control ───────────────────────────────────────────
 
 def volume_up(percentage: int = 10) -> str:
-    """Sesi artir (yuzde olarak)."""
+    """Increase system volume by percentage."""
     steps = max(1, round(percentage / 2))
     for _ in range(steps):
         _press_key(VK_VOLUME_UP)
@@ -239,7 +223,7 @@ def volume_up(percentage: int = 10) -> str:
 
 
 def volume_down(percentage: int = 10) -> str:
-    """Sesi azalt (yuzde olarak)."""
+    """Decrease system volume by percentage."""
     steps = max(1, round(percentage / 2))
     for _ in range(steps):
         _press_key(VK_VOLUME_DOWN)
@@ -248,12 +232,10 @@ def volume_down(percentage: int = 10) -> str:
 
 
 def set_volume_absolute(percentage: int) -> str:
-    """Sesi mutlak yuzdeye ayarla (0-100) pycaw kullanarak."""
+    """Set absolute system volume (0-100) using pycaw."""
     percentage = max(0, min(100, percentage))
     
-    # COM threading modelini initialize et — farkli thread'lerden
-    # cagrildiginda CoInitialize yapilmamis olabilir, bu da
-    # pycaw/comtypes hatasina yol acar.
+    # Initialize COM threading model for cross-thread calls
     com_initialized = False
     try:
         ctypes.windll.ole32.CoInitialize(None)
@@ -279,7 +261,7 @@ def set_volume_absolute(percentage: int) -> str:
         logger.error("Failed to set absolute volume: %s", e)
         return f"Sorry, I couldn't set the volume: {e}"
     finally:
-        # COM threading modelini temizle
+        # Clean up COM threading model
         if com_initialized:
             try:
                 ctypes.windll.ole32.CoUninitialize()
@@ -288,39 +270,38 @@ def set_volume_absolute(percentage: int) -> str:
 
 
 def volume_mute() -> str:
-    """Sesi kapat/ac (toggle)."""
+    """Toggle system mute state."""
     _press_key(VK_VOLUME_MUTE)
     logger.info("Volume mute toggled")
     return "Done, mute toggled."
 
 
 def media_play_pause() -> str:
-    """Medya oynat/duraklat."""
+    """Toggle media play / pause."""
     _press_key(VK_MEDIA_PLAY_PAUSE)
     logger.info("Media play/pause")
     return "Done."
 
 
 def media_next() -> str:
-    """Sonraki sarki."""
+    """Skip to next media track."""
     _press_key(VK_MEDIA_NEXT)
     logger.info("Media next track")
     return "Next track."
 
 
 def media_prev() -> str:
-    """Onceki sarki."""
+    """Skip to previous media track."""
     _press_key(VK_MEDIA_PREV)
     logger.info("Media previous track")
     return "Previous track."
 
 
 def play_on_spotify(song_name: str) -> str:
-    """Spotify'da sarki/sanatci arat ve API uzerinden oynat."""
+    """Search for track/artist on Spotify and start playback via Web API."""
     from core.config import config
 
-    # Ortam degiskeni config.yaml'i ezer — ClaudeEngine ile ayni desen.
-    # Boylece gizli anahtarlar diske yazilmadan kullanilabilir.
+    # Environment variables override config.yaml
     client_id = os.environ.get("SPOTIFY_CLIENT_ID") or config.get("spotify", "client_id")
     client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET") or config.get("spotify", "client_secret")
     redirect_uri = config.get("spotify", "redirect_uri", default="http://localhost:8080")
@@ -341,14 +322,13 @@ def play_on_spotify(song_name: str) -> str:
             redirect_uri=redirect_uri,
             scope=scope,
             open_browser=True,
-            # OAuth token'i proje kokune degil, kullanici cache dizinine yaz —
-            # yanlislikla repo icinde durmasini engeller.
+            # Store OAuth token in user cache dir
             cache_path=os.path.join(_user_cache_dir(), "spotify_token.json"),
         )
         
         sp = spotipy.Spotify(auth_manager=auth_manager)
         
-        # 1. Sarkiyi arat (Populariteye gore siralayarak dogrulugu artir)
+        # 1. Search for track (ranked by popularity)
         results = sp.search(q=song_name, limit=5, type='track')
         items = results.get('tracks', {}).get('items', [])
         
@@ -363,7 +343,7 @@ def play_on_spotify(song_name: str) -> str:
         track_name = best_track['name']
         artist_name = best_track['artists'][0]['name']
         
-        # 2. Aktif cihazi bul
+        # 2. Find active device
         devices = sp.devices()
         active_device = None
         
@@ -372,17 +352,17 @@ def play_on_spotify(song_name: str) -> str:
                 active_device = d['id']
                 break
                 
-        # Eger aktif cihaz yoksa, herhangi bir cihaz
+        # If no active device, take first available
         if not active_device and devices.get('devices'):
             active_device = devices['devices'][0]['id']
             
-        # Hic cihaz acik degilse
+        # If no devices are open, launch Spotify protocol URI
         if not active_device:
             logger.info("No active Spotify devices. Opening Spotify app.")
             os.startfile(track_uri)
             return f"I couldn't find an active device, but I opened {track_name} for you."
             
-        # 3. Oynat
+        # 3. Start playback
         sp.start_playback(device_id=active_device, uris=[track_uri])
         logger.info("Spotify API play successful: %s by %s", track_name, artist_name)
         return f"Playing {track_name} by {artist_name} on Spotify."
@@ -392,42 +372,38 @@ def play_on_spotify(song_name: str) -> str:
         return "Spotipy library is missing. Please run pip install spotipy."
     except Exception as e:
         logger.error("Spotify API play failed: %s", e)
-        # Hata durumunda sadece arat
+        # Search fallback on error
         query = urllib.parse.quote(song_name)
         os.startfile(f"spotify:search:{query}")
         return f"There was a connection issue, but I searched for {song_name} on Spotify."
 
 
-# ─── Uygulama Acma ───────────────────────────────────────────
+# ─── App Launching ───────────────────────────────────────────
 
 def open_app(app_name: str) -> str:
     """
-    Uygulamayi ac. Bilinen uygulamalar listesinden veya shell aramasiyla.
+    Launch application from known apps list or Start Menu search.
     
     Args:
-        app_name: Uygulamanin adi (kucuk harf, temizlenmis)
+        app_name: Name of the application (cleaned)
     
     Returns:
-        Kullaniciya gosterilecek onay mesaji
+        Confirmation message for the user
     """
     app_lower = app_name.lower().strip()
 
-    # Bir kabuk/komut istemi asla sesle acilamaz — Whisper sessizlik veya
-    # gurultude "open cmd" gibi bir seyi hallusine edebilir (bilinen bir
-    # faster-whisper davranisi) ve beklenmedik bir terminal acilmasi
-    # kullaniciyi korkutur. Hem bilinen-uygulama hem bilinmeyen-uygulama
-    # yolunu kapsayacak sekilde burada, isim eslesmesinden once kontrol et.
+    # Block opening shells via voice/text commands
     if app_lower in _BLOCKED_APP_NAMES:
         logger.info("Refused to open a shell via voice/text command: %r", app_name)
         return "Sorry, I can't open a command prompt for security reasons."
 
-    # Bilinen uygulamalar listesinde ara
+    # Look up in known apps list
     for key, info in KNOWN_APPS.items():
         aliases = info.get("aliases", [])
         if app_lower in aliases or app_lower == key:
             return _launch_app(key, info)
 
-    # Bilinmeyen uygulama — once adi dogrula, sonra kabuk olmadan dene
+    # Unknown application — validate name, then try without a shell
     if not _is_safe_name(app_name):
         logger.warning("Rejected unsafe app name: %r", app_name)
         return f"Sorry, I can't open {app_name}."
@@ -436,19 +412,15 @@ def open_app(app_name: str) -> str:
 
 
 def _launch_app(name: str, info: Dict[str, Any]) -> str:
-    """Bilinen bir uygulamayi baslat (KNOWN_APPS'ten gelen sabit degerlerle)."""
+    """Launch a known application with predefined config."""
     try:
-        # Protocol varsa (spotify:, steam:, ms-settings:) onu kullan
         target = info.get("protocol") or info.get("start", name)
-
-        # ShellExecute — kabuk (cmd.exe) baslatmadan calisir:
-        # hem enjeksiyona kapali hem de bir process daha az.
         os.startfile(target)
         logger.info("Launched %s via ShellExecute: %s", name, target)
         return f"Opening {name}."
 
     except OSError:
-        # PATH ve "App Paths" bulamadi — Baslat Menusu kisayoluna dus
+        # Fallback to Start Menu shortcut
         shortcut = _start_menu_shortcut(name)
         if shortcut:
             try:
@@ -466,10 +438,8 @@ def _launch_app(name: str, info: Dict[str, Any]) -> str:
 
 
 def _launch_unknown(app_name: str) -> str:
-    """Bilinmeyen bir uygulamayi ShellExecute ile baslat (kabuk yok)."""
+    """Launch an unknown application via ShellExecute without invoking a shell."""
     try:
-        # os.startfile PATH ve "App Paths" registry kaydini tarar;
-        # bulunamazsa OSError firlatir — bu sayede sessiz basarisizlik olmaz.
         os.startfile(app_name)
         logger.info("Launched unknown app via ShellExecute: %s", app_name)
         return f"Opening {app_name}."
@@ -489,13 +459,13 @@ def _launch_unknown(app_name: str) -> str:
         return f"Sorry, I couldn't open {app_name}."
 
 
-# ─── Uygulama Kapatma ────────────────────────────────────────
+# ─── App Closing ─────────────────────────────────────────────
 
 def close_app(app_name: str) -> str:
-    """Uygulamayi kapat (taskkill ile)."""
+    """Terminate application process via taskkill."""
     app_lower = app_name.lower().strip()
 
-    # Bilinen uygulamalarda exe adini bul
+    # Find exe name in known apps
     exe_name: Optional[str] = None
     for key, info in KNOWN_APPS.items():
         aliases = info.get("aliases", [])
@@ -504,7 +474,7 @@ def close_app(app_name: str) -> str:
             break
 
     if not exe_name:
-        # Bilinmeyen uygulama — adi dogrula, taskkill'e rastgele metin gecirme
+        # Validate unknown app name before passing to taskkill
         if not _is_safe_name(app_lower):
             logger.warning("Rejected unsafe app name for close: %r", app_name)
             return f"Sorry, I can't close {app_name}."
@@ -524,17 +494,17 @@ def close_app(app_name: str) -> str:
         return f"Sorry, I couldn't close {app_name}."
 
 
-# ─── Sistem Komutlari ────────────────────────────────────────
+# ─── System Commands ─────────────────────────────────────────
 
 def lock_screen() -> str:
-    """Ekrani kilitle."""
+    """Lock the Windows desktop workstation."""
     ctypes.windll.user32.LockWorkStation()
     logger.info("Screen locked")
     return "Locking screen."
 
 
 def open_url(url: str) -> str:
-    """URL'yi varsayilan tarayicida ac."""
+    """Open URL in default web browser."""
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
     os.startfile(url)
@@ -543,7 +513,7 @@ def open_url(url: str) -> str:
 
 
 def web_search(query: str) -> str:
-    """Google'da arama yap."""
+    """Perform Google web search in default browser."""
     search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
     os.startfile(search_url)
     logger.info("Web search: %s", query)
@@ -551,13 +521,13 @@ def web_search(query: str) -> str:
 
 
 def screenshot() -> str:
-    """Ekran goruntusu al (Snipping Tool)."""
+    """Open Windows Snipping Tool."""
     try:
         os.startfile("ms-screenclip:")
         logger.info("Screenshot tool opened")
         return "Opening screenshot tool."
     except Exception:
-        # Eski Windows surumleri icin klasik Snipping Tool
+        # Fallback for older Windows builds
         try:
             os.startfile("snippingtool")
             return "Opening screenshot tool."
@@ -567,7 +537,7 @@ def screenshot() -> str:
 
 
 def minimize_all() -> str:
-    """Tum pencereleri simge durumuna kucult."""
+    """Minimize all open windows (Win+D)."""
     ctypes.windll.user32.keybd_event(0x5B, 0, 0, 0)  # Win key down
     ctypes.windll.user32.keybd_event(0x44, 0, 0, 0)  # D key down
     time.sleep(0.05)
@@ -577,8 +547,7 @@ def minimize_all() -> str:
     return "Done, all windows minimized."
 
 
-# Guc islemleri yanlis duyulmus tek bir komutla tetiklenmemeli:
-# once "arm" edilir, kullanici 30 saniye icinde onaylarsa calisir.
+# Two-step power confirmation to prevent accidental shutdowns
 _PENDING_POWER_ACTION: Optional[str] = None
 _PENDING_POWER_TIME: float = 0.0
 _POWER_CONFIRM_WINDOW_S: float = 30.0
@@ -587,7 +556,7 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _arm_power_action(action: str, label: str) -> str:
-    """Guc islemini onay bekler duruma al."""
+    """Arm a power action and await confirmation within time window."""
     global _PENDING_POWER_ACTION, _PENDING_POWER_TIME
     _PENDING_POWER_ACTION = action
     _PENDING_POWER_TIME = time.time()
@@ -596,17 +565,17 @@ def _arm_power_action(action: str, label: str) -> str:
 
 
 def shutdown_pc() -> str:
-    """Kapatmayi onaya al (calistirmaz — confirm_power_action calistirir)."""
+    """Arm PC shutdown (requires confirmation)."""
     return _arm_power_action("shutdown", "shut down the computer")
 
 
 def restart_pc() -> str:
-    """Yeniden baslatmayi onaya al."""
+    """Arm PC restart (requires confirmation)."""
     return _arm_power_action("restart", "restart the computer")
 
 
 def confirm_power_action() -> str:
-    """Bekleyen guc islemini onayla ve 30 saniyelik geri sayimi baslat."""
+    """Confirm pending power action and schedule 30-second shutdown/restart timer."""
     global _PENDING_POWER_ACTION
 
     if _PENDING_POWER_ACTION is None:
@@ -627,7 +596,7 @@ def confirm_power_action() -> str:
 
 
 def cancel_shutdown() -> str:
-    """Bekleyen onayi ve zamanlanmis kapatmayi iptal et."""
+    """Abort scheduled shutdown or restart."""
     global _PENDING_POWER_ACTION
     _PENDING_POWER_ACTION = None
     subprocess.Popen(["shutdown", "/a"], creationflags=_NO_WINDOW)

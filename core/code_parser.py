@@ -70,10 +70,10 @@ def extract_and_save_code(text: str) -> str:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(code)
             logger.info("Saved generated code to %s", filepath)
-            return " [İstediğiniz kod masaüstüne kaydedildi.] "
+            return " [The requested code has been saved to your desktop.] "
         except Exception as e:
             logger.error("Failed to save code to desktop: %s", e)
-            return " [Kodu masaüstüne kaydederken bir hata oluştu.] "
+            return " [An error occurred while saving the code to your desktop.] "
 
     # Replace all code blocks and return the cleaned text
     cleaned_text = pattern.sub(replacer, text)

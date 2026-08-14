@@ -42,15 +42,14 @@ class SamOverlay(QObject):
 
         self._caption_gap: int = config.get("ui", "orb", "caption_gap", default=18)
 
-        # Orb hareket ettiginde alttaki pencereler onu takip eder.
+        # Child windows follow the orb as it moves
         self._orb.position_changed.connect(self._reposition_children)
         self._orb.clicked.connect(self.toggle_text_input)
 
         self._input.submitted.connect(self._on_text_submitted)
         self._input.cancelled.connect(self._on_text_cancelled)
 
-        # Ekran duzeni degisirse (monitor takildi/cikarildi, cozunurluk) orb
-        # ekran disinda kalmasin.
+        # Reposition if screen layout changes (displays added/removed/resized)
         app = QGuiApplication.instance()
         if app is not None:
             app.screenAdded.connect(self._on_screens_changed)
@@ -87,15 +86,13 @@ class SamOverlay(QObject):
         self._caption.clear_text()
 
     def follow_to(self, start: int, end: int) -> None:
-        """TTS su an bu karakter araligini soyluyor — caption'i oraya kaydir."""
+        """Scroll caption to character range currently spoken by TTS."""
         self._caption.follow_to(start, end)
 
     # ─── Text input ───────────────────────────────────────────────
 
     def show_text_input(self) -> None:
-        # Yazarken orb'un tiklama testi devre disi — iki pencere odak icin
-        # birbiriyle yarismasin. Yazi kutusu da "cagrildi" sayilir, orb
-        # z-siranin en ustune gelir (auto katmaninda).
+        # Disable orb hit testing while typing to avoid focus contention
         self._orb.set_interactive(False)
         self._orb.set_foreground_request(True)
         self._position_input()
@@ -141,7 +138,7 @@ class SamOverlay(QObject):
         centre_x = orb_geo.x() + orb_geo.width() // 2
         x = centre_x - width // 2
 
-        # Ekran disina tasmasin.
+        # Clamp to screen bounds
         screen = self._orb.screen()
         if screen is not None:
             avail = screen.availableGeometry()
@@ -152,7 +149,7 @@ class SamOverlay(QObject):
         orb_geo = self._orb.geometry()
         y = orb_geo.y() + orb_geo.height() + self._caption_gap
 
-        # Orb ekranin altindaysa metni ustune koy.
+        # If orb is near bottom of the screen, place caption above it
         screen = self._orb.screen()
         if screen is not None:
             avail = screen.availableGeometry()
@@ -172,7 +169,7 @@ class SamOverlay(QObject):
         self._input.move(self._below_orb_x(w), self._below_orb_y(h))
 
     def _on_screens_changed(self, *_args) -> None:
-        # Ekran degisimi sirasinda geometriler hemen guncel olmuyor.
+        # Screen geometry updates asynchronously; delay reposition slightly
         QTimer.singleShot(300, self._orb.reposition)
 
     # ─── Settings ─────────────────────────────────────────────────

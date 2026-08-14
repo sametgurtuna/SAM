@@ -1,5 +1,5 @@
 # SAM — Settings Window
-# Modern cyber-minimalist sidebar-based settings window inspired by Google Stitch designs.
+# Modern cyber-minimalist sidebar-based settings window.
 # Config.yaml values are fully customizable with real-time feedback and premium aesthetics.
 
 import logging
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # Start timestamp for uptime calculation in Diagnostics
 APP_START_TIME = time.time()
 
-# ─── Tema & Renk Paleti (Google Stitch Cyber-Dark) ─────────────────────
+# ─── Theme & Color Palette (Cyberpunk Dark) ───────────────────────────
 BG = "#0a0a0f"
 SURFACE = "#101018"
 SURFACE_HI = "#16161f"
@@ -307,9 +307,9 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 """
 
 
-# ─── Custom Widget: Modern iOS/Cyberpunk Animated ToggleSwitch ─────────
+# ─── Custom Widget: Modern Animated ToggleSwitch ──────────────────────
 class ToggleSwitch(QWidget):
-    """Modern animasyonlu hap seklinde Toggle Switch kontrolu."""
+    """Modern animated pill-shaped toggle switch control."""
     toggled = pyqtSignal(bool)
 
     def __init__(self, parent=None, checked=False):
@@ -359,7 +359,7 @@ class ToggleSwitch(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Arka plan hapi
+        # Background pill
         bg_color = QColor(ACCENT) if self._checked else QColor("#22222f")
         border_color = QColor(ACCENT_HOVER) if self._checked else QColor("rgba(255,255,255,0.12)")
 
@@ -367,7 +367,7 @@ class ToggleSwitch(QWidget):
         p.setBrush(QBrush(bg_color))
         p.drawRoundedRect(QRectF(1, 1, 44, 22), 11, 11)
 
-        # Basparmak (Knob)
+        # Thumb knob
         p.setPen(Qt.PenStyle.NoPen)
         knob_color = QColor("#050508") if self._checked else QColor("#ffffff")
         p.setBrush(QBrush(knob_color))
@@ -378,7 +378,7 @@ class ToggleSwitch(QWidget):
 
 # ─── Custom Widget: Segmented Button Control ([ Orb ] [ Bar ]) ────────
 class SegmentedControl(QWidget):
-    """Segmented switch kontrolu (Orb / Bar gibi mod secimleri)."""
+    """Segmented switch control for mutually exclusive modes."""
     selection_changed = pyqtSignal(str)
 
     def __init__(self, options: list[str], current: str = "", parent=None):
@@ -454,7 +454,7 @@ class SegmentedControl(QWidget):
 
 # ─── Custom Widget: Live Orb Interactive Preview Widget ───────────────
 class LiveOrbPreview(QWidget):
-    """Appearance sekmesinde kullanicinin slider degerlerine aninda tepki veren canli Orb."""
+    """Interactive real-time preview of the Orb responding to appearance parameters."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(220, 260)
@@ -463,7 +463,7 @@ class LiveOrbPreview(QWidget):
         self._opacity = 0.95
         self._pulse_phase = 0.0
 
-        # Yumusak nefes alma animasyonu
+        # Gentle breathing animation
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._animate_pulse)
         self._timer.start(40)  # 25 FPS
@@ -485,10 +485,10 @@ class LiveOrbPreview(QWidget):
         w, h = self.width(), self.height()
         cx, cy = w / 2, h / 2
 
-        # Arka plan
+        # Background
         p.fillRect(0, 0, w, h, QColor(SURFACE_HI))
 
-        # Dis parlama (Glow)
+        # Outer glow
         import math
         breathe = 0.85 + 0.15 * math.sin(self._pulse_phase)
         scale_factor = min(w, h) / 360.0
@@ -504,7 +504,7 @@ class LiveOrbPreview(QWidget):
         p.setBrush(QBrush(gradient))
         p.drawEllipse(QRectF(cx - outer_radius, cy - outer_radius, outer_radius * 2, outer_radius * 2))
 
-        # Ana dairesel disk
+        # Main disc
         disc_radius = render_size / 2.0
         disc_grad = QRadialGradient(cx, cy, disc_radius)
         disc_grad.setColorAt(0.0, QColor(56, 242, 216, int(230 * self._opacity)))
@@ -521,7 +521,7 @@ class LiveOrbPreview(QWidget):
 
 # ─── Custom Widget: Status Badge (LED indicator pill) ─────────────────
 class StatusBadge(QWidget):
-    """Yesil / Gri LED durum hap rozeti (Connected, Disconnected vb.)."""
+    """LED indicator pill badge (Connected, Disconnected, etc.)."""
     def __init__(self, text: str, is_active: bool = True, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
@@ -561,7 +561,7 @@ class StatusBadge(QWidget):
 # ─── Main Settings Window Class ───────────────────────────────────────
 class SettingsWindow(QDialog):
     """
-    SAM Settings penceresi — Google Stitch Cyberpunk Dark arayuz tasarimi.
+    SAM Settings window.
     """
     settings_saved = pyqtSignal()
 
@@ -585,11 +585,11 @@ class SettingsWindow(QDialog):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(24)
 
-        # Sol Sidebar
+        # Left Sidebar
         sidebar_col = QVBoxLayout()
         sidebar_col.setSpacing(12)
 
-        # Mini SAM Avatar Card (Sidebar ustunde)
+        # Mini SAM Avatar Card (above sidebar)
         avatar_card = QFrame()
         avatar_card.setObjectName("innerCard")
         avatar_layout = QHBoxLayout(avatar_card)
@@ -621,13 +621,13 @@ class SettingsWindow(QDialog):
 
         content_layout.addLayout(sidebar_col)
 
-        # Sag Stacked Widget
+        # Right Stacked Widget
         self.stack = QStackedWidget()
         content_layout.addWidget(self.stack, 1)
 
         main_layout.addLayout(content_layout, 1)
 
-        # 3. Sayfalar
+        # 3. Pages
         self._add_page("⚡  General", "Activation", "Configure how you interact with SAM globally.", self._build_general_tab())
         self._add_page("🎙  Speech", "Speech & Voice", "Configure speech recognition and text-to-speech synthesis parameters.", self._build_speech_tab())
         self._add_page("💬  Responses", "Instant Responses", "Configure zero-latency predefined replies for exact pattern matches.", self._build_responses_tab())
@@ -870,7 +870,7 @@ class SettingsWindow(QDialog):
         layout.addStretch()
         return tab
 
-    # ─── 2. Speech & Voice Tab (Google Stitch Exact Match) ───────────
+    # ─── 2. Speech & Voice Tab ───────────────────────────────────────
     def _build_speech_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -1152,7 +1152,7 @@ class SettingsWindow(QDialog):
         sign = "+" if val >= 0 else ""
         self._tts_rate.setText(f"{sign}{val}%")
 
-    # ─── 3. Responses Tab (Instant Responses — Google Stitch Exact) ───
+    # ─── 3. Responses Tab (Instant Responses) ─────────────────────────
     def _build_responses_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -1967,7 +1967,7 @@ class SettingsWindow(QDialog):
         secs = elapsed % 60
         self._uptime_label.setText(f"{hrs:02d}:{mins:02d}:{secs:02d}")
 
-    # ─── Instant Response Dosya Islemleri ─────────────────────────────
+    # ─── Instant Response File Operations ─────────────────────────────
     def _instant_responder(self):
         return getattr(self._controller, "_instant", None)
 
@@ -2092,7 +2092,7 @@ class SettingsWindow(QDialog):
             config.set("spotify", "client_secret", value=self._spotify_client_secret.text().strip())
             config.set("spotify", "redirect_uri", value=self._spotify_redirect.text().strip())
 
-            # Kaydet
+            # Save
             success = config.save()
             if success:
                 logger.info("Settings saved via modern UI")

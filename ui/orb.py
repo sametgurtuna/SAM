@@ -65,9 +65,9 @@ class OrbWindow(QWidget):
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Tool          # no taskbar entry
         )
-        # "topmost" = eski davranis, kalici olarak her seyin ustunde.
-        # "auto" (varsayilan) ve "normal" Qt duzeyinde topmost istemez —
-        # "auto" kendi z-sirasini SetWindowPos ile elle yonetir (asagida).
+        # "topmost" = permanently above all windows.
+        # "auto" (default) and "normal" do not set Qt-level topmost hint;
+        # "auto" manages z-order dynamically via Win32 SetWindowPos.
         if self._layer == "topmost":
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
@@ -124,13 +124,10 @@ class OrbWindow(QWidget):
         self._fullscreen_timer: QTimer | None = None
         self._hidden_for_fullscreen: bool = False
 
-        # ─── Dinamik z-sira ("auto" katman) ────────────────────────
-        # SAM cagrilmadigi surece orb z-siranin en altinda durur (masaustu
-        # simgelerinin bile altinda, sadece duvar kagidinin ustunde); bir
-        # oturum basladiginda veya yazi kutusu acildiginda gecici olarak
-        # en one gelir. _foreground_request disaridan (metin girisi) gelen
-        # ayri bir "one getir" istegidir; nihai durum ikisinin OR'u.
-        self._zorder_applied: bool | None = None   # None = henuz uygulanmadi
+        # ─── Dynamic z-order ("auto" layer) ───────────────────────
+        # When idle, orb rests at the bottom of the z-order (above wallpaper,
+        # below active windows); temporarily brought to front during interaction.
+        self._zorder_applied: bool | None = None   # None = not yet applied
         self._foreground_request: bool = False
 
         self._position_on_screen()
@@ -210,8 +207,7 @@ class OrbWindow(QWidget):
             if x is not None and y is not None and self._point_is_visible(int(x), int(y)):
                 self.move(int(x), int(y))
                 return
-            # Kayitli konum artik hicbir ekranda degil (monitor cikarilmis,
-            # cozunurluk degismis) — kose hizasina geri dus.
+            # Saved position is off-screen (monitor disconnected, resolution changed) — fall back
             logger.info("Saved orb position is off-screen — falling back to anchor")
 
         if anchor == "bottom-center":
@@ -257,8 +253,7 @@ class OrbWindow(QWidget):
 
         active = state != "idle"
 
-        # Tam ekran yuzunden gizlendiysek ve SAM tetiklendiyse hemen geri gel;
-        # 2 sn'lik watchdog turunu bekleme.
+        # If hidden for fullscreen and SAM is triggered, restore immediately
         if active and self._hidden_for_fullscreen:
             self._hidden_for_fullscreen = False
             self.show()
@@ -331,10 +326,7 @@ class OrbWindow(QWidget):
         self._position_on_screen()
         self._apply_click_through()
         self._sync_fullscreen_watchdog()
-        # Katman degistiyse yeni politikayi hemen uygula. NOT: "topmost" <->
-        # diger katmanlar arasi gecis, kurulusta uygulanan Qt pencere
-        # bayragini (WindowStaysOnTopHint) degistirmez — o yeniden baslatma
-        # gerektirir; "auto"/"normal" arasindaki z-sira davranisi ise canlidir.
+        # Apply z-order policy immediately on layer change
         self._zorder_applied = None
         self._sync_zorder()
         if was_visible:
@@ -427,8 +419,7 @@ class OrbWindow(QWidget):
         self._fullscreen_timer.start()
 
     def _check_fullscreen(self) -> None:
-        # SAM aktifken veya yazi kutusu icin one cagrilmisken asla gizlenme —
-        # kullanici az once tetikledi.
+        # Do not hide if SAM is actively engaged or requested by text input
         if self._state != "idle" or self._foreground_request:
             if self._hidden_for_fullscreen:
                 self._hidden_for_fullscreen = False
@@ -456,17 +447,16 @@ class OrbWindow(QWidget):
         self.set_interactive(True)
 
     def nativeEvent(self, event_type, message):
-        # NOT: super().nativeEvent(...) CAGRILMAZ. PyQt6'da QWidget'in
-        # varsayilan implementasyonu gecersiz bir isaretci dondurur ve
-        # bunu C++'a geri vermek access violation ile cokme yaratir.
-        # Islemedigimiz mesajlar icin (False, 0) donmek dogru davranistir.
+        # NOTE: Do NOT call super().nativeEvent(...). In PyQt6, QWidget's
+        # default implementation can return an invalid pointer, leading to access violation.
+        # Returning (False, 0) for unhandled events is the correct behaviour.
         if win32.IS_WINDOWS and event_type == b"windows_generic_MSG":
             msg = win32.message_from_qt(message)
             if msg is not None and msg.message == win32.WM_NCHITTEST:
                 if not self._interactive:
                     return True, win32.HTTRANSPARENT
                 if not self._click_through:
-                    # click_through kapali: tum pencere tiklanabilir
+                    # click_through disabled: entire window is clickable
                     return True, win32.HTCLIENT
 
                 x, y = win32.decode_hittest_point(msg.lParam)
@@ -578,8 +568,7 @@ class OrbWindow(QWidget):
         self._paint_label(painter, breath)
 
     def _paint_glow(self, painter: QPainter, intensity: float) -> None:
-        # Alfa bucket'lama: gradient yalnizca gorunur bir alfa degisiminde
-        # yeniden kurulur, her karede degil (waveform.py ile ayni idiom).
+        # Alpha bucketing: only rebuild radial gradient when alpha changes noticeably
         alpha = int(max(0.0, min(1.0, intensity)) * 90)
         key = (self._color.rgb(), alpha // 8)
         if self._glow_brush is None or self._glow_key != key:
@@ -628,8 +617,7 @@ class OrbWindow(QWidget):
         painter.drawEllipse(self._ring_rect)
 
     def _paint_sweep(self, painter: QPainter) -> None:
-        # Konik gradient'i her karede yeniden kurmak pahali; onun yerine
-        # gradient bir kez kurulur ve PAINTER dondurulur (matris islemi).
+        # Rebuilding conical gradients per frame is slow; rotate painter transform instead
         key = self._color.name()
         if self._sweep_pen is None or self._sweep_key != key:
             gradient = QConicalGradient(self._cx, self._cy, 0.0)
@@ -694,8 +682,7 @@ class OrbWindow(QWidget):
             )
 
     def _paint_label(self, painter: QPainter, breath: float) -> None:
-        # QStaticText metnin yerlesimini onbellekler — her karede string
-        # shape'lemek 60fps'te gereksiz bir maliyet.
+        # QStaticText caches glyph layout to eliminate per-frame text shaping overhead
         if self._label_static is None:
             font = QFont(styles.Fonts.primary())
             font.setPixelSize(max(11, int(self._size * 0.22)))

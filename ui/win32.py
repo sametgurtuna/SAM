@@ -33,9 +33,8 @@ HTCLIENT = 1
 SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 SWP_NOACTIVATE = 0x0010
-# Bunlar gercek pencere tutamaclari degil, ozel "sozde tutamaclar" —
-# kucuk negatif tam sayilar. c_void_p'ye verilirken isaretsiz bit
-# deseninde tasinmalari gerekiyor (asagidaki _pseudo_handle bkz).
+# Special pseudo-handles: small negative integers that must be passed
+# as unsigned bit patterns into c_void_p (see _pseudo_handle).
 HWND_TOPMOST = -1
 HWND_NOTOPMOST = -2
 HWND_BOTTOM = 1
@@ -44,8 +43,8 @@ if IS_WINDOWS:
     _user32 = ctypes.windll.user32
     _kernel32 = ctypes.windll.kernel32
 
-    # 64-bit gecerliligi icin hwnd'yi c_void_p olarak tanimla — varsayilan
-    # c_int imzasi 32-bit'e kirpar ve cagri sessizce basarisiz olur.
+    # Define hwnd as c_void_p for 64-bit safety — default c_int signature
+    # truncates to 32-bit causing silent failures.
     _user32.GetWindowLongW.argtypes = (ctypes.c_void_p, ctypes.c_int)
     _user32.GetWindowLongW.restype = ctypes.c_long
     _user32.SetWindowLongW.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_long)
@@ -61,13 +60,13 @@ else:
 
 
 def _pseudo_handle(value: int) -> "ctypes.c_void_p":
-    """HWND_TOPMOST/-BOTTOM gibi kucuk negatif sozde tutamaclari, c_void_p'nin
-    beklendigi isaretsiz bit desenine cevirir."""
+    """Convert small negative pseudo-handles (e.g. HWND_TOPMOST/-BOTTOM)
+    to the unsigned bit pattern expected by c_void_p."""
     return ctypes.c_void_p(value & 0xFFFFFFFFFFFFFFFF)
 
 
 def set_zorder(hwnd: int, insert_after: int) -> None:
-    """SetWindowPos ile pencerenin z-sirasini degistirir, boyut/konum sabit."""
+    """Adjust window z-order via SetWindowPos while preserving size and position."""
     if not IS_WINDOWS or not hwnd:
         return
     try:
@@ -81,18 +80,17 @@ def set_zorder(hwnd: int, insert_after: int) -> None:
 
 
 def bring_to_top(hwnd: int) -> None:
-    """Pencereyi gecici olarak en one getirir (HWND_TOPMOST)."""
+    """Temporarily bring window to topmost layer (HWND_TOPMOST)."""
     set_zorder(hwnd, HWND_TOPMOST)
 
 
 def send_to_bottom(hwnd: int) -> None:
-    """Pencereyi z-sıra hiyerarşisinin en altına gönderir (HWND_BOTTOM) —
-    masaüstü simgelerinin bile altında, sadece duvar kağıdının üstünde durur."""
+    """Send window to the bottom of the z-order hierarchy (HWND_BOTTOM)."""
     set_zorder(hwnd, HWND_BOTTOM)
 
 
 def clear_topmost(hwnd: int) -> None:
-    """Topmost durumunu kaldirir ama z-sirada belirli bir yere gondermez."""
+    """Clear topmost state without positioning to a specific layer."""
     set_zorder(hwnd, HWND_NOTOPMOST)
 
 
@@ -172,7 +170,7 @@ def foreground_is_fullscreen(exclude_hwnd: int = 0) -> bool:
         if not hwnd or hwnd == exclude_hwnd:
             return False
 
-        # Masaustu / kabuk pencerelerini hesaba katma.
+        # Ignore desktop / shell windows.
         buf = ctypes.create_unicode_buffer(256)
         _user32.GetClassNameW(hwnd, buf, 256)
         if buf.value in ("Progman", "WorkerW", "Shell_TrayWnd", "Button"):
@@ -180,7 +178,7 @@ def foreground_is_fullscreen(exclude_hwnd: int = 0) -> bool:
 
         style = _user32.GetWindowLongW(ctypes.c_void_p(hwnd), GWL_STYLE)
         if style & (WS_CAPTION | WS_THICKFRAME):
-            return False  # baslik cubugu/kenarligi var => maximize, fullscreen degil
+            return False  # Has caption/border => maximized, not fullscreen
 
         rect = ctypes.wintypes.RECT()
         if not _user32.GetWindowRect(hwnd, ctypes.byref(rect)):

@@ -72,7 +72,7 @@ def pull_llm_model(progress_file: str | None = None) -> bool:
     _report(progress_file, 5, f"Downloading language model {model}…")
     try:
         proc = subprocess.Popen(
-            [executable, "pull", model],       # liste formu, shell yok
+            [executable, "pull", model],       # list format, no shell
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
@@ -80,7 +80,7 @@ def pull_llm_model(progress_file: str | None = None) -> bool:
             text=True,
             errors="replace",
         )
-        # Ollama'nin ilerleme satirlarini oku ki kurulum kara kutu olmasin.
+        # Read Ollama progress lines so the installation is not a black box.
         assert proc.stdout is not None
         for line in proc.stdout:
             line = line.strip()
@@ -117,7 +117,7 @@ def download_whisper_model(progress_file: str | None = None) -> bool:
             compute_type=compute_type,
             download_root=download_root,
         )
-        del model  # sadece indirme icin — RAM'de tutma
+        del model  # for download only — do not keep in RAM
         _report(progress_file, 100, f"Speech model {size} ready")
         return True
     except Exception as e:

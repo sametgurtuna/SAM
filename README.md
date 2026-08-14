@@ -48,7 +48,7 @@ call is to `localhost:11434` (your local Ollama server). A cloud fallback (Claud
 <tr>
 <td width="50%" valign="top">
 
-**Major UI Revamp (Edge WebView2 + Google Stitch)**
+**Major UI Revamp (Edge WebView2 & Cyberpunk Dark)**
 Replaced legacy PyQt QSS settings with a high-performance HTML5/CSS3/JS Webview interface. Features glassmorphism cards (`backdrop-filter: blur(12px)`), neon teal `#00D4AA` accents, and custom switches.
 
 **Live Microphone & Audio Spectrum Tester**

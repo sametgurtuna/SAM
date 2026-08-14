@@ -41,8 +41,7 @@ class WakeWordEngine(QObject):
     def __init__(self) -> None:
         super().__init__()
 
-        # Config yolu goreliyse CWD'ye degil, uygulama koklerine gore cozulur —
-        # kisayoldan veya frozen exe'den baslatildiginda da bulunur.
+        # If model path is relative, resolve against application roots
         self._model_name: str = paths.resolve_asset(
             config.get("wake_word", "model", default="assets/models/hey_sam.onnx")
         )
@@ -100,9 +99,7 @@ class WakeWordEngine(QObject):
             import openwakeword
             from openwakeword.model import Model
 
-            # download_models() her aciliste aga cikip acilisi geciktiriyordu.
-            # Model yerel bir dosyaysa (varsayilan: assets/models/hey_sam.onnx)
-            # indirmeye hic gerek yok.
+            # Only download models if the specified model file does not exist locally
             if not os.path.isfile(self._model_name):
                 openwakeword.utils.download_models()
 
@@ -145,10 +142,7 @@ class WakeWordEngine(QObject):
 
                     # Check detection scores
                     for model_name, score in self._model.prediction_buffer.items():
-                        # Tek bir chunk'in skoru yerine son birkac chunk'in
-                        # en yuksegine bak — model skoru genelde 1-2 frame'lik
-                        # dar bir pikte tepe yapiyor, sadece son degere bakmak
-                        # o piki kacirip algilamayi zorlastirabiliyor.
+                        # Peak detection over the last few chunks to reliably catch sharp score spikes
                         recent = list(score)[-5:] if score else []
                         latest_score = max(recent) if recent else 0.0
 

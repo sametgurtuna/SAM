@@ -44,7 +44,7 @@ class TextInputWindow(QWidget):
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        # WA_ShowWithoutActivating BILEREK set edilmiyor — odagi engelleyen tam olarak o.
+        # WA_ShowWithoutActivating intentionally omitted — input field requires active keyboard focus.
 
         self._build_ui()
 
@@ -129,7 +129,7 @@ class TextInputWindow(QWidget):
 
     def focusOutEvent(self, event) -> None:
         super().focusOutEvent(event)
-        # Baska bir uygulamaya tiklandi — kutuyu kapat.
+        # User clicked outside or switched apps — dismiss input box
         if self.isVisible() and not self.isActiveWindow():
             self.close_input()
             self.cancelled.emit()

@@ -55,7 +55,7 @@ class WaveformWidget(QWidget):
         self._seeds: list[float] = [random.uniform(0.5, 1.5) for _ in range(self._bar_count)]
         self._phase_offsets: list[float] = [random.uniform(0, math.tau) for _ in range(self._bar_count)]
 
-        # Bar x positions never change — hesapla ve sakla
+        # Bar x positions never change — precalculate and cache
         self._xs: list[int] = [i * (self._bar_w + self._bar_gap) for i in range(self._bar_count)]
 
         # Fixed size based on bar count
@@ -65,9 +65,7 @@ class WaveformWidget(QWidget):
         # Transparent background
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Tek bir gradient nesnesi tum cubuklar icin yeniden kullanilir:
-        # ObjectBoundingMode sayesinde koordinatlar cizilen sekle gore
-        # 0..1 araliginda yorumlanir, her cubuk icin yenisini kurmak gerekmez.
+        # Single gradient object reused across all bars via ObjectBoundingMode
         self._gradient = QLinearGradient(0.0, 0.0, 0.0, 1.0)
         self._gradient.setCoordinateMode(QGradient.CoordinateMode.ObjectBoundingMode)
         self._gradient_alpha_key: tuple[str, int] | None = None
@@ -101,7 +99,7 @@ class WaveformWidget(QWidget):
         self._active = active
         if not active:
             self._level_target = 0.0
-        # Durum degistiginde animasyonun yeniden baslamasi gerekir
+        # Restart animation timer on state transition
         self._start_timer()
 
     def set_color(self, color_hex: str) -> None:
@@ -109,7 +107,7 @@ class WaveformWidget(QWidget):
         if color_hex == self._color_hex:
             return
         self._color_hex = color_hex
-        self._gradient_alpha_key = None  # gradient'i yeniden kur
+        self._gradient_alpha_key = None  # Invalidate cached gradient
         self._start_timer()
 
     def set_level(self, level: float) -> None:
@@ -130,8 +128,7 @@ class WaveformWidget(QWidget):
 
         self._phase += self.PHASE_SPEED
 
-        # Dinlenme durumuna oturduysa timer'i durdur — bos ekranda
-        # saniyede 60 kez bos boyama yapmanin anlami yok.
+        # Stop timer once settled at rest — avoid idle 60fps repaints
         if (not self._active
                 and abs(self._amplitude - target) < self.REST_EPSILON
                 and self._level < self.REST_EPSILON):
@@ -142,9 +139,8 @@ class WaveformWidget(QWidget):
         self.update()
 
     def _bar_gradient(self) -> QLinearGradient:
-        """Amplitude'a gore alfa degerleri guncellenmis paylasilan gradient."""
-        # Alfa'yi 8'lik kovalara yuvarla — gozle farkedilmez ama
-        # gradient'i her karede yeniden kurmaktan kurtarir.
+        """Shared linear gradient updated for current amplitude."""
+        # Quantize alpha into 8-step buckets to avoid rebuilding gradient every frame
         bucket = int(self._amplitude * 255) // 8
         key = (self._color_hex, bucket)
         if key == self._gradient_alpha_key:
@@ -172,9 +168,7 @@ class WaveformWidget(QWidget):
         widget_h = self.height()
         span = self._max_h - self._min_h
         phase = self._phase
-        # Canli mikrofon seviyesi taban bir zemin olusturur; sinus dalgasi
-        # bunun uzerine dokusunu ekler. Boylece cubuklar gercekten konusmaya
-        # tepki verir ama sessizlikte de tamamen olu gorunmez.
+        # Live microphone level creates baseline; sine wave adds organic texture
         voice = 0.35 + 0.65 * self._level
 
         for i in range(self._bar_count):

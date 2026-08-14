@@ -23,18 +23,15 @@ datas = [
     ("assets/icon.ico", "assets"),
     ("assets/icon.png", "assets"),
     ("config.example.yaml", "."),
-    # RAG bilgi tabani — resource_root()/knowledge altinda aranir.
-    # Bundle edilmezse frozen build'de RAG bos DB ile baslar ve FB sorulari
-    # asilsiz cevaplarla dolar.
+    # RAG knowledge base — located under resource_root()/knowledge
     ("knowledge", "knowledge"),
     # Modern Webview Settings UI
     ("ui/web", "ui/web"),
 ]
 
 # ─── Pre-download embedding model ─────────────────────────────────
-# sentence-transformers modeli ilk kullanimda HF cache'e (~120MB) iner.
-# Frozen build'de bunu build time'da indirip bundle ediyoruz ki son kullanici
-# internet olmadan da RAG kullanabilsin.
+# Pre-download and bundle sentence-transformers model at build time
+# so RAG works fully offline in frozen builds.
 _EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 _EMBED_LOCAL = os.path.join(ROOT, "assets", "models", "embedding", _EMBED_MODEL)
 if not os.path.isdir(_EMBED_LOCAL):
@@ -61,9 +58,7 @@ datas += collect_data_files("openwakeword")
 datas += collect_data_files("faster_whisper")
 datas += collect_data_files("certifi")
 datas += collect_data_files("language_tags")   # edge-tts dependency
-# RAG bagimliliklari — sentence-transformers ve chromadb kendi paket data'larini
-# tasir (config.json, sqlite migrations, vb.). Bundle edilmezse import ediliyor
-# ama runtime'da "missing config" hatalari veriyor.
+# RAG dependencies — package data for sentence-transformers and chromadb
 datas += collect_data_files("sentence_transformers")
 datas += collect_data_files("chromadb")
 datas += collect_data_files("tokenizers")
@@ -89,41 +84,24 @@ hiddenimports = [
 ]
 hiddenimports += collect_submodules("pycaw")
 hiddenimports += collect_submodules("webview")
-# RAG — llm/rag.py bunlari lazy import ediyor (fonksiyon icinde), PyInstaller
-# statik analizle bulamiyor. Acikca eklenmezse frozen build'de RAG init
-# "ModuleNotFoundError: sentence_transformers" ile sessizce basarisiz oluyor
-# ve app FENERBAHCE sorularina hicbir bilgi olmadan cevap veriyor.
+# RAG submodules — explicitly collected since llm/rag.py imports lazily
 hiddenimports += collect_submodules("sentence_transformers")
 hiddenimports += collect_submodules("chromadb")
 hiddenimports += collect_submodules("tokenizers")
 hiddenimports += collect_submodules("huggingface_hub")
-# chromadb'nin runtime'da import ettigi ama statik gorunmeyen alt modul
+# Additional runtime submodules imported dynamically by chromadb
 hiddenimports += ["onnxruntime", "posthog", "pypika", "tenacity"]
-
-# NOT: collect_submodules("openwakeword") KULLANILMIYOR. openwakeword'un
-# egitim/torch tabanli alt modullerini de topluyor ve pakete 320 MB torch
-# ekliyordu. audio/wake_word.py inference_framework="onnx" ile calisiyor,
-# yani calisma zamaninda torch'a hic ihtiyac yok.
 
 # NOTE: `anthropic` is deliberately absent. llm/claude_engine.py imports it
 # lazily inside its methods and treats ImportError as "Claude unavailable", so
 # the local-only build works without it. Add it here if you ship Claude support.
 
 excludes = [
-    # SAM'in kodunun hicbiri bunlari import etmiyor; hepsi gecisli bagimlilik
-    # olarak geliyordu ve pakete ~460 MB ekliyorlardi.
-    #   torch/torchvision : openwakeword'un opsiyonel torch backend'i.
-    #                       inference_framework="onnx" kullandigimiz icin
-    #                       calisma zamaninda hic gerekmiyor (~330 MB).
-    # DIKKAT: scipy ve av BURAYA EKLENMEZ. Ikisi de dolayli ama ZORUNLU:
-    #   scipy -> openwakeword import ederken gerekiyor
-    #   av    -> faster_whisper.audio modul seviyesinde import ediyor
-    # Bunlari dislamak wake word ve STT'yi frozen build'de sessizce oldurur.
-    # NOT: torch/torchvision/torchaudio ARTIK EXCLUDE EDILMIYOR.
-    # sentence-transformers torch backend'i ile calisir; exclude edilirse RAG
-    # frozen build'de olur. Wake word onnx backend kullaniyor, ama torch'a
-    # RAG icin ihtiyacimiz var — build boyutu +300MB'lik acidan kabul edilebilir.
-    # torchaudio hala gereksiz (kimse import etmiyor), onu tutuyoruz.
+    # Exclude unused heavyweight dependencies
+    # Note: scipy and av are required at runtime:
+    #   scipy -> openwakeword dependency
+    #   av    -> faster_whisper.audio module dependency
+    # Note: torch is needed for sentence-transformers embedding runtime.
     "torchaudio",
     "pandas",
     "tkinter", "matplotlib", "IPython", "pytest", "notebook",

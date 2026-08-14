@@ -30,7 +30,7 @@
 | v0.4.1 - v0.4.4 | Done | Intent classification, RAG, conversation modes, real-time live captioning |
 | v0.4.5 | Done | Instant predefined responses, zero-LLM command dispatch, dedicated live-transcription model |
 | v0.4.6 | Done | Editable instant responses (seeded to user data dir), rebuilt settings window |
-| **v0.4.7** | **Current** | Major UI Revamp: Google Stitch Cyberpunk Webview, Live Mic Spectrum, Ollama Detector, Smart Hotkeys |
+| **v0.4.7** | **Current** | Major UI Revamp: Cyberpunk Dark Webview, Live Mic Spectrum, Ollama Detector, Smart Hotkeys |
 | v0.5.0 | Planned | Screen & clipboard awareness |
 | v0.6.0 | Planned | Productivity: reminders, scheduling |
 | v0.7.0 | Planned | Local knowledge base (RAG) |
@@ -42,7 +42,7 @@
 ## v0.4.7 - Major UI Revamp *(current release)*
 
 > State-of-the-art Cyberpunk Dark Webview architecture powered by Windows Edge WebView2,
-> Google Stitch design tokens, interactive diagnostic tools, and native Windows branding.
+> Modern cyberpunk design tokens, interactive diagnostic tools, and native Windows branding.
 > Full details in [CHANGELOG.md](CHANGELOG.md#047---2026-08-14).
 
 - [x] **Webview-powered settings**: Replaced legacy PyQt QSS with a modern HTML5/CSS3/JS Webview interface (`pywebview`).

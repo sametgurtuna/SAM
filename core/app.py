@@ -53,9 +53,9 @@ class AppController(QObject):
 
         self._state: str = AppState.IDLE
 
-        # Overlay — "orb" (her zaman gorunur daire) varsayilan; "bar" eski
-        # alttan kayan cubugu geri getirir. Ikisi de ayni API'yi sunuyor,
-        # bu yuzden asagidaki tum cagri yerleri degismiyor.
+        # Overlay — "orb" is the default always-visible circular overlay;
+        # "bar" brings back the legacy bottom sliding bar.
+        # Both expose the identical API.
         overlay_style = config.get("ui", "overlay", "style", default="orb")
         if overlay_style == "bar":
             from ui.floating_bar import FloatingBar
@@ -75,8 +75,8 @@ class AppController(QObject):
         self._llm = LLMRouter()
 
         # ─── Ollama server lifecycle ─────────────────────────────
-        # Kullanici Ollama'yi elle baslatmak zorunda kalmasin diye SAM
-        # acilirken sunucuyu arka planda (gizli) kendisi ayaga kaldirir.
+        # Automatically start the local Ollama server in the background
+        # if not already running.
         self._ollama = OllamaService()
         self._ollama.ready.connect(self._llm.refresh_engine)
         self._ollama.unavailable.connect(self._on_ollama_unavailable)
@@ -87,7 +87,7 @@ class AppController(QObject):
         self._cmd_router = CommandRouter()
 
         # ─── Instant responses ───────────────────────────────────
-        # Onceden tanimli ifadeler LLM'e hic ugramadan cevaplanir.
+        # Predefined phrases answered instantly without calling the LLM.
         self._instant: InstantResponder | None = None
         if config.get("instant", "enabled", default=True):
             self._instant = InstantResponder(
@@ -109,7 +109,7 @@ class AppController(QObject):
         # STT → LLM pipeline
         self._stt.partial_transcript.connect(self._on_partial_transcript)
         self._stt.transcript_ready.connect(self._on_transcript_ready)
-        # Iki dilli TTS — algilanan dile gore ses/cevap dili secimi
+        # Bilingual TTS — select voice/language instruction based on detected speech
         self._stt.language_detected.connect(self._on_language_detected)
 
         # LLM → TTS pipeline
@@ -119,8 +119,7 @@ class AppController(QObject):
 
         # TTS → completion
         self._tts.playback_finished.connect(self._on_tts_finished)
-        # TTS her cumle parcasini calmaya basladiginda caption'i o noktaya
-        # kaydir — "text follow" ozelligi (bkz. _on_tts_chunk_started).
+        # Follow text in caption window as TTS begins playing each sentence chunk
         self._tts.playback_started.connect(self._on_tts_chunk_started)
 
         # ─── Auto-hide timer ─────────────────────────────────────
@@ -128,29 +127,23 @@ class AppController(QObject):
             "ui", "auto_hide", "delay_seconds", default=4
         ) * 1000
 
-        # Iptal edilebilir auto-hide timer — cooldown sirasinda
-        # yeni komut geldiginde timer iptal edilebilsin
+        # Cancellable auto-hide timer for new triggers during cooldown
         self._auto_hide_timer: QTimer | None = None
 
         # ─── LLM streaming state ─────────────────────────────────
         self._llm_response_text: str = ""
-        # Akis sirasinda TTS'e gonderilmis olan on ek
+        # Prefix already sent to TTS during streaming
         self._tts_spoken_text: str = ""
-        # Yanitta kod blogu (```) gorulunce akisli seslendirme durur;
-        # kod TTS'e gitmemeli, tamamlaninca dosyaya kaydedilir.
+        # If code block (```) appears in response, stop TTS streaming
         self._tts_stream_ok: bool = True
-        # Her speak_chunk() cagrisiyla birebir sirali (FIFO) — _llm_response_text
-        # icindeki (start, end) karakter araligi. TTS o parcayi calmaya
-        # basladiginda (playback_started) sirdaki araligi cikarip caption'a
-        # "buraya kaydir" komutunu veriyoruz — bkz. _on_tts_chunk_started.
+        # FIFO queue of (start, end) ranges corresponding to speak_chunk calls
         self._tts_chunk_ranges: list[tuple[int, int]] = []
 
         # ─── Last transcript (for context) ────────────────────────
         self._last_transcript: str = ""
 
         # ─── Bilingual TTS state ───────────────────────────────────
-        # STT'nin son algiladigi dil — TTS sesi ve LLM'e verilen dil
-        # talimati bundan turer (bkz. _on_language_detected).
+        # Last detected language from STT
         self._detected_language: str | None = None
 
         # ─── Start wake word and hotkey ───────────────────────────
@@ -194,9 +187,7 @@ class AppController(QObject):
         trigger_combo: str = config.get("hotkey", "trigger", default="ctrl+space")
         text_combo: str = config.get("hotkey", "text_input", default="ctrl+shift+space")
 
-        # `keyboard` fazladan basili modifier'lari umursamaz. "ctrl+shift+space"
-        # "ctrl+space"in ust kumesi oldugu icin metin kisayolu ses kisayolunu da
-        # atesler. Farki bir kez hesaplayip _on_hotkey_pressed'de eleyecegiz.
+        # `keyboard` does not distinguish superset modifiers; calculate difference
         self._text_hotkey_extra_keys: set[str] = (
             self._combo_keys(text_combo) - self._combo_keys(trigger_combo)
         )
@@ -208,8 +199,7 @@ class AppController(QObject):
                 logger.error("keyboard module not installed. Run: pip install keyboard")
                 return
 
-            # Her kisayot ayri try/except: hatali bir kullanici kombosu
-            # digerini de olduremesin.
+            # Register each hotkey independently
             try:
                 keyboard.add_hotkey(trigger_combo, self._on_hotkey_pressed)
                 logger.info("Voice hotkey registered: %s", trigger_combo)
@@ -236,8 +226,7 @@ class AppController(QObject):
         if self._text_hotkey_extra_keys:
             try:
                 import keyboard
-                # Metin kisayolunun fazladan tuslari basiliysa bu tetikleme
-                # aslinda metin kisayolu — sesi baslatma.
+                # If extra modifiers of the text shortcut are pressed, ignore voice trigger
                 if any(keyboard.is_pressed(k) for k in self._text_hotkey_extra_keys):
                     return
             except Exception:
@@ -255,8 +244,8 @@ class AppController(QObject):
     def _on_trigger(self, pre_audio: object = None) -> None:
         """Handle activation trigger (from wake word or hotkey)."""
 
-        # Cooldown (SPEAKING) sirasinda yeni komut gelirse:
-        # mevcut auto-hide timer'i iptal et ve yeni dinleme oturumu baslat
+        # If a new trigger arrives during cooldown (SPEAKING):
+        # cancel active auto-hide timer and begin a fresh listening session
         if self._state == AppState.SPEAKING:
             logger.info("New trigger during cooldown — starting new session")
             self._cancel_auto_hide_timer()
@@ -267,7 +256,7 @@ class AppController(QObject):
             return
 
         if self._state != AppState.IDLE:
-            # LISTENING veya THINKING sirasinda tetiklendi — iptal et
+            # Triggered during LISTENING or THINKING — cancel and dismiss
             logger.debug("Trigger while active — dismissing")
             self._cancel_and_reset()
             return
@@ -291,7 +280,7 @@ class AppController(QObject):
             logger.debug("Text input is not available with the legacy bar overlay")
             return
 
-        # Kayit sirasinda yazmaya baslanirsa, yazi kazanir.
+        # Typing takes precedence over active recording
         if self._state == AppState.LISTENING:
             self._cancel_and_reset()
 
@@ -308,19 +297,17 @@ class AppController(QObject):
 
         logger.info("Typed input: '%s'", text)
 
-        # Devam eden her seyi durdur.
+        # Stop any active tasks
         self._cancel_auto_hide_timer()
         self._recorder.stop()
         self._llm.stop()
         self._tts.stop()
-        self._wake_word.pause()   # _on_tts_finished / _reset_to_idle geri aciyor
+        self._wake_word.pause()
 
-        # ZORUNLU: _on_llm_token yalnizca state tam olarak THINKING ise
-        # SPEAKING'e geciyor — bunu _on_transcript_ready'den once ayarla.
+        # Switch state to THINKING
         self._set_state(AppState.THINKING)
         self._bar.activate()
 
-        # _on_transcript_ready _last_transcript'i kendisi set ediyor.
         self._on_transcript_ready(text)
 
     # ─── State Machine ────────────────────────────────────────────
@@ -337,7 +324,7 @@ class AppController(QObject):
         self._set_state(AppState.LISTENING)
         self._bar.clear_transcript()
         self._bar.activate()
-        # Yeni oturum — onceki turun canli transkripti hizli yolu yaniltmasin.
+        # Reset live transcript for new session
         self._stt.reset_partial()
 
         # Start real microphone recording
@@ -352,8 +339,7 @@ class AppController(QObject):
         if self._state == AppState.LISTENING and audio_data is not None:
             self._stt.transcribe_partial(audio_data)
 
-    # Canli transkriptin hizli yolda kullanilabilmesi icin kaydin en az
-    # bu oranini kapsamasi gerekir — aksi halde son kelimeler eksik olabilir.
+    # Minimum audio coverage required to qualify for the fast path
     _FAST_PATH_COVERAGE = 0.9
 
     def _on_recording_done(self, audio_data: object) -> None:
@@ -363,10 +349,9 @@ class AppController(QObject):
             self._cancel_and_reset()
             return
 
-        # ─── Hizli yol ────────────────────────────────────────────
-        # Canli (partial) transkript sesin neredeyse tamamini kapsiyorsa ve
-        # bilinen bir anlik cevap / sistem komutuyla eslesiyorsa, nihai
-        # Whisper decode'unu hic beklemeden aninda cevap ver.
+        # ─── Fast path ────────────────────────────────────────────
+        # If the partial transcript covers nearly all of the recording
+        # and matches a known instant response or command, answer immediately.
         partial = self._stt.last_partial_text
         covered = self._stt.last_partial_samples
         if partial and covered >= len(audio_data) * self._FAST_PATH_COVERAGE:
@@ -385,21 +370,17 @@ class AppController(QObject):
         if self._state in (AppState.LISTENING, AppState.THINKING):
             self._bar.set_transcript(text)
 
-    # ─── Iki dilli TTS ────────────────────────────────────────────
+    # ─── Bilingual TTS ────────────────────────────────────────────
 
-    # Su an sadece bu iki dil icin ses/persona eslesmesi tanimli
-    # (bkz. config tts.voices).
+    # Currently supported TTS languages (see config tts.voices)
     _SUPPORTED_TTS_LANGS = {"tr", "en"}
-    # Kisa/belirsiz ifadelerde ("evet", "ok") faster-whisper'in dil tahmini
-    # guvenilmez — bu esigin altinda mevcut sesi/dili koru.
+    # Minimum confidence threshold to switch language dynamically
     _LANG_CONFIDENCE_MIN = 0.5
 
     def _on_language_detected(self, language: str, probability: float) -> None:
         """
-        STT her transkripsiyondan algiladigi dili bildirir. Guvenilir ve
-        desteklenen bir dilse TTS sesini ve LLM'e verilecek dil talimatini
-        buna gore guncelle. transcript_ready'den once tetiklenir, boylece
-        _generate_response() cagrildiginda deger hazir olur.
+        STT emits detected language for each transcription.
+        Update TTS voice and LLM instructions accordingly if confidence is high.
         """
         if not config.get("tts", "auto_language", default=True):
             return
@@ -410,7 +391,7 @@ class AppController(QObject):
         logger.debug("Language detected: %s (%.2f)", language, probability)
 
     def _apply_tts_language(self, language: str) -> None:
-        """Konusma dilini sabitle ve TTS sesini ona gore sec."""
+        """Set spoken language and select corresponding TTS voice."""
         if not config.get("tts", "auto_language", default=True):
             return
         if language not in self._SUPPORTED_TTS_LANGS:
@@ -433,60 +414,52 @@ class AppController(QObject):
 
     def _dispatch(self, transcript: str, *, allow_llm: bool) -> bool:
         """
-        Bir metni sirayla degerlendirir:
-            1. Anlik cevap (onceden tanimli ifade)  → aninda konus
-            2. Sistem komutu (regex)                → calistir, konus
-            3. Digerleri                            → LLM (allow_llm ise)
+        Evaluate text sequentially:
+            1. Instant response (predefined dictionary lookup)  → speak immediately
+            2. System command (regex router)                   → execute and confirm
+            3. Conversational query                            → route to LLM (if allow_llm=True)
 
-        Ilk iki yol LLM'e hic dokunmaz ve THINKING durumuna hic girmez.
-        allow_llm=False iken (hizli yol) sadece 1 ve 2 denenir; eslesme
-        yoksa False doner ve cagiran nihai transkripsiyona devam eder.
+        The first two paths never touch the LLM or enter THINKING state.
+        When allow_llm=False (fast path), returns False if no instant hit/command matched.
         """
         self._last_transcript = transcript
 
-        # 1. Anlik cevap — sozluk aramasi, olculebilir maliyeti yok.
+        # 1. Instant response — fast dictionary lookup
         if self._instant is not None:
             hit = self._instant.match(transcript)
             if hit:
                 reply, lang = hit
                 logger.info("Instant response: '%s' → '%s'", transcript, reply)
-                # Cevabin dili girdide belli — hizli yolda Whisper'in dil
-                # tahminini beklemedigimiz icin sesi burada seciyoruz.
                 self._apply_tts_language(lang)
                 self._speak_now(reply)
                 return True
 
-        # 2. Sistem komutu mu? (LLM'e gitmeden)
+        # 2. System command (without LLM)
         cmd_result = self._cmd_router.try_handle(transcript, vision=allow_llm)
         if cmd_result.handled:
             if cmd_result.response:
                 self._speak_now(cmd_result.response)
             else:
-                # Yanit yoksa direkt kapat
                 self._cancel_and_reset()
             return True
 
         if not allow_llm:
             return False
 
-        # 3. Komut degil — LLM'e yonlendir.
+        # 3. Conversational query — forward to LLM
         self._bar.set_transcript(transcript)
 
-        # Kullanicinin kendi cumlesinden kalici bilgi cikar (isim, meslek, vb.)
-        # — arka planda, yanit hizini hic etkilemeden. Yalnizca sohbet
-        # yolunda calisir; komutlarda cikarilacak bilgi yok.
+        # Extract persistent facts in background (name, profession, etc.)
         self._extract_and_store_facts(transcript)
 
         if self._state != AppState.THINKING:
             self._set_state(AppState.THINKING)
 
-        # Onceden burada 400ms'lik yapay bir gecikme vardi — her sohbet
-        # yanitina bedelsiz 400ms ekliyordu, kaldirildi.
         self._generate_response(cmd_result.image_b64)
         return True
 
     def _speak_now(self, text: str) -> None:
-        """Hazir bir metni dogrudan seslendir — LLM ve THINKING adimi yok."""
+        """Speak pre-formatted text immediately — skips LLM and THINKING state."""
         self._set_state(AppState.SPEAKING)
         self._bar.set_transcript(text)
         self._tts.speak(text)
@@ -498,7 +471,7 @@ class AppController(QObject):
         self._tts_spoken_text = ""
         self._tts_stream_ok = True
         self._tts_chunk_ranges = []
-        # Yeni bir yanit basliyor — onceki konusmayi ve kuyrugu temizle
+        # Clear previous utterance queue before new generation
         self._tts.stop()
 
         # Send to LLM router (auto-detects Ollama or Claude)
@@ -510,9 +483,8 @@ class AppController(QObject):
 
     def _extract_and_store_facts(self, transcript: str) -> None:
         """
-        Kullanici transkriptinden kalici bilgi (isim, meslek, okul vb.) cikar
-        ve hafizaya yaz. Fire-and-forget arka plan thread — cevap suresini
-        hic etkilemez, _generate_response()'dan once baslatilir.
+        Extract personal facts (name, profession, field, etc.) from transcript
+        and store in persistent memory. Runs asynchronously in a background thread.
         """
         if not config.get("llm", "memory", "enabled", default=True):
             return
@@ -538,29 +510,28 @@ class AppController(QObject):
         self._bar.set_transcript(self._llm_response_text)
         self._flush_streaming_tts()
 
-    # ─── Akisli TTS ───────────────────────────────────────────────
+    # ─── Streaming TTS ────────────────────────────────────────────
 
-    # Cumle sonu sayilan noktalama isaretleri
+    # Sentence boundary punctuation marks
     _SENTENCE_ENDINGS = (".", "!", "?", "\n", "…")
-    # Bundan kisa parcalari seslendirmek kopuk duyuluyor
+    # Minimum length for a speech chunk to avoid fragmented audio
     _MIN_TTS_CHUNK = 12
 
     def _flush_streaming_tts(self) -> None:
         """
-        Tamamlanmis cumleleri, LLM hala yazmaya devam ederken TTS'e gonder.
-        Yanitin tamaminin beklenmesi yerine ilk cumle hemen duyulur.
+        Forward completed sentences to TTS while the LLM is still generating tokens.
         """
         if not self._tts_stream_ok:
             return
 
         pending = self._llm_response_text[len(self._tts_spoken_text):]
 
-        # Kod blogu basladi — buradan sonrasi seslendirilmez
+        # Stop streaming TTS if code block starts
         if "```" in pending:
             self._tts_stream_ok = False
             return
 
-        # En son cumle sinirini bul
+        # Find latest sentence boundary
         cut = -1
         for i, ch in enumerate(pending):
             if ch in self._SENTENCE_ENDINGS:
@@ -579,8 +550,7 @@ class AppController(QObject):
 
     def _on_tts_chunk_started(self) -> None:
         """
-        TTS bir sonraki parcayi calmaya basladi — hangi metin araligina
-        karsilik geldigini kuyruktan cikar ve caption'a bildir (text follow).
+        TTS began playback of the next chunk — update text-follow range in caption window.
         """
         if not self._tts_chunk_ranges:
             return
@@ -607,26 +577,19 @@ class AppController(QObject):
         from core.code_parser import extract_and_save_code
         spoken_response = extract_and_save_code(full_response)
 
-        # Akis sirasinda zaten seslendirilmis kismi tekrar okuma —
-        # sadece kalan bolumu kuyruga ekleyip akisi kapat.
+        # Avoid re-speaking parts already streamed
         already = self._tts_spoken_text
         if already and spoken_response.startswith(already):
             remainder = spoken_response[len(already):].strip()
             if remainder:
-                # Offset'ler sadece kod cikarilmadiysa (spoken == full) gecerli —
-                # cikarildiysa metin kisaldigi icin caption'daki gercek pozisyonla
-                # uyusmaz, o durumda takip araligi eklemiyoruz (metin zaten tam gorunur).
                 if spoken_response == full_response:
                     self._tts_chunk_ranges.append((len(already), len(full_response)))
                 self._tts.speak_chunk(remainder)
             self._tts.end_stream()
         elif already:
-            # On ek eslesmedi (kod cikarimi metnin basini degistirdi) —
-            # bastan okumak tekrara yol acar, sadece akisi kapat.
             logger.debug("Streamed TTS prefix diverged — skipping remainder")
             self._tts.end_stream()
         else:
-            # Hic akisli parca gonderilmemis — klasik tek seferlik okuma
             if spoken_response == full_response:
                 self._tts_chunk_ranges.append((0, len(full_response)))
             self._tts.speak(spoken_response)
@@ -643,17 +606,16 @@ class AppController(QObject):
 
     def _on_tts_finished(self) -> None:
         """
-        TTS playback complete — wake word'u hemen resume et,
-        boylece cooldown sirasinda kullanici yeni komut verebilsin.
-        Auto-hide timer baslat ama yeni trigger gelirse iptal edilebilsin.
+        TTS playback complete — immediately resume wake word detection,
+        and start a cancellable auto-hide timer.
         """
         logger.debug("TTS finished — resuming wake word, auto-hide in %dms",
                       self._auto_hide_delay)
 
-        # Wake word'u hemen resume et — cooldown sirasinda da dinle
+        # Resume wake word detection
         self._wake_word.resume()
 
-        # Iptal edilebilir auto-hide timer baslat
+        # Start cancellable auto-hide timer
         self._cancel_auto_hide_timer()
         self._auto_hide_timer = QTimer()
         self._auto_hide_timer.setSingleShot(True)
@@ -661,10 +623,10 @@ class AppController(QObject):
         self._auto_hide_timer.timeout.connect(self._reset_to_idle)
         self._auto_hide_timer.start()
 
-    # ─── Auto-hide Timer Yonetimi ─────────────────────────────────
+    # ─── Auto-hide Timer Management ───────────────────────────────
 
     def _cancel_auto_hide_timer(self) -> None:
-        """Aktif auto-hide timer'i iptal et."""
+        """Cancel active auto-hide timer."""
         if self._auto_hide_timer is not None:
             self._auto_hide_timer.stop()
             self._auto_hide_timer.deleteLater()
@@ -706,21 +668,19 @@ class AppController(QObject):
             )
         else:
             logger.warning("Ollama server unavailable (%s)", reason)
-        # Yine de tespit calissin: Claude anahtari varsa oraya duser.
+        # Attempt detection anyway in case Claude API key is configured
         self._llm.refresh_engine()
 
     def apply_settings(self) -> None:
         """
-        Live-apply the settings that don't need a restart (orb geometry, colors,
-        fps, click-through, auto-hide delay). Everything else keeps the
-        "restart SAM" note in the settings window.
+        Live-apply settings that do not require a restart (orb geometry, colors,
+        fps, click-through, auto-hide delay).
         """
         self._auto_hide_delay = config.get(
             "ui", "auto_hide", "delay_seconds", default=4
         ) * 1000
         if hasattr(self._bar, "apply_settings"):
             self._bar.apply_settings()
-            # Yeniden kurulan orb mevcut duruma gore boyansin.
             self._bar.set_state(self._state)
         logger.info("Settings applied live")
 

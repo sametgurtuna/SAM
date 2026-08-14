@@ -37,12 +37,11 @@ class StatusDot(QWidget):
         self._pulse_alpha: float = 0.0
         self._pulse_dir: float = 1.0
 
-        # Pulse animation timer — sadece gorunurken calisir.
-        # Onceden bar gizliyken de saniyede 30 kez tick atiyordu.
+        # Pulse animation timer — runs only while visible
         self._pulse_timer = QTimer(self)
         self._pulse_timer.timeout.connect(self._pulse_tick)
 
-        # Glow gradient'i her karede yeniden kurmak yerine sakla
+        # Cache glow gradient instead of rebuilding per frame
         self._glow_gradient = QRadialGradient(
             self.GLOW_RADIUS, self.GLOW_RADIUS, self.GLOW_RADIUS
         )
@@ -340,8 +339,7 @@ class FloatingBar(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Arka plan bir kez hesaplanir; bar sabit boyutlu oldugu icin
-        # path/gradient/renk her boyamada yeniden kurulmaz.
+        # Background is computed once and cached since the bar is fixed-size
         if self._bg_path is None:
             self._bg_path = QPainterPath()
             self._bg_path.addRoundedRect(

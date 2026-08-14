@@ -1,9 +1,9 @@
 # SAM — Long-Term Memory Interface
-# Uzun vadeli kullanici hafizasi icin arayuz ve implementasyonlar.
-# Varsayilan backend JsonMemory (llm.memory.enabled=true) — kullanici
-# konustukca ogrenilen bilgiler (isim, meslek, okul vb.) kalici olarak
-# saklanir ve her turn'un system prompt'una kisa bir ozet olarak eklenir.
-# llm.memory.enabled=false ise NullMemory (no-op) kullanilir.
+# Interface and implementations for long-term user memory.
+# Default backend is JsonMemory (llm.memory.enabled=true) — facts learned
+# across turns (name, job, education, etc.) are persisted and added as a brief summary
+# to each turn's system prompt.
+# If llm.memory.enabled=false, NullMemory (no-op) is used.
 
 import json
 import logging
@@ -17,23 +17,23 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryStore(ABC):
-    """Uzun vadeli kullanici hafizasi arayuzu."""
+    """Long-term user memory interface."""
 
     @abstractmethod
     def store(self, key: str, value: str, category: str = "general") -> None:
-        """Bir bilgiyi kaydet."""
+        """Store a fact."""
 
     @abstractmethod
     def retrieve(self, query: str, limit: int = 5) -> list[str]:
-        """Sorguya uyan bilgileri getir."""
+        """Retrieve facts matching a query."""
 
     @abstractmethod
     def get_context_summary(self) -> str | None:
-        """Prompt'a eklenecek hafiza ozeti. None = ekleme."""
+        """Memory summary to append to system prompt. None = do not append."""
 
 
 class NullMemory(MemoryStore):
-    """Hafiza devre disi — tum islemler no-op."""
+    """Memory disabled — all operations are no-ops."""
 
     def store(self, key: str, value: str, category: str = "general") -> None:
         pass
@@ -45,20 +45,16 @@ class NullMemory(MemoryStore):
         return None
 
 
-# Prompt'a eklenecek ozette en fazla kac fact yer alsin — hepsini eklemek
-# her turn'un system prompt'unu gereksiz sisirir.
+# Max number of facts in system prompt context summary
 _MAX_SUMMARY_FACTS = 12
 
 
 class JsonMemory(MemoryStore):
     """
-    Minimal JSON tabanli hafiza.
+    Minimal JSON-based long-term memory.
 
-    user_data_dir()/memory.json'da saklar (tek gercek kaynak — okuma buradan
-    yapilir). Ayrica ayni klasore, kullanicinin gorup duzenleyebilecegi bir
-    memory.md aynasi da yazilir (bkz. _export_markdown).
-    Basit keyword eslestirme — semantik arama yok.
-    Gelecekte embedding-tabanli arama ile degistirilebilir.
+    Stores in user_data_dir()/memory.json (single source of truth).
+    Also exports a human-readable memory.md mirror into the same directory.
     """
 
     def __init__(self) -> None:
@@ -86,11 +82,10 @@ class JsonMemory(MemoryStore):
 
     def _export_markdown(self) -> None:
         """
-        Kullanicinin okuyup duzenleyebilecegi insan-okunur bir kopya yaz.
-        JSON tek gercek kaynak kalir — bu sadece bir gorunum/aynadir,
-        knowledge/*.md dosyalarindaki konvansiyonu takip eder.
+        Write a human-readable markdown mirror that the user can inspect or edit.
+        JSON remains the single source of truth.
         """
-        lines = ["# SAM — Kullanici Hafizasi\n"]
+        lines = ["# SAM — User Memory\n"]
         for category in sorted(self._data.keys()):
             entries = self._data[category]
             if not entries:
@@ -129,7 +124,7 @@ class JsonMemory(MemoryStore):
         return results
 
     def get_context_summary(self) -> str | None:
-        # En son N fact'i (timestamp'e gore) ozet olarak dondur.
+        # Return top N most recent facts as summary
         flat: list[tuple[float, str, str, str]] = []
         for category, entries in self._data.items():
             for key, entry in entries.items():
@@ -149,7 +144,7 @@ class JsonMemory(MemoryStore):
 
 
 def create_memory_store() -> MemoryStore:
-    """Config'e gore uygun hafiza backend'ini olustur."""
+    """Create appropriate memory backend based on configuration."""
     from core.config import config
 
     enabled = config.get("llm", "memory", "enabled", default=False)

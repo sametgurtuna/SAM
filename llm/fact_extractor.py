@@ -1,24 +1,21 @@
 # SAM — Fact Extractor
-# Kullanicinin konusmasindan kalici kisisel bilgi (isim, meslek, okudugu
-# bolum vb.) cikarir. Regex-first, hafif — ek bir LLM cagrisi YAPMAZ, boylece
-# yanit hizini etkilemez. Kapsam sinirli oldugu bilinen bir tercih —
-# yetersiz kalirsa ileride LLM-tabanli cikarim eklenebilir.
+# Extracts persistent personal facts (name, job, field of study, etc.)
+# from conversational utterances. Lightweight, regex-based, zero extra LLM latency.
 
 import logging
 import re
 
 logger = logging.getLogger(__name__)
 
-# Her kalip: (regex, category, key). Regex'in ilk grubu deger olarak alinir.
-# Turkce ve Ingilizce en yaygin kaliplar — kucuk ve pragmatik tutuluyor.
+# Each pattern: (regex, category, key). The first capture group is the value.
 _PATTERNS: list[tuple[re.Pattern, str, str]] = [
-    # İsim
+    # Name
     (re.compile(r"\b(?:benim )?ad[ıi]m (\w+)", re.IGNORECASE), "identity", "name"),
     (re.compile(r"\bismim (\w+)", re.IGNORECASE), "identity", "name"),
     (re.compile(r"\bmy name is (\w+)", re.IGNORECASE), "identity", "name"),
     (re.compile(r"\bi'?m (\w+),? (?:and|nice)", re.IGNORECASE), "identity", "name"),
 
-    # Meslek
+    # Profession / Job
     (re.compile(r"\b([\wçğıöşü]+(?:\s+[\wçğıöşü]+)?) olarak çalışıyorum", re.IGNORECASE),
      "profession", "job"),
     (re.compile(r"\bben bir ([\wçğıöşü]+(?:\s+[\wçğıöşü]+)?)[ıiuü]m\b", re.IGNORECASE),
@@ -28,7 +25,7 @@ _PATTERNS: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"\bi'?m an? ([\w\s]+?) by profession", re.IGNORECASE),
      "profession", "job"),
 
-    # Eğitim / okuduğu bölüm
+    # Education / Field
     (re.compile(r"\b([\wçğıöşü]+(?:\s+[\wçğıöşü]+)?) bölümünü? okuyorum", re.IGNORECASE),
      "education", "field"),
     (re.compile(r"\bi(?:'m| am) studying ([\w\s]+?)(?:[.,!?]|$)", re.IGNORECASE),
@@ -40,19 +37,18 @@ _PATTERNS: list[tuple[re.Pattern, str, str]] = [
 
 def extract_facts(text: str) -> list[tuple[str, str, str]]:
     """
-    Metinden (category, key, value) uclulerini cikar.
+    Extract (category, key, value) tuples from text.
 
     Args:
-        text: Kullanicinin transkript edilmis cumlesi.
+        text: Transcribed user utterance.
 
     Returns:
-        Bulunan bilgi ucluleri — bos liste olabilir.
+        List of extracted fact tuples (may be empty).
     """
     if not text or not text.strip():
         return []
 
-    # Ayni (category, key) icin ilk eslesmeyi tut — birden fazla kalip ayni
-    # cumlede tetiklenirse (ör. TR ve EN varyantlari) tekrar/celiski olmasin.
+    # Keep first match per (category, key) to avoid duplication
     seen: set[tuple[str, str]] = set()
     facts: list[tuple[str, str, str]] = []
     for pattern, category, key in _PATTERNS:

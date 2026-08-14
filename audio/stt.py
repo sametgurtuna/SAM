@@ -35,7 +35,7 @@ class STTEngine(QObject):
     transcript_ready = pyqtSignal(str)
     # Signal: partial transcript (segment-by-segment)
     partial_transcript = pyqtSignal(str)
-    # Signal: algilanan dil (kod, olasilik) — transcript_ready'den once yayilir
+    # Signal: detected language (code, probability) — emitted before transcript_ready
     language_detected = pyqtSignal(str, float)
 
     def __init__(self) -> None:
@@ -52,8 +52,8 @@ class STTEngine(QObject):
             "play, pause, next track, sonraki parça, sesi aç, sesi kıs, kapat, durdur, sıradaki şarkı."
         )
 
-        # Canli transkripsiyon icin ayri (kucuk) model. "" = ana modeli kullan,
-        # "off" = canli transkripsiyon kapali.
+        # Separate lightweight model for live transcription. "" = use main model,
+        # "off" = disable live transcription.
         self._partial_model_size: str = config.get("stt", "partial_model", default="tiny")
         self._partial_interval: float = config.get(
             "stt", "partial_interval_ms", default=400
@@ -67,9 +67,8 @@ class STTEngine(QObject):
         self._partial_lock = threading.Lock()
         self._last_partial_at: float = 0.0
 
-        # En son canli transkript ve onu ureten ornek sayisi — AppController
-        # kayit bitiminde bunu kullanarak nihai decode'u beklemeden komut
-        # eslestirmesi yapabiliyor (bkz. core/app.py _on_recording_done).
+        # Latest live partial transcript and sample count — used by fast path in AppController
+        # to match commands before final Whisper decode (see core/app.py _on_recording_done).
         self.last_partial_text: str = ""
         self.last_partial_samples: int = 0
 
@@ -84,12 +83,10 @@ class STTEngine(QObject):
             size,
             device=self._device,
             compute_type=self._compute_type,
-            # CTranslate2 varsayilan olarak tek cekirdek kullanir.
-            # CPU modunda tum cekirdekleri vermek decode suresini
-            # belirgin sekilde kisaltir.
+            # CTranslate2 uses a single core by default; assigning all CPU cores
+            # significantly reduces decode latency in CPU mode.
             cpu_threads=threads,
-            # Sabit, yazilabilir bir konum — kurulum sihirbazi modeli
-            # onceden buraya indirir, ilk calistirmada bekleme olmaz.
+            # Fixed, writable model path cached during installation.
             download_root=os.path.join(paths.models_dir(), "whisper"),
         )
         logger.info("Whisper model '%s' loaded in %.1fs", size, time.time() - start)
@@ -100,14 +97,14 @@ class STTEngine(QObject):
         Pre-load the Whisper models. Call during startup for faster first transcription.
         Safe to call from any thread — concurrent calls block until the first finishes.
         """
-        # Once kucuk canli model — ilk saniyeden itibaren yazi aksin.
+        # Load small live model first for fast initial response
         self.load_partial_model()
 
         if self._model_loaded:
             return
 
         with self._load_lock:
-            # Kilidi beklerken baska bir thread yuklemis olabilir.
+            # Another thread may have finished loading while waiting for the lock
             if self._model_loaded:
                 return
             self._load_model_locked()
@@ -126,13 +123,13 @@ class STTEngine(QObject):
         if self._partial_model_size == "off" or self._partial_model is not None:
             return
         if not self._partial_model_size or self._partial_model_size == self._model_size:
-            return  # Ana model kullanilacak
+            return  # Main model will be used
 
         with self._partial_load_lock:
             if self._partial_model is not None:
                 return
             try:
-                # Yarim cekirdek: canli decode nihai decode'u ac birakmasin.
+                # Allocate half CPU cores so live decode does not starve final decode
                 threads = max(1, (os.cpu_count() or 4) // 2)
                 self._partial_model = self._build_model(self._partial_model_size, threads)
             except Exception as e:
@@ -177,8 +174,7 @@ class STTEngine(QObject):
                     language=self._language,
                     beam_size=1,  # Greedy for maximum speed
                     initial_prompt=self._initial_prompt,
-                    # Canli akista VAD yalnizca gecikme ekliyor — tampon
-                    # zaten Recorder'in konusma tespitine gore doluyor.
+                    # VAD disabled in live stream to minimize latency
                     vad_filter=False,
                     condition_on_previous_text=False,
                     without_timestamps=True,
