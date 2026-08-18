@@ -364,3 +364,8 @@ class FloatingBar(QWidget):
         painter.drawPath(self._bg_path)
 
         painter.end()
+
+    def show_toast(self, icon: str, message: str, duration_ms: int = 1600) -> None:
+        """API compatibility with SamOverlay."""
+        pass
+

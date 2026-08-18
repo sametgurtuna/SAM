@@ -645,7 +645,7 @@ class SettingsWindow(QDialog):
 
     # ─── Header & Footer ──────────────────────────────────────────────
     def _build_top_header(self) -> QHBoxLayout:
-        version = config.get("app", "version", default="0.4.7")
+        version = config.get("app", "version", default="0.4.8")
         header = QHBoxLayout()
         header.setSpacing(12)
 
@@ -1799,7 +1799,7 @@ class SettingsWindow(QDialog):
         """)
         sam_text_col = QVBoxLayout()
         sam_text_col.setSpacing(2)
-        v_str = config.get("app", "version", default="0.4.6")
+        v_str = config.get("app", "version", default="0.4.8")
         sam_title = QLabel(f"SAM v{v_str}")
         sam_title.setStyleSheet(f"color: {TEXT}; font-size: 15px; font-weight: 700;")
         sam_sub = QLabel("Smart Assistant Module")

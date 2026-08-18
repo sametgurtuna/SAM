@@ -133,7 +133,7 @@ class SettingsApi:
             }
 
             data = {
-                "version": config.get("app", "version", default="0.4.7"),
+                "version": config.get("app", "version", default="0.4.8"),
                 "hotkey": hotkey_data,
                 "wake_word": wake_data,
                 "stt": stt_data,

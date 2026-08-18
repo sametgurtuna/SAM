@@ -82,7 +82,7 @@ class LLMRouter(QObject):
 
         self._detecting: bool = False
         self._retry_pending: bool = False
-        self._pending_request: tuple[str, str | None] | None = None
+        self._pending_request: tuple[str, str | None, str | None] | None = None
 
         # Intent selected for this turn
         self._current_intent: Intent = Intent.NORMAL
@@ -146,10 +146,10 @@ class LLMRouter(QObject):
         if self._retry_pending:
             self._retry_pending = False
             if self._pending_request is not None:
-                message, image_b64 = self._pending_request
+                message, image_b64, clip_text = self._pending_request
                 self._pending_request = None
                 logger.info("Retrying request after engine redetection")
-                self._dispatch(message, image_b64, record_history=False)
+                self._dispatch(message, image_b64, record_history=False, clipboard_text=clip_text)
 
     def _select_engine(self, intent: Intent) -> LLMEngine | None:
         """
@@ -194,7 +194,7 @@ class LLMRouter(QObject):
     # ─── Generation ───────────────────────────────────────────────
 
     def generate(self, user_message: str, image_b64: str | None = None,
-                 language: str | None = None) -> None:
+                 language: str | None = None, clipboard_text: str | None = None) -> None:
         """
         Generate a response to the user's message.
 
@@ -205,7 +205,10 @@ class LLMRouter(QObject):
           4. Dispatch
 
         Args:
+            user_message: Spoken or typed user input.
+            image_b64: Optional base64 encoded screenshot for vision models.
             language: Detected speech language code ("tr"/"en") for output alignment.
+            clipboard_text: Optional text from clipboard to include in turn context.
         """
         # 1. Intent classification
         result = self._classifier.classify(user_message)
@@ -217,7 +220,7 @@ class LLMRouter(QObject):
 
         if engine is None:
             # No engine available — queue request and re-probe
-            self._pending_request = (user_message, image_b64)
+            self._pending_request = (user_message, image_b64, clipboard_text)
             self._retry_pending = True
             self.refresh_engines()
             if not self._detecting:
@@ -231,16 +234,17 @@ class LLMRouter(QObject):
         logger.info("Routing to %s", engine.engine_name)
 
         # 4. Dispatch
-        self._dispatch(user_message, image_b64, language=language)
+        self._dispatch(user_message, image_b64, language=language, clipboard_text=clipboard_text)
 
     def _dispatch(self, user_message: str, image_b64: str | None,
-                  record_history: bool = True, language: str | None = None) -> None:
+                  record_history: bool = True, language: str | None = None,
+                  clipboard_text: str | None = None) -> None:
         """Build the message list and hand it to the active engine."""
         if self._active_engine is None:
             self._emit_no_engine_error()
             return
 
-        # Record to history (image omitted to save RAM)
+        # Record to history (image and large clipboard context omitted from raw history to save context space)
         if record_history:
             self._history.append({"role": "user", "content": user_message})
 
@@ -263,6 +267,7 @@ class LLMRouter(QObject):
             knowledge=knowledge,
             memory=memory,
             language=language,
+            clipboard=clipboard_text,
         )
 
         # ── Messages payload ──────────────────────────────────────
@@ -275,9 +280,9 @@ class LLMRouter(QObject):
         if image_b64:
             messages[-1]["images"] = [image_b64]
 
-        logger.debug("Generating response via %s (context: %d messages, mode: %s)",
+        logger.debug("Generating response via %s (context: %d messages, mode: %s, clipboard: %s)",
                       self._active_engine.engine_name, len(self._history),
-                      mode or "NORMAL")
+                      mode or "NORMAL", bool(clipboard_text))
 
         self._active_engine.generate(messages)
 
@@ -368,7 +373,7 @@ class LLMRouter(QObject):
             )
             if last_user is not None:
                 logger.warning("LLM connection lost — redetecting engines and retrying once")
-                self._pending_request = (last_user, None)
+                self._pending_request = (last_user, None, None)
                 self._retry_pending = True
                 self._active_engine = None
                 self.refresh_engines()

@@ -2,9 +2,10 @@ import os
 import logging
 
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction, QActionGroup, QIcon
 from PyQt6.QtCore import QObject
 
+from core.config import config
 from ui.icon_generator import create_tray_icon
 from ui.web_settings import launch_web_settings
 
@@ -20,6 +21,8 @@ class TrayManager(QObject):
     def __init__(self, controller=None, parent=None):
         super().__init__(parent)
         self._controller = controller
+        if self._controller is not None:
+            self._controller._tray = self
         self._muted = False
         self._settings_window = None
 
@@ -65,6 +68,32 @@ class TrayManager(QObject):
         ask_action.triggered.connect(self._open_text_input)
         self._menu.addAction(ask_action)
 
+        # Language switcher submenu
+        self._lang_menu = QMenu("🌐 Language", self._menu)
+        self._lang_group = QActionGroup(self)
+        self._lang_group.setExclusive(True)
+
+        self._lang_auto = QAction("Auto (Detect)", self._lang_menu, checkable=True)
+        self._lang_auto.triggered.connect(lambda: self._set_language(None))
+        self._lang_group.addAction(self._lang_auto)
+        self._lang_menu.addAction(self._lang_auto)
+
+        self._lang_tr = QAction("Turkish (TR)", self._lang_menu, checkable=True)
+        self._lang_tr.triggered.connect(lambda: self._set_language("tr"))
+        self._lang_group.addAction(self._lang_tr)
+        self._lang_menu.addAction(self._lang_tr)
+
+        self._lang_en = QAction("English (EN)", self._lang_menu, checkable=True)
+        self._lang_en.triggered.connect(lambda: self._set_language("en"))
+        self._lang_group.addAction(self._lang_en)
+        self._lang_menu.addAction(self._lang_en)
+
+        # Set initial checked item from STT config
+        current_lang = config.get("stt", "language", default=None)
+        self.update_language_selection(current_lang)
+
+        self._menu.addMenu(self._lang_menu)
+
         # Settings
         settings_action = QAction("⚙️ Settings...", self._menu)
         settings_action.triggered.connect(self._open_settings)
@@ -107,6 +136,22 @@ class TrayManager(QObject):
         """Open typed text input below the orb."""
         if self._controller is not None:
             self._controller.text_input_signal.emit()
+
+    def _set_language(self, lang: str | None) -> None:
+        """User switched language from tray menu."""
+        if self._controller is not None:
+            self._controller.set_language(lang)
+
+    def update_language_selection(self, lang: str | None) -> None:
+        """Update checked state of language menu items."""
+        if not hasattr(self, "_lang_auto"):
+            return
+        if lang == "tr":
+            self._lang_tr.setChecked(True)
+        elif lang == "en":
+            self._lang_en.setChecked(True)
+        else:
+            self._lang_auto.setChecked(True)
 
     def _toggle_mute(self):
         """Toggle wake word listening on/off."""

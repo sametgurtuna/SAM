@@ -272,3 +272,16 @@ class STTEngine(QObject):
         except Exception as e:
             logger.error("Transcription failed: %s", e)
             self.transcript_ready.emit("")
+
+    def set_language(self, language: str | None) -> None:
+        """
+        Dynamically update transcription language.
+        None = auto-detect, 'tr' = Turkish, 'en' = English.
+        """
+        self._language = language
+        logger.info("STT language set to: %s", language or "auto-detect")
+
+    @property
+    def language(self) -> str | None:
+        return self._language
+

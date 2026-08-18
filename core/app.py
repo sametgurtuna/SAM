@@ -13,7 +13,7 @@ from audio.wake_word import WakeWordEngine
 from audio.recorder import Recorder
 from audio.stt import STTEngine
 from audio.tts import TTSEngine
-from audio.sounds import play_activation_sound
+from audio.sounds import play_sound, SoundType
 from llm.router import LLMRouter
 from llm.ollama_service import OllamaService
 from commands.router import CommandRouter
@@ -70,6 +70,8 @@ class AppController(QObject):
         self._recorder = Recorder()
         self._stt = STTEngine()
         self._tts = TTSEngine()
+        self._detected_language: str = config.get("stt", "language", default=None) or "tr"
+        self._response_lang_checked: bool = False
 
         # ─── LLM engine ──────────────────────────────────────────
         self._llm = LLMRouter()
@@ -251,7 +253,7 @@ class AppController(QObject):
             self._cancel_auto_hide_timer()
             self._tts.stop()
             self._wake_word.pause()
-            play_activation_sound()
+            play_sound(SoundType.WAKE)
             self._start_listening(pre_audio)
             return
 
@@ -267,7 +269,7 @@ class AppController(QObject):
         self._wake_word.pause()
 
         # Play activation sound
-        play_activation_sound()
+        play_sound(SoundType.WAKE)
 
         # Start listening
         self._start_listening(pre_audio)
@@ -286,7 +288,7 @@ class AppController(QObject):
 
         self._bar.toggle_text_input()
 
-    def submit_text(self, text: str) -> None:
+    def submit_text(self, text: str, clipboard_text: str | None = None) -> None:
         """
         Handle typed input. Reuses the exact transcript pipeline, so command
         router → LLM → TTS all behave identically to a spoken question.
@@ -295,7 +297,7 @@ class AppController(QObject):
         if not text:
             return
 
-        logger.info("Typed input: '%s'", text)
+        logger.info("Typed input: '%s' (has_clipboard=%s)", text, bool(clipboard_text))
 
         # Stop any active tasks
         self._cancel_auto_hide_timer()
@@ -308,7 +310,7 @@ class AppController(QObject):
         self._set_state(AppState.THINKING)
         self._bar.activate()
 
-        self._on_transcript_ready(text)
+        self._on_transcript_ready(text, clipboard_text=clipboard_text)
 
     # ─── State Machine ────────────────────────────────────────────
 
@@ -360,6 +362,7 @@ class AppController(QObject):
                 return
 
         logger.info("Recording done — starting final transcription")
+        play_sound(SoundType.CLICK)
         self._set_state(AppState.THINKING)
 
         # Send to STT engine
@@ -376,6 +379,53 @@ class AppController(QObject):
     _SUPPORTED_TTS_LANGS = {"tr", "en"}
     # Minimum confidence threshold to switch language dynamically
     _LANG_CONFIDENCE_MIN = 0.5
+
+    def _detect_text_language(self, text: str) -> str:
+        """
+        Fast heuristic language detector for text (prompt or response).
+        Returns 'tr' or 'en'.
+        """
+        if not text:
+            return "en"
+
+        # If user explicitly locked language to 'tr' or 'en', honor it
+        if self._stt.language in ("tr", "en"):
+            return self._stt.language
+
+        # Turkish-specific characters
+        tr_chars = set("çğıöşüÇĞİÖŞÜ")
+        if any(c in tr_chars for c in text):
+            return "tr"
+
+        import re
+        words = set(re.findall(r'\b\w+\b', text.lower()))
+        if not words:
+            return "en"
+
+        tr_common = {
+            "ve", "bir", "bu", "da", "de", "için", "ile", "gibi", "çok", "daha", "ama",
+            "veya", "olan", "olarak", "var", "yok", "değil", "mi", "mu", "mü", "evet",
+            "hayır", "tamam", "lütfen", "ben", "sen", "biz", "siz", "nasıl", "ne",
+            "neden", "nerede", "zaman", "şey", "merhaba", "selam", "günaydın", "iyi",
+            "oldu", "olur", "yaparım", "ettim", "açıkla", "özetle", "çevir", "koddaki",
+            "şöyle", "böyle", "şimdi", "sonra", "önce", "kadar", "göre", "türkçe",
+            "yardımcı", "ederim", "istediğiniz", "buradayım", "anlıyorum",
+        }
+        en_common = {
+            "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it",
+            "for", "not", "on", "with", "he", "as", "you", "do", "at", "this",
+            "but", "his", "by", "from", "they", "we", "say", "her", "she", "or",
+            "an", "will", "my", "one", "all", "would", "there", "their", "what",
+            "hello", "hi", "yes", "no", "please", "thanks", "sure", "okay",
+        }
+        tr_score = len(words & tr_common)
+        en_score = len(words & en_common)
+
+        if tr_score > en_score:
+            return "tr"
+        elif en_score > tr_score:
+            return "en"
+        return "en"
 
     def _on_language_detected(self, language: str, probability: float) -> None:
         """
@@ -401,8 +451,9 @@ class AppController(QObject):
         voices = config.get("tts", "voices", default={}) or {}
         voice = voices.get(language) or config.get("tts", "voice", default="en-US-GuyNeural")
         self._tts.set_voice(voice)
+        logger.info("TTS voice switched to '%s' (lang=%s)", voice, language)
 
-    def _on_transcript_ready(self, transcript: str) -> None:
+    def _on_transcript_ready(self, transcript: str, clipboard_text: str | None = None) -> None:
         """Full transcription complete — send to LLM."""
         if not transcript.strip():
             logger.warning("Empty transcription — returning to idle")
@@ -410,9 +461,9 @@ class AppController(QObject):
             return
 
         logger.info("Transcript: '%s'", transcript)
-        self._dispatch(transcript, allow_llm=True)
+        self._dispatch(transcript, allow_llm=True, clipboard_text=clipboard_text)
 
-    def _dispatch(self, transcript: str, *, allow_llm: bool) -> bool:
+    def _dispatch(self, transcript: str, *, allow_llm: bool, clipboard_text: str | None = None) -> bool:
         """
         Evaluate text sequentially:
             1. Instant response (predefined dictionary lookup)  → speak immediately
@@ -424,6 +475,10 @@ class AppController(QObject):
         """
         self._last_transcript = transcript
 
+        # Detect and set spoken language for transcript
+        detected_lang = self._detect_text_language(transcript)
+        self._apply_tts_language(detected_lang)
+
         # 1. Instant response — fast dictionary lookup
         if self._instant is not None:
             hit = self._instant.match(transcript)
@@ -431,12 +486,23 @@ class AppController(QObject):
                 reply, lang = hit
                 logger.info("Instant response: '%s' → '%s'", transcript, reply)
                 self._apply_tts_language(lang)
+                play_sound(SoundType.SUCCESS)
                 self._speak_now(reply)
                 return True
 
         # 2. System command (without LLM)
         cmd_result = self._cmd_router.try_handle(transcript, vision=allow_llm)
         if cmd_result.handled:
+            if cmd_result.language_action is not None:
+                self.set_language(
+                    cmd_result.language_action if cmd_result.language_action != "auto" else None,
+                    notify=False,
+                )
+            if cmd_result.toast:
+                self.show_toast(cmd_result.toast[0], cmd_result.toast[1])
+
+            play_sound(SoundType.SUCCESS)
+
             if cmd_result.response:
                 self._speak_now(cmd_result.response)
             else:
@@ -445,6 +511,9 @@ class AppController(QObject):
 
         if not allow_llm:
             return False
+
+        # Active clipboard text from router pattern or typed input
+        active_clipboard = clipboard_text or cmd_result.clipboard_text
 
         # 3. Conversational query — forward to LLM
         self._bar.set_transcript(transcript)
@@ -455,7 +524,7 @@ class AppController(QObject):
         if self._state != AppState.THINKING:
             self._set_state(AppState.THINKING)
 
-        self._generate_response(cmd_result.image_b64)
+        self._generate_response(cmd_result.image_b64, clipboard_text=active_clipboard)
         return True
 
     def _speak_now(self, text: str) -> None:
@@ -464,13 +533,14 @@ class AppController(QObject):
         self._bar.set_transcript(text)
         self._tts.speak(text)
 
-    def _generate_response(self, image_b64: str | None = None) -> None:
+    def _generate_response(self, image_b64: str | None = None, clipboard_text: str | None = None) -> None:
         """Send transcript to LLM and stream the response."""
         self._bar.set_transcript("Thinking...")
         self._llm_response_text = ""
         self._tts_spoken_text = ""
         self._tts_stream_ok = True
         self._tts_chunk_ranges = []
+        self._response_lang_checked = False
         # Clear previous utterance queue before new generation
         self._tts.stop()
 
@@ -479,6 +549,7 @@ class AppController(QObject):
             self._last_transcript,
             image_b64=image_b64,
             language=self._detected_language,
+            clipboard_text=clipboard_text,
         )
 
     def _extract_and_store_facts(self, transcript: str) -> None:
@@ -508,6 +579,14 @@ class AppController(QObject):
 
         self._llm_response_text += token
         self._bar.set_transcript(self._llm_response_text)
+
+        # Dynamic TTS voice sync on incoming response language
+        if not self._response_lang_checked and len(self._llm_response_text) >= 12:
+            resp_lang = self._detect_text_language(self._llm_response_text)
+            if resp_lang != self._detected_language:
+                self._apply_tts_language(resp_lang)
+            self._response_lang_checked = True
+
         self._flush_streaming_tts()
 
     # ─── Streaming TTS ────────────────────────────────────────────
@@ -597,10 +676,42 @@ class AppController(QObject):
     def _on_llm_error(self, error: str) -> None:
         """LLM generation failed — show error and dismiss."""
         logger.error("LLM error: %s", error)
+        play_sound(SoundType.WARNING)
+        self.show_toast("⚠️", "LLM Error")
         self._bar.set_transcript(error[:100])
 
         # Auto-dismiss after showing error
         QTimer.singleShot(3000, self._cancel_and_reset)
+
+    # ─── Public Actions & Feedback ────────────────────────────────
+
+    def show_toast(self, icon: str, message: str, duration_ms: int = 1600) -> None:
+        """Trigger an ephemeral HUD toast notification near the orb."""
+        if hasattr(self._bar, "show_toast"):
+            self._bar.show_toast(icon, message, duration_ms=duration_ms)
+
+    def set_language(self, lang: str | None, notify: bool = True) -> None:
+        """
+        Dynamically switch STT transcription and TTS voice language.
+        lang: None (auto-detect), 'tr' (Turkish), 'en' (English).
+        """
+        self._stt.set_language(lang)
+        if lang == "tr":
+            label = "Turkish (TR)"
+            self._apply_tts_language("tr")
+        elif lang == "en":
+            label = "English (EN)"
+            self._apply_tts_language("en")
+        else:
+            label = "Auto Detect"
+
+        logger.info("Language switched to: %s", label)
+        if notify:
+            self.show_toast("🌐", f"Language: {label}")
+            play_sound(SoundType.SUCCESS)
+
+        if hasattr(self, "_tray") and self._tray is not None:
+            self._tray.update_language_selection(lang)
 
     # ─── TTS Completion ───────────────────────────────────────────
 
@@ -659,7 +770,7 @@ class AppController(QObject):
 
     # ─── Cleanup ──────────────────────────────────────────────────
 
-    def _on_ollama_unavailable(self, reason: str) -> None:
+    def _on_ollama_unavailable(self, reason: str = "") -> None:
         """Ollama could not be reached — log it; Claude fallback may still work."""
         if reason == "not-installed":
             logger.warning(
@@ -668,6 +779,8 @@ class AppController(QObject):
             )
         else:
             logger.warning("Ollama server unavailable (%s)", reason)
+        play_sound(SoundType.WARNING)
+        self.show_toast("⚠️", "Ollama Offline")
         # Attempt detection anyway in case Claude API key is configured
         self._llm.refresh_engine()
 

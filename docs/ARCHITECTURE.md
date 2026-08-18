@@ -190,6 +190,11 @@ Four top-level windows, one facade. `activate()` energises the ring
 and fades the caption in; `dismiss()` fades the caption back out and lets the orb settle
 to breathing. The orb itself never hides during a normal session.
 
+`ToastWindow` (`ui/toast.py`) is a separate, independently-shown window used for
+zero-LLM feedback (volume, media, language switches). `AppController.show_toast()` calls
+`show_toast()` on whichever bar implementation is active (`FloatingBar` or `SamOverlay`,
+both expose it) - it can fire while the orb is idle and must not perturb its state.
+
 ### Click-through and circular hit-test
 
 ```mermaid
@@ -284,7 +289,7 @@ flowchart LR
     SRC["Source tree"] --> SPEC["SAM.spec\nPyInstaller (onedir)"]
     SPEC --> DIST["dist/SAM/"]
     DIST --> ISS["installer/SAM.iss\nInno Setup"]
-    ISS --> EXE["SAM-Setup-0.4.7.exe"]
+    ISS --> EXE["SAM-Setup-0.4.8.exe"]
 
     EXE -. "--install-models" .-> STEPS["core/installer_steps.py\n(no Qt)"]
     STEPS -. "ollama pull" .-> M1["language model"]
@@ -312,9 +317,11 @@ flowchart LR
 <code>tts.py</code> · <code>sounds.py</code>
 </td></tr>
 <tr><td><code>commands/</code></td><td>
-<code>router.py</code> (regex intent matching) ·
+<code>router.py</code> (regex intent matching, clipboard/language triggers) ·
 <code>system.py</code> (all OS side effects and shell-launch blocklist) ·
-<code>vision.py</code> (screen capture for vision requests)
+<code>vision.py</code> (screen capture for vision requests) ·
+<code>clipboard.py</code> (safe Windows clipboard text reader) ·
+<code>instant.py</code> (predefined-phrase dictionary lookup)
 </td></tr>
 <tr><td><code>llm/</code></td><td>
 <code>base.py</code> (abstract <code>LLMEngine</code>) · <code>ollama_engine.py</code> ·
@@ -325,8 +332,9 @@ flowchart LR
 <code>web/</code> (HTML5/CSS3/JS Webview interface) ·
 <code>web_settings.py</code> (pywebview settings host with Win32 single instance) ·
 <code>orb.py</code> / <code>caption.py</code> / <code>text_input.py</code> / <code>overlay.py</code> (desktop overlay) ·
+<code>toast.py</code> (ephemeral HUD toast for zero-LLM system actions) ·
 <code>win32.py</code> (click-through / z-order / foreground-focus helpers) ·
-<code>tray.py</code> (system tray integration) ·
+<code>tray.py</code> (system tray integration, incl. <code>🌐 Language</code> switcher) ·
 <code>icon_generator.py</code>
 </td></tr>
 <tr><td><code>tools/make_icon.py</code></td><td>

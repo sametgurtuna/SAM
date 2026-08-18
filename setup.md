@@ -41,7 +41,7 @@ For developers or running directly in a Python virtual environment.
 
 ## A. Installer (recommended)
 
-Run `SAM-Setup-0.4.7.exe`. The wizard walks through:
+Run `SAM-Setup-0.4.8.exe`. The wizard walks through:
 
 ```mermaid
 flowchart LR
@@ -137,7 +137,7 @@ python main.py
 
 ```
   +--------------------------------------------+
-  |   SAM - AI Desktop Assistant  v0.4.7        |
+  |   SAM - AI Desktop Assistant  v0.4.8        |
   |                                              |
   |   Say 'Hey Sam' to activate (voice)          |
   |   Press CTRL+SPACE   to speak                |

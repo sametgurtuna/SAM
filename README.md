@@ -42,38 +42,26 @@ call is to `localhost:11434` (your local Ollama server). A cloud fallback (Claud
 
 ---
 
-## What's new in v0.4.7
+## What's new in v0.4.8
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**Major UI Revamp (Edge WebView2 & Cyberpunk Dark)**
-Replaced legacy PyQt QSS settings with a high-performance HTML5/CSS3/JS Webview interface. Features glassmorphism cards (`backdrop-filter: blur(12px)`), neon teal `#00D4AA` accents, and custom switches.
+**Clipboard Awareness & Quick Actions**
+Say *"explain this"*, *"translate this"*, or *"özetle"* and SAM reads the copied text via `commands/clipboard.py` and feeds it to the LLM as context. The typed-input box shows a detachable `📋 Attached` badge whenever it finds clipboard text.
 
-**Live Microphone & Audio Spectrum Tester**
-Interactive 60 FPS Web Audio API frequency visualizer directly in the Speech tab with real-time waveform bars and live volume percentage meter.
-
-**Interactive Ollama Latency & Model Detector**
-Live connection ping with roundtrip latency metrics (`Connected - 9ms`) and auto-discovery of locally installed LLM models.
-
-**Smart Interactive Hotkey Recorder**
-Click-to-record voice and text shortcut inputs with automatic key combination detection (`Ctrl + Space`).
+**Instant Language Switcher**
+*"Türkçe konuş"* / *"Switch to English"* / *"auto language"* lock STT and TTS to a language on the spot; also a one-click `🌐 Language` menu in the tray.
 
 </td>
 <td width="50%" valign="top">
 
-**Live Canvas Orb Preview**
-Real-time breathing 60 FPS Canvas orb visualizer in Appearance settings reacting instantly to Diameter, Ring Width, and Opacity adjustments.
+**Cyberpunk SFX Engine**
+Procedurally synthesized micro sound effects (`audio/sounds.py`) for wake, success, and warning cues - no bundled audio files, toggle and volume live in Settings.
 
-**Single-Instance Window & Taskbar Branding**
-Windows Named Mutex and AppUserModelID integration preventing duplicate settings windows and ensuring SAM's logo is pinned on the Windows taskbar.
-
-**Editable Instant Responses & Fast Routing**
-Predefined TR/EN phrases (`knowledge/instant_responses.yaml`) answer instantly without LLM latency, reloadable on-the-fly.
-
-**The always-on orb**
-A breathing circle that stays out of your way: bottom of the window stack until summoned by wake word, hotkey, or click.
+**HUD Toast Notifications**
+A translucent badge (`ui/toast.py`) appears beside the orb for zero-LLM feedback - volume changes, Spotify track skips, language switches, errors - and auto-fades after 1.6s.
 
 </td>
 </tr>
@@ -136,7 +124,7 @@ behind "out of your way until called."
 <td valign="top">
 
 ```
-SAM-Setup-0.4.7.exe
+SAM-Setup-0.4.8.exe
 ```
 
 Per-user install, no admin needed. Optionally
@@ -298,8 +286,8 @@ Logs: `logs/sam.log` from source, `%APPDATA%\SAM\logs\sam.log` when installed.
 ```
 SAM/
 ├── assets/                    icon, activation chime, wake word model
-├── audio/                     wake word, recorder (VAD), STT, TTS
-├── commands/                  regex router + OS side effects
+├── audio/                     wake word, recorder (VAD), STT, TTS, procedural SFX
+├── commands/                  regex router + OS side effects + clipboard reader
 ├── core/
 │   ├── app.py                   AppController: state machine, wires everything together
 │   ├── config.py                DEFAULTS + config.yaml loader/saver
@@ -311,6 +299,7 @@ SAM/
 │   ├── web/                     Modern Cyberpunk Dark Webview interface (HTML5/CSS3/JS)
 │   ├── web_settings.py          pywebview settings host with native Win32 single instance
 │   ├── orb.py · caption.py      The always-on overlay
+│   ├── toast.py                 Ephemeral HUD toast for zero-LLM feedback
 │   ├── win32.py                 click-through, z-order, foreground-focus helpers
 │   └── tray.py                  System tray integration
 ├── installer/SAM.iss          Inno Setup script

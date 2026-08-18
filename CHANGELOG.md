@@ -6,7 +6,7 @@ All notable changes to **SAM** are documented in this file.
 
 <img src="https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-e05735?style=flat-square" alt="Keep a Changelog">
 <img src="https://img.shields.io/badge/SemVer-2.0.0-3776AB?style=flat-square" alt="Semantic Versioning">
-<img src="https://img.shields.io/badge/Current-v0.4.7-22c55e?style=flat-square" alt="Current version">
+<img src="https://img.shields.io/badge/Current-v0.4.8-22c55e?style=flat-square" alt="Current version">
 
 </div>
 
@@ -21,7 +21,8 @@ minor versions (`0.x.0`) may include breaking config or behavior changes. See
 
 | Version | Date | Highlight |
 |:---|:---|:---|
-| [Unreleased](#unreleased) | - | Screen/clipboard awareness, plugin system |
+| [Unreleased](#unreleased) | - | Plugin system, deep OS automation |
+| [0.4.8](#048---2026-08-18) | 2026-08-18 | Clipboard Awareness, Multilingual Switcher, Cyberpunk SFX & HUD Toasts |
 | [0.4.7](#047---2026-08-14) | 2026-08-14 | Major UI Revamp: Cyberpunk Dark Webview, Live Mic EQ, Ollama Tester & Smart Hotkeys |
 | [0.4.6](#046---2026-08-13) | 2026-08-13 | Editable instant responses & a rebuilt settings window |
 | [0.4.5](#045---2026-08-13) | 2026-08-13 | Instant predefined responses & zero-LLM command dispatch |
@@ -37,11 +38,27 @@ minor versions (`0.x.0`) may include breaking config or behavior changes. See
 
 ## [Unreleased]
 
-Tracked in [ROADMAP.md](ROADMAP.md) - screen/clipboard awareness, productivity
-features (reminders, scheduling), a plugin system, and a cross-platform command layer
-are next up.
-
 ---
+
+## [0.4.8] - 2026-08-18
+
+### Added
+- **Clipboard Awareness & Quick Actions**:
+  - Direct context injection for copied text and code via voice triggers (*"Explain this"*, *"Translate this"*, *"Bu koddaki hatayı bul"*, *"Özetle"*, *"Panodakini oku"*, *"Fix this code"*).
+  - Safe, non-blocking Windows clipboard reader (`commands/clipboard.py`) with line normalization, safety bounds, and non-text filtering.
+  - Cyberpunk-styled Live Clipboard Badge in Typed Input (`Ctrl+Shift+Space`): detects clipboard text, shows length and preview snippet (`📋 Attached: "..." (XX chars)`), with a 1-click detach button (`✕`).
+  - Seamless prompt integration: attaches clipboard context to LLM system instructions with specialized grounding instructions.
+- **Multilingual STT/TTS & Instant Language Switcher**:
+  - Voice commands to dynamically switch Whisper STT and Edge-TTS voice languages (*"Türkçe konuş"*, *"Switch to English"*, *"Auto language"*).
+  - System tray menu with `🌐 Language` switcher: `Auto (Detect)`, `Turkish (TR)`, and `English (EN)`.
+  - Content-aware intelligent TTS voice selection: sentences with Turkish characters automatically speak with native `tr-TR-EmelNeural`, while English sentences use `en-US-JennyNeural`.
+- **Cyberpunk SFX & Procedural Sound Effects Engine** (`audio/sounds.py`):
+  - Pure Python procedural waveform synthesis (zero external WAV/MP3 files required).
+  - Subtle futuristic micro-audio cues: `WAKE` (activation blip), `SUCCESS` (affirmative chime), `WARNING` (error/offline alert), and `CLICK` (listening tap).
+  - Configurable in `config.yaml` (`audio.sfx.enabled` and `audio.sfx.volume`).
+- **Sleek HUD Toast Notifications** (`ui/toast.py`):
+  - Ephemeral, translucent Cyberpunk HUD badge beside the Orb for zero-LLM system actions.
+  - Shows instant feedback for volume changes (`🔊 Volume: 45%`), Spotify controls (`🎵 Next Track`), screen locking (`🔒 Screen Locked`), language shifts (`🌐 Language: English`), and error alerts with smooth 1.6s auto-fade.
 
 ## [0.4.7] - 2026-08-14
 
@@ -185,7 +202,8 @@ are next up.
 
 ---
 
-[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/sametgurtuna/SAM/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/sametgurtuna/SAM/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/sametgurtuna/SAM/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/sametgurtuna/SAM/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/sametgurtuna/SAM/compare/v0.4.4...v0.4.5

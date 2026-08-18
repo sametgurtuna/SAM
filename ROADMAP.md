@@ -2,7 +2,7 @@
 
 # SAM Roadmap
 
-[![Current Version](https://img.shields.io/badge/Current-v0.4.7-22c55e?style=flat-square)](#v047---major-ui-revamp-current-release)
+[![Current Version](https://img.shields.io/badge/Current-v0.4.8-22c55e?style=flat-square)](#v048---the-clipboard--audio-agility-pass-current-release)
 
 </div>
 
@@ -30,8 +30,9 @@
 | v0.4.1 - v0.4.4 | Done | Intent classification, RAG, conversation modes, real-time live captioning |
 | v0.4.5 | Done | Instant predefined responses, zero-LLM command dispatch, dedicated live-transcription model |
 | v0.4.6 | Done | Editable instant responses (seeded to user data dir), rebuilt settings window |
-| **v0.4.7** | **Current** | Major UI Revamp: Cyberpunk Dark Webview, Live Mic Spectrum, Ollama Detector, Smart Hotkeys |
-| v0.5.0 | Planned | Screen & clipboard awareness |
+| v0.4.7 | Done | Major UI Revamp: Cyberpunk Dark Webview, Live Mic Spectrum, Ollama Detector, Smart Hotkeys |
+| **v0.4.8** | **Current** | Clipboard awareness, instant language switcher, Cyberpunk SFX, HUD toast notifications |
+| v0.5.0 | Planned | Screen awareness (vision) |
 | v0.6.0 | Planned | Productivity: reminders, scheduling |
 | v0.7.0 | Planned | Local knowledge base (RAG) |
 | v0.8.0 | Planned | Plugin system, cross-platform command layer |
@@ -39,7 +40,20 @@
 
 ---
 
-## v0.4.7 - Major UI Revamp *(current release)*
+## v0.4.8 - The Clipboard & Audio-Agility Pass *(current release)*
+
+> Perfecting SAM's grip on desktop text and language before diving into heavier vision
+> models. Full details in [CHANGELOG.md](CHANGELOG.md#unreleased).
+
+- [x] **Clipboard awareness & quick actions**: voice/typed triggers ("explain this", "translate this", "özetle") send the copied text to the LLM as context; `commands/clipboard.py` reads it safely via `win32clipboard` with a `pyperclip` fallback.
+- [x] **Live clipboard badge**: the typed-input box (`Ctrl+Shift+Space`) shows a one-click-detachable "📋 Attached" badge whenever there is clipboard text to use.
+- [x] **Instant language switcher**: "Türkçe konuş" / "Switch to English" / "auto language" lock STT + TTS to a language immediately; also available from the tray as `🌐 Language: Auto | TR | EN`.
+- [x] **Cyberpunk SFX engine** (`audio/sounds.py`): procedurally synthesized micro sound effects (wake blip, success chime, warning tone) with no bundled audio files, toggle + volume in Settings.
+- [x] **HUD toast notifications** (`ui/toast.py`): a translucent badge beside the orb for zero-LLM feedback (volume, Spotify track changes, language switches, errors) that auto-fades in 1.6s.
+
+---
+
+## v0.4.7 - Major UI Revamp
 
 > State-of-the-art Cyberpunk Dark Webview architecture powered by Windows Edge WebView2,
 > Modern cyberpunk design tokens, interactive diagnostic tools, and native Windows branding.
@@ -93,11 +107,9 @@
 
 ---
 
-## v0.5.0 - Screen & clipboard awareness
+## v0.5.0 - Screen awareness
 
 - [ ] `"what's on my screen"`: screenshot + local vision model (`llava` or similar) via Ollama.
-- [ ] Clipboard-aware quick actions ("explain this", "translate this") on copied text.
-- [ ] Multi-language STT: a tray toggle instead of editing `stt.language` manually.
 
 ## v0.6.0 - Productivity
 

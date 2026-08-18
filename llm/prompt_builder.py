@@ -62,6 +62,7 @@ class PromptBuilder:
         knowledge: str | None = None,
         memory: str | None = None,
         language: str | None = None,
+        clipboard: str | None = None,
     ) -> str:
         """
         Assemble the complete system prompt for this turn.
@@ -71,6 +72,7 @@ class PromptBuilder:
             knowledge: Retrieved RAG context or None.
             memory: Long-term memory summary or None.
             language: Detected speech language code ("tr"/"en") or None.
+            clipboard: Text from user's clipboard or None.
 
         Returns:
             Assembled system prompt string.
@@ -96,6 +98,16 @@ class PromptBuilder:
         if memory:
             parts.append(f"User context:\n{memory}")
 
+        # Clipboard context
+        if clipboard:
+            parts.append(
+                "CLIPBOARD CONTEXT — The user has provided the following text from their clipboard:\n"
+                "\"\"\"\n"
+                f"{clipboard}\n"
+                "\"\"\"\n"
+                "Focus your response on explaining, translating, analyzing, summarizing, or fixing this clipboard content according to the user's question."
+            )
+
         # Grounded RAG knowledge context
         if knowledge:
             parts.append(
@@ -109,7 +121,7 @@ class PromptBuilder:
 
         prompt = "\n\n".join(parts)
         logger.debug(
-            "System prompt built: %d chars, mode=%s, has_knowledge=%s",
-            len(prompt), mode or "NORMAL", bool(knowledge),
+            "System prompt built: %d chars, mode=%s, has_knowledge=%s, has_clipboard=%s",
+            len(prompt), mode or "NORMAL", bool(knowledge), bool(clipboard),
         )
         return prompt

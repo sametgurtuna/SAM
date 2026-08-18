@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict[str, Any] = {
     "app": {
         "name": "SAM",
-        "version": "0.4.7",
+        "version": "0.4.8",
     },
     "hotkey": {
         "trigger": "ctrl+space",
@@ -119,6 +119,10 @@ DEFAULTS: dict[str, Any] = {
         # Can be tuned in config.yaml based on user preference.
         "silence_duration_ms": 600,
         "max_record_seconds": 30,
+        "sfx": {
+            "enabled": True,
+            "volume": 0.45,
+        },
     },
     "wake_word": {
         "engine": "openwakeword",

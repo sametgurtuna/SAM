@@ -17,10 +17,21 @@ logger = logging.getLogger(__name__)
 class CommandResult:
     """Result of command execution."""
 
-    def __init__(self, handled: bool, response: str = "", image_b64: str | None = None) -> None:
-        self.handled = handled       # True = command was matched and executed
-        self.response = response     # Response message for the user
-        self.image_b64 = image_b64   # Screenshot for vision LLM
+    def __init__(
+        self,
+        handled: bool,
+        response: str = "",
+        image_b64: str | None = None,
+        clipboard_text: str | None = None,
+        toast: tuple[str, str] | None = None,
+        language_action: str | None = None,
+    ) -> None:
+        self.handled = handled             # True = command was matched and executed
+        self.response = response           # Response message for the user
+        self.image_b64 = image_b64         # Screenshot for vision LLM
+        self.clipboard_text = clipboard_text  # Text from clipboard for LLM context
+        self.toast = toast                 # Ephemeral HUD badge (icon, message)
+        self.language_action = language_action  # "tr", "en", "auto", or None
 
 
 class CommandRouter:
@@ -33,6 +44,7 @@ class CommandRouter:
         - Volume control: "volume up", "volume down", "mute"
         - Media playback: "play", "pause", "next track", "previous track"
         - System control: "lock screen", "shutdown", "restart", "screenshot"
+        - Language control: "türkçe konuş", "switch to english", "auto language"
         - Web search: "search for X", "google X"
         - URL navigation: "go to youtube.com"
     
@@ -44,6 +56,7 @@ class CommandRouter:
         # Order matters: first match wins
         self._patterns: List[Tuple[re.Pattern, Callable[[re.Match], str]]] = self._build_patterns()
         self._vision_patterns: List[re.Pattern] = self._build_vision_patterns()
+        self._clipboard_patterns: List[re.Pattern] = self._build_clipboard_patterns()
 
     def try_handle(self, transcript: str, *, vision: bool = True) -> CommandResult:
         """
@@ -63,6 +76,46 @@ class CommandRouter:
                 b64 = capture_screen_base64()
                 # Handled=False because LLM still generates the textual answer with image attached
                 return CommandResult(handled=False, image_b64=b64)
+
+        # Clipboard pattern check — fetch clipboard text if user requested clipboard action
+        for c_pat in self._clipboard_patterns:
+            if c_pat.search(text):
+                from commands.clipboard import get_clipboard_text
+                logger.info("Clipboard intent matched: %s", text)
+                clip_text = get_clipboard_text()
+                if clip_text:
+                    return CommandResult(handled=False, clipboard_text=clip_text)
+                else:
+                    is_tr = any(w in text for w in ("bunu", "bu", "pano", "koddaki", "özetle", "çevir", "açıkla", "düzelt"))
+                    msg = (
+                        "Panoda kopyalanmış herhangi bir metin bulunamadı."
+                        if is_tr
+                        else "No text found in your clipboard. Please copy some text first."
+                    )
+                    return CommandResult(handled=True, response=msg, toast=("⚠️", "Clipboard Empty"))
+
+        # Language switching commands
+        if text in ("türkçe konuş", "türkçeye geç", "turkceye gec", "türkçe mod", "türkçe", "turkce"):
+            return CommandResult(
+                handled=True,
+                response="Türkçe diline geçildi.",
+                language_action="tr",
+                toast=("🌐", "Language: Turkish (TR)"),
+            )
+        if text in ("switch to english", "speak english", "english mode", "english"):
+            return CommandResult(
+                handled=True,
+                response="Switched to English.",
+                language_action="en",
+                toast=("🌐", "Language: English (EN)"),
+            )
+        if text in ("otomatik dil", "otomatik dile geç", "auto language", "auto detect language", "auto detect"):
+            return CommandResult(
+                handled=True,
+                response="Automatic language detection enabled.",
+                language_action="auto",
+                toast=("🌐", "Language: Auto Detect"),
+            )
 
         # Split chained commands (" and ", " ve ", " then ")
         split_pattern = re.compile(r'\s+\band\b\s+|\s+\bve\b\s+|\s+\bthen\b\s+')
@@ -99,7 +152,8 @@ class CommandRouter:
                     except Exception as e:
                         logger.error("Command in chain failed: %s", e)
                 
-                return CommandResult(handled=True, response=" and ".join(responses))
+                resp_text = " and ".join(responses)
+                return CommandResult(handled=True, response=resp_text, toast=self._infer_toast(resp_text, text))
 
         # Single command matching
         match_info = self._get_match(text)
@@ -108,10 +162,39 @@ class CommandRouter:
             try:
                 response = handler(match)
                 logger.info("Command matched: %s → %s", text, response)
-                return CommandResult(handled=True, response=response)
+                return CommandResult(handled=True, response=response, toast=self._infer_toast(response, text))
             except Exception as e:
                 logger.error("Command execution failed: %s", e)
-                return CommandResult(handled=True, response="Sorry, that command failed.")
+                return CommandResult(handled=True, response="Sorry, that command failed.", toast=("⚠️", "Command Failed"))
+
+        logger.debug("No command match — forwarding to LLM")
+        return CommandResult(handled=False)
+
+    def _infer_toast(self, response: str, text: str) -> tuple[str, str]:
+        """Generate an intuitive icon and short HUD toast message from command execution."""
+        t_low = text.lower()
+        r_low = response.lower()
+
+        if any(w in t_low for w in ("volume", "sesi", "turn up", "turn down", "louder", "quieter")):
+            return ("🔊", response)
+        if any(w in t_low for w in ("mute", "unmute", "sessiz", "sessize")):
+            return ("🔇" if "mute" in r_low or "sessiz" in r_low else "🔊", response)
+        if any(w in t_low for w in ("next", "sonraki", "sıradaki", "skip")):
+            return ("🎵", "Next Track")
+        if any(w in t_low for w in ("previous", "prev", "önceki")):
+            return ("🎵", "Previous Track")
+        if any(w in t_low for w in ("play", "pause", "resume", "oynat", "durdur", "duraklat")):
+            return ("⏯️", response or "Media Toggled")
+        if any(w in t_low for w in ("lock", "kilitle")):
+            return ("🔒", "Screen Locked")
+        if any(w in t_low for w in ("screenshot", "ekran görüntüsü")):
+            return ("📸", "Screenshot Saved")
+        if "opening" in r_low or "açılıyor" in r_low:
+            return ("🚀", response)
+        if "closing" in r_low or "kapatılıyor" in r_low:
+            return ("⏹️", response)
+
+        return ("⚡", response[:32])
 
         logger.debug("No command match — forwarding to LLM")
         return CommandResult(handled=False)
@@ -330,4 +413,23 @@ class CommandRouter:
             re.compile(r'\bwhat(?:\'s| is)\s+on\s+my\s+screen\b', re.IGNORECASE),
             re.compile(r'\bekran(?:imi|i)?\s+(?:analiz|incele|oku)\b', re.IGNORECASE),
             re.compile(r'\bekran(?:im)?da\s+ne\s+var\b', re.IGNORECASE),
+        ]
+
+    def _build_clipboard_patterns(self) -> List[re.Pattern]:
+        """Patterns to detect clipboard-aware queries (TR + EN)."""
+        return [
+            # Turkish triggers
+            re.compile(r'^(?:bunu|bunu\s+bana)\s+(?:açıkla|acikla|anlat|çözümle|cozumle)(?:\s+(?:lütfen|lutfen|misin|mısın))?$', re.IGNORECASE),
+            re.compile(r'^(?:bunu|bu\s+metni|kopyaladığım\s+metni|kopyaladigim\s+metni)\s+(?:çevir|cevir|türkçeye\s+çevir|turkceye\s+cevir|ingilizceye\s+çevir|ingilizceye\s+cevir)(?:\s+(?:lütfen|lutfen))?$', re.IGNORECASE),
+            re.compile(r'^(?:bu\s+koddaki\s+hatayı\s+bul|bu\s+koddaki\s+hatayi\s+bul|bu\s+koddaki\s+hata\s+ne|bu\s+kodu\s+düzelt|bu\s+kodu\s+duzelt|koddaki\s+hatayı\s+bul|koddaki\s+hatayi\s+bul|kodu\s+incele)$', re.IGNORECASE),
+            re.compile(r'^(?:bunu\s+özetle|bunu\s+ozetle|özetle|ozetle|metni\s+özetle|metni\s+ozetle)$', re.IGNORECASE),
+            re.compile(r'^(?:panodakini\s+oku|panodakini\s+açıkla|panodakini\s+acikla|panoda\s+ne\s+var|panodaki\s+metni\s+açıkla|panodaki\s+metni\s+acikla|panoyu\s+oku)$', re.IGNORECASE),
+            re.compile(r'^(?:bu\s+ne\s+demek|bu\s+ne\s+anlama\s+geliyor)$', re.IGNORECASE),
+
+            # English triggers
+            re.compile(r'^(?:explain|describe|clarify)\s+(?:this|that)(?:\s+(?:to\s+me|please))?$', re.IGNORECASE),
+            re.compile(r'^(?:translate\s+(?:this|that)(?:\s+(?:to\s+turkish|to\s+english))?)$', re.IGNORECASE),
+            re.compile(r'^(?:find\s+(?:the\s+)?(?:bug|error)\s+in\s+this(?:\s+code)?|fix\s+this(?:\s+code)?|debug\s+this(?:\s+code)?|what(?:\'s|\s+is)\s+wrong\s+with\s+this(?:\s+code)?)$', re.IGNORECASE),
+            re.compile(r'^(?:summarize\s+(?:this|that)|give\s+me\s+a\s+summary|summarize\s+this\s+text)$', re.IGNORECASE),
+            re.compile(r'^(?:what(?:\'s|\s+is)\s+on\s+my\s+clipboard|read\s+(?:my\s+)?clipboard|explain\s+clipboard)$', re.IGNORECASE),
         ]

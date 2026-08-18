@@ -597,8 +597,8 @@ async function loadInitialState() {
     setText('statOs', state.diagnostics.os || 'Windows');
     setText('statCuda', state.diagnostics.cuda || 'CPU Mode');
     setText('statUptime', state.diagnostics.uptime || '00:00:00');
-    setText('appVersion', `v${state.version || '0.4.7'}`);
-    setText('aboutSamTitle', `SAM v${state.version || '0.4.7'}`);
+    setText('appVersion', `v${state.version || '0.4.8'}`);
+    setText('aboutSamTitle', `SAM v${state.version || '0.4.8'}`);
   }
 
   updateOrbParams();

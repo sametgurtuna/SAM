@@ -233,10 +233,56 @@ class TTSEngine(QObject):
 
         threading.Thread(target=_run, daemon=True, name="TTSPrefetch").start()
 
+    def _get_voice_for_text(self, text: str) -> str:
+        """
+        Select the appropriate voice based on text content and config.
+        If auto_language is active, chooses Turkish voice for Turkish text
+        and English voice for English text.
+        """
+        if not config.get("tts", "auto_language", default=True):
+            return self._voice
+
+        # Check for specific Turkish characters
+        tr_chars = set("çğıöşüÇĞİÖŞÜ")
+        if any(c in tr_chars for c in text):
+            voices = config.get("tts", "voices", default={}) or {}
+            return voices.get("tr", "tr-TR-EmelNeural")
+
+        import re
+        words = set(re.findall(r'\b\w+\b', text.lower()))
+        tr_common = {
+            "ve", "bir", "bu", "da", "de", "için", "ile", "gibi", "çok", "daha", "ama",
+            "veya", "olan", "olarak", "var", "yok", "değil", "mi", "mu", "mü", "evet",
+            "hayır", "tamam", "lütfen", "ben", "sen", "biz", "siz", "nasıl", "ne",
+            "neden", "nerede", "zaman", "şey", "merhaba", "selam", "günaydın", "iyi",
+            "oldu", "olur", "yaparım", "ettim", "açıkla", "özetle", "çevir", "koddaki",
+            "şöyle", "böyle", "şimdi", "sonra", "önce", "kadar", "göre", "türkçe",
+            "yardımcı", "ederim", "istediğiniz", "buradayım", "anlıyorum",
+        }
+        en_common = {
+            "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it",
+            "for", "not", "on", "with", "he", "as", "you", "do", "at", "this",
+            "but", "his", "by", "from", "they", "we", "say", "her", "she", "or",
+            "an", "will", "my", "one", "all", "would", "there", "their", "what",
+            "hello", "hi", "yes", "no", "please", "thanks", "sure", "okay",
+        }
+        tr_score = len(words & tr_common)
+        en_score = len(words & en_common)
+
+        voices = config.get("tts", "voices", default={}) or {}
+        if tr_score > en_score:
+            return voices.get("tr", "tr-TR-EmelNeural")
+        elif en_score > tr_score:
+            return voices.get("en", "en-US-JennyNeural")
+
+        return self._voice
+
     def _generate_audio(self, text: str) -> str | None:
         """Generate TTS audio using edge-tts (async). Returns path to MP3 file."""
         try:
             import edge_tts
+
+            voice_to_use = self._get_voice_for_text(text)
 
             # Create unique temp file
             audio_path = os.path.join(
@@ -244,22 +290,22 @@ class TTSEngine(QObject):
                 f"tts_{int(time.time() * 1000)}.mp3"
             )
 
-            logger.debug("Generating TTS: voice=%s, text='%s'", self._voice, text[:50])
+            logger.debug("Generating TTS: voice=%s, text='%s'", voice_to_use, text[:50])
             start = time.time()
 
             # Run async edge-tts in a new event loop (we're in a thread)
             loop = asyncio.new_event_loop()
             try:
                 loop.run_until_complete(
-                    self._async_generate(text, audio_path)
+                    self._async_generate(text, audio_path, voice=voice_to_use)
                 )
             finally:
                 loop.close()
 
             elapsed = time.time() - start
             file_size = os.path.getsize(audio_path) if os.path.exists(audio_path) else 0
-            logger.info("TTS audio generated in %.2fs (%d bytes): %s",
-                        elapsed, file_size, audio_path)
+            logger.info("TTS audio generated in %.2fs (%d bytes, voice=%s): %s",
+                        elapsed, file_size, voice_to_use, audio_path)
 
             return audio_path if os.path.exists(audio_path) and file_size > 0 else None
 
@@ -320,13 +366,13 @@ class TTSEngine(QObject):
             locale_prefix,
         )
 
-    async def _async_generate(self, text: str, output_path: str) -> None:
+    async def _async_generate(self, text: str, output_path: str, voice: str | None = None) -> None:
         """Async edge-tts generation."""
         import edge_tts
 
         communicate = edge_tts.Communicate(
             text=text,
-            voice=self._voice,
+            voice=voice or self._voice,
             rate=self._rate,
             volume=self._volume,
         )

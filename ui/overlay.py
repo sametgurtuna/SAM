@@ -21,6 +21,7 @@ from core.config import config
 from ui.caption import CaptionWindow
 from ui.orb import OrbWindow
 from ui.text_input import TextInputWindow
+from ui.toast import ToastWindow
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,10 @@ logger = logging.getLogger(__name__)
 class SamOverlay(QObject):
     """
     Signals:
-        text_submitted(str): The user typed a question and pressed Enter.
+        text_submitted(str, object): The user typed a question (and optional clipboard text) and pressed Enter.
     """
 
-    text_submitted = pyqtSignal(str)
+    text_submitted = pyqtSignal(str, object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -39,6 +40,7 @@ class SamOverlay(QObject):
         self._orb = OrbWindow()
         self._caption = CaptionWindow()
         self._input = TextInputWindow()
+        self._toast = ToastWindow()
 
         self._caption_gap: int = config.get("ui", "orb", "caption_gap", default=18)
 
@@ -48,6 +50,7 @@ class SamOverlay(QObject):
 
         self._input.submitted.connect(self._on_text_submitted)
         self._input.cancelled.connect(self._on_text_cancelled)
+        self._input.geometry_changed.connect(self._position_input)
 
         # Reposition if screen layout changes (displays added/removed/resized)
         app = QGuiApplication.instance()
@@ -95,8 +98,8 @@ class SamOverlay(QObject):
         # Disable orb hit testing while typing to avoid focus contention
         self._orb.set_interactive(False)
         self._orb.set_foreground_request(True)
-        self._position_input()
         self._input.open()
+        self._position_input()
 
     def hide_text_input(self) -> None:
         self._close_text_input()
@@ -117,14 +120,19 @@ class SamOverlay(QObject):
         self._orb.set_interactive(True)
         self._orb.set_foreground_request(False)
 
-    def _on_text_submitted(self, text: str) -> None:
+    def _on_text_submitted(self, text: str, clipboard_text: str | None = None) -> None:
         self._orb.set_interactive(True)
         self._orb.set_foreground_request(False)
-        self.text_submitted.emit(text)
+        self.text_submitted.emit(text, clipboard_text)
 
     def _on_text_cancelled(self) -> None:
         self._orb.set_interactive(True)
         self._orb.set_foreground_request(False)
+
+    def show_toast(self, icon: str, message: str, duration_ms: int = 1600) -> None:
+        """Display an ephemeral Cyberpunk HUD toast near the orb."""
+        self._toast.show_toast(icon, message, duration_ms=duration_ms)
+        self._position_toast()
 
     # ─── Geometry ─────────────────────────────────────────────────
 
@@ -132,6 +140,8 @@ class SamOverlay(QObject):
         self._position_caption()
         if self._input.isVisible():
             self._position_input()
+        if self._toast.isVisible():
+            self._position_toast()
 
     def _below_orb_x(self, width: int) -> int:
         orb_geo = self._orb.geometry()
@@ -168,6 +178,26 @@ class SamOverlay(QObject):
         h = self._input.height()
         self._input.move(self._below_orb_x(w), self._below_orb_y(h))
 
+    def _position_toast(self) -> None:
+        orb_geo = self._orb.geometry()
+        w = self._toast.width()
+        h = self._toast.height()
+
+        screen = self._orb.screen()
+        avail = screen.availableGeometry() if screen else None
+
+        # Place toast to the left of the orb, vertically centered
+        x = orb_geo.x() - w - 16
+        y = orb_geo.y() + (orb_geo.height() - h) // 2
+
+        if avail is not None:
+            if x < avail.x() + 8:
+                x = orb_geo.x() + orb_geo.width() + 16
+            x = max(avail.x() + 8, min(x, avail.x() + avail.width() - w - 8))
+            y = max(avail.y() + 8, min(y, avail.y() + avail.height() - h - 8))
+
+        self._toast.move(x, y)
+
     def _on_screens_changed(self, *_args) -> None:
         # Screen geometry updates asynchronously; delay reposition slightly
         QTimer.singleShot(300, self._orb.reposition)
@@ -186,6 +216,7 @@ class SamOverlay(QObject):
         self._orb.reset_position()
 
     def shutdown(self) -> None:
+        self._toast.close()
         self._input.close()
         self._caption.close()
         self._orb.close()
